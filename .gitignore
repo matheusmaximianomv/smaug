@@ -1,0 +1,40 @@
+# Node.js
+node_modules/
+dist/
+build/
+coverage/
+
+# Environment
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*
+!.env.example
+!.env.docker
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editors
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+# Databases / Prisma
+prisma/*.db
+*.sqlite
+*.db
+
+# Misc
+*.tgz

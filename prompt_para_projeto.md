@@ -8,7 +8,7 @@ Gere a estrutura base de um projeto backend em Node.js usando NestJS, seguindo b
 
 Criar uma API REST escalável e organizada, pronta para crescer, com separação clara de responsabilidades.
 
-------------------------------------------------------------------------------------------------------------------------
+---
 
 ## 🏗️ Requisitos de Arquitetura
 
@@ -33,29 +33,29 @@ Estrutura preparada para testes
 Organize o projeto assim:
 
 src/
- ├── domain/          → regras de negócio puras
- │    ├── entities/
- │    ├── value-objects/
- │    ├── repositories/
- │    └── services/
- │
- ├── application/     → casos de uso
- │    ├── use-cases/
- │    ├── dto/
- │    └── interfaces/
- │
- ├── infra/           → implementação técnica
- │    ├── database/
- │    ├── repositories/
- │    └── providers/
- │
- ├── presentation/    → camada HTTP
- │    ├── controllers/
- │    ├── routes/
- │    └── filters/
- │
- ├── main.ts
- └── app.module.ts
+├── domain/ → regras de negócio puras
+│ ├── entities/
+│ ├── value-objects/
+│ ├── repositories/
+│ └── services/
+│
+├── application/ → casos de uso
+│ ├── use-cases/
+│ ├── dto/
+│ └── interfaces/
+│
+├── infra/ → implementação técnica
+│ ├── database/
+│ ├── repositories/
+│ └── providers/
+│
+├── presentation/ → camada HTTP
+│ ├── controllers/
+│ ├── routes/
+│ └── filters/
+│
+├── main.ts
+└── app.module.ts
 
 Explique o papel de cada camada.
 
