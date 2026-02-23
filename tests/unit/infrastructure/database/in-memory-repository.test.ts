@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { InMemoryRepository } from "../../../../src/infrastructure/database/repositories/in-memory.repository.ts";
+import { InMemoryRepository } from "@src/infrastructure/database/repositories/in-memory.repository.ts";
 
 type Entity = { id?: string; name: string };
 

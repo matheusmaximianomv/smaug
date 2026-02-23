@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { getDatabaseStatus } from "../../infrastructure/database/config.ts";
+import { getDatabaseStatus } from "@src/infrastructure/database/config.ts";
 
 export async function healthController(_req: Request, res: Response): Promise<void> {
   const dbStatus = await getDatabaseStatus();

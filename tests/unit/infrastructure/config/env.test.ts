@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 
 async function importEnvModule() {
-  return import("../../../../src/infrastructure/config/env.ts");
+  return import("@src/infrastructure/config/env.ts");
 }
 
 describe("env config validation", () => {

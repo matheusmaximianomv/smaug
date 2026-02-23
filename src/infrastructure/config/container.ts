@@ -1,9 +1,12 @@
 import "reflect-metadata";
 import { container } from "tsyringe";
 import { PrismaClient } from "@prisma/client";
-import { Logger } from "../../application/ports/logger.interface.ts";
-import { PinoLogger } from "../logging/logger.ts";
-import { getRepository, RepositoryFactory } from "../database/database.provider.ts";
+import { Logger } from "@src/application/ports/logger.interface.ts";
+import { PinoLogger } from "@src/infrastructure/logging/logger.ts";
+import {
+  getRepository,
+  RepositoryFactory,
+} from "@src/infrastructure/database/database.provider.ts";
 
 const prismaClient = new PrismaClient();
 

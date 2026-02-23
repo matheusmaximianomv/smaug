@@ -1,8 +1,8 @@
 import "reflect-metadata";
-import { env } from "./infrastructure/config/env.ts";
-import { container } from "./infrastructure/config/container.ts";
-import { Logger } from "./application/ports/logger.interface.ts";
-import { createHttpServer } from "./infrastructure/http/server.ts";
+import { env } from "@src/infrastructure/config/env.ts";
+import { container } from "@src/infrastructure/config/container.ts";
+import { Logger } from "@src/application/ports/logger.interface.ts";
+import { createHttpServer } from "@src/infrastructure/http/server.ts";
 
 function bootstrap(): void {
   const logger = container.resolve<Logger>("Logger");
