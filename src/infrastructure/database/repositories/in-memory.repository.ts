@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Repository } from "../../../domain/ports/repository.interface.js";
+import { Repository } from "../../../domain/ports/repository.interface.ts";
 
 export class InMemoryRepository<T, ID = string> implements Repository<T, ID> {
   private store = new Map<ID, T>();

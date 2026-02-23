@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { container } from "../../infrastructure/config/container.js";
-import { Logger } from "../../application/ports/logger.interface.js";
+import { container } from "../../infrastructure/config/container.ts";
+import { Logger } from "../../application/ports/logger.interface.ts";
 
 export function errorHandlerMiddleware(
   err: Error,

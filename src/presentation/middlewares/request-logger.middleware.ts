@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { container } from "../../infrastructure/config/container.js";
-import { Logger } from "../../application/ports/logger.interface.js";
+import { container } from "../../infrastructure/config/container.ts";
+import { Logger } from "../../application/ports/logger.interface.ts";
 
 export function requestLoggerMiddleware(req: Request, res: Response, next: NextFunction): void {
   const logger = container.resolve<Logger>("Logger");

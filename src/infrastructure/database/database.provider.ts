@@ -1,8 +1,8 @@
 import { PrismaClient } from "@prisma/client";
-import { Repository } from "../../domain/ports/repository.interface.js";
-import { env } from "../config/env.js";
-import { getPrismaClient } from "./config.js";
-import { InMemoryRepository } from "./repositories/in-memory.repository.js";
+import { Repository } from "../../domain/ports/repository.interface.ts";
+import { env } from "../config/env.ts";
+import { getPrismaClient } from "./config.ts";
+import { InMemoryRepository } from "./repositories/in-memory.repository.ts";
 
 type PrismaModelDelegate<T> = {
   findUnique(args: { where: { id: string } }): Promise<T | null>;

@@ -1,7 +1,7 @@
 import express, { Express } from "express";
-import { requestLoggerMiddleware } from "../../presentation/middlewares/request-logger.middleware.js";
-import { errorHandlerMiddleware } from "../../presentation/middlewares/error-handler.middleware.js";
-import routes from "../../presentation/routes/index.js";
+import { requestLoggerMiddleware } from "../../presentation/middlewares/request-logger.middleware.ts";
+import { errorHandlerMiddleware } from "../../presentation/middlewares/error-handler.middleware.ts";
+import routes from "../../presentation/routes/index.ts";
 
 export function createHttpServer(): Express {
   const app = express();

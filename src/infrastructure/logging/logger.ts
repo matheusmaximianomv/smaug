@@ -1,6 +1,6 @@
 import pino, { LoggerOptions } from "pino";
-import { env } from "../config/env.js";
-import { Logger } from "../../application/ports/logger.interface.js";
+import { env } from "../config/env.ts";
+import { Logger } from "../../application/ports/logger.interface.ts";
 
 const baseOptions: LoggerOptions = {
   level: env.LOG_LEVEL,

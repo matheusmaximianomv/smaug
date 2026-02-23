@@ -15,7 +15,7 @@ describe("GET /health", () => {
   });
 
   it("returns ok with memory provider", async () => {
-    const { createHttpServer } = await import("../../../src/infrastructure/http/server.js");
+    const { createHttpServer } = await import("../../../src/infrastructure/http/server.ts");
     const app = createHttpServer();
 
     const res = await request(app).get("/health");
