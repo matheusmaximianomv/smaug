@@ -1,0 +1,30 @@
+# smaug Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2026-02-22
+
+## Active Technologies
+
+- TypeScript 5.x (strict mode) sobre Node.js 22 LTS + Express 4.x (HTTP, encapsulado em adapter), Prisma (ORM/migrações), zod (validação de env config), pino (logging estruturado JSON), dotenv (carregamento de .env), tsyringe (DI container) (001-project-base)
+
+## Project Structure
+
+```text
+backend/
+frontend/
+tests/
+```
+
+## Commands
+
+npm test && npm run lint
+
+## Code Style
+
+TypeScript 5.x (strict mode) sobre Node.js 22 LTS: Follow standard conventions
+
+## Recent Changes
+
+- 001-project-base: Added TypeScript 5.x (strict mode) sobre Node.js 22 LTS + Express 4.x (HTTP, encapsulado em adapter), Prisma (ORM/migrações), zod (validação de env config), pino (logging estruturado JSON), dotenv (carregamento de .env), tsyringe (DI container)
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->

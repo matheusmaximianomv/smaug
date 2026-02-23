@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Builds
+Dist/
+dist/
+build/
+coverage/
+
+# VCS
+.git/
+
+# Env
+.env
+.env.*
+
+# Logs
+*.log
+*.log*
+
+# Specs / tests / tooling
+specs/
+.tests/
+tests/
+.specify/
+
+# Docker artifacts
+Dockerfile*
+.dockerignore
