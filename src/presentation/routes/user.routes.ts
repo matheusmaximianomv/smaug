@@ -6,8 +6,8 @@ import { createUserSchema } from "@src/application/dtos/user.dto";
 export function createUserRoutes(userController: UserController): Router {
   const router = Router();
 
-  router.post("/", validateRequest(createUserSchema), userController.create);
-  router.get("/:id", userController.getById);
+  router.post("/", validateRequest(createUserSchema), userController.create.bind(userController));
+  router.get("/:id", userController.getById.bind(userController));
 
   return router;
 }

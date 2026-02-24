@@ -2,6 +2,7 @@ import { FixedRevenue, FixedRevenueModality } from "@src/domain/entities/fixed-r
 import { FixedRevenueVersion } from "@src/domain/entities/fixed-revenue-version.entity";
 import { FixedRevenueRepository } from "@src/domain/ports/fixed-revenue.repository";
 import { MonthlyCompetence } from "@src/domain/value-objects/monthly-competence.value-object";
+import { DomainError } from "@src/domain/errors/domain-error";
 
 export interface CreateFixedRevenueInput {
   userId: string;
@@ -17,7 +18,7 @@ export interface CreateFixedRevenueInput {
 export class CreateFixedRevenueUseCase {
   constructor(private readonly repository: FixedRevenueRepository) {}
 
-  async execute(input: CreateFixedRevenueInput): Promise<{ revenue: FixedRevenue; version: FixedRevenueVersion }> {
+  public async execute(input: CreateFixedRevenueInput): Promise<{ revenue: FixedRevenue; version: FixedRevenueVersion }> {
     const start = MonthlyCompetence.create(input.startMonth, input.startYear);
 
     if (start.isPastMonth()) {
@@ -47,7 +48,9 @@ export class CreateFixedRevenueUseCase {
   }
 }
 
-export class PastStartDateError extends Error {
+export class PastStartDateError extends DomainError {
+  public readonly code = "PAST_START_DATE";
+
   constructor() {
     super("Start date must be current or future month");
     this.name = "PastStartDateError";

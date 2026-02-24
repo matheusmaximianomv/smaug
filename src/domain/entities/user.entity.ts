@@ -7,11 +7,14 @@ export interface UserProps {
   createdAt?: Date;
 }
 
+const MIN_NAME_LENGTH = 1;
+const MAX_NAME_LENGTH = 255;
+
 export class User {
-  readonly id: string;
-  readonly name: string;
-  readonly email: string;
-  readonly createdAt: Date;
+  public readonly id: string;
+  public readonly name: string;
+  public readonly email: string;
+  public readonly createdAt: Date;
 
   private constructor(props: Required<UserProps>) {
     this.id = props.id;
@@ -20,7 +23,7 @@ export class User {
     this.createdAt = props.createdAt;
   }
 
-  static create(props: UserProps): User {
+  public static create(props: UserProps): User {
     User.validateName(props.name);
     User.validateEmail(props.email);
 
@@ -34,7 +37,7 @@ export class User {
 
   private static validateName(name: string): void {
     const trimmed = name.trim();
-    if (trimmed.length < 1 || trimmed.length > 255) {
+    if (trimmed.length < MIN_NAME_LENGTH || trimmed.length > MAX_NAME_LENGTH) {
       throw new Error("Name must be between 1 and 255 characters");
     }
   }

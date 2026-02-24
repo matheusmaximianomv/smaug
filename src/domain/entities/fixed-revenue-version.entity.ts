@@ -11,14 +11,18 @@ export interface FixedRevenueVersionProps {
   createdAt?: Date;
 }
 
+const MIN_DESCRIPTION_LENGTH = 1;
+const MAX_DESCRIPTION_LENGTH = 255;
+const MAX_DECIMAL_PLACES = 2;
+
 export class FixedRevenueVersion {
-  readonly id: string;
-  readonly fixedRevenueId: string;
-  readonly description: string;
-  readonly amount: number;
-  readonly effectiveMonth: number;
-  readonly effectiveYear: number;
-  readonly createdAt: Date;
+  public readonly id: string;
+  public readonly fixedRevenueId: string;
+  public readonly description: string;
+  public readonly amount: number;
+  public readonly effectiveMonth: number;
+  public readonly effectiveYear: number;
+  public readonly createdAt: Date;
 
   private constructor(props: Required<FixedRevenueVersionProps>) {
     this.id = props.id;
@@ -30,7 +34,7 @@ export class FixedRevenueVersion {
     this.createdAt = props.createdAt;
   }
 
-  static create(props: FixedRevenueVersionProps): FixedRevenueVersion {
+  public static create(props: FixedRevenueVersionProps): FixedRevenueVersion {
     const description = props.description.trim();
     FixedRevenueVersion.validateDescription(description);
     FixedRevenueVersion.validateAmount(props.amount);
@@ -48,7 +52,7 @@ export class FixedRevenueVersion {
     });
   }
 
-  getEffectiveCompetence(): MonthlyCompetence {
+  public getEffectiveCompetence(): MonthlyCompetence {
     return MonthlyCompetence.create(this.effectiveMonth, this.effectiveYear);
   }
 
@@ -58,13 +62,13 @@ export class FixedRevenueVersion {
     }
     const decimalStr = amount.toString();
     const decimalIndex = decimalStr.indexOf(".");
-    if (decimalIndex !== -1 && decimalStr.length - decimalIndex - 1 > 2) {
+    if (decimalIndex !== -1 && decimalStr.length - decimalIndex - 1 > MAX_DECIMAL_PLACES) {
       throw new Error("Amount must have at most 2 decimal places");
     }
   }
 
   private static validateDescription(description: string): void {
-    if (description.length < 1 || description.length > 255) {
+    if (description.length < MIN_DESCRIPTION_LENGTH || description.length > MAX_DESCRIPTION_LENGTH) {
       throw new Error("Description must be between 1 and 255 characters");
     }
   }

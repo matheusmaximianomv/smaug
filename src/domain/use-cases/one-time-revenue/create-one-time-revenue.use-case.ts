@@ -1,6 +1,7 @@
 import { OneTimeRevenue } from "@src/domain/entities/one-time-revenue.entity";
 import { OneTimeRevenueRepository } from "@src/domain/ports/one-time-revenue.repository";
 import { MonthlyCompetence } from "@src/domain/value-objects/monthly-competence.value-object";
+import { DomainError } from "@src/domain/errors/domain-error";
 
 export interface CreateOneTimeRevenueInput {
   userId: string;
@@ -13,7 +14,7 @@ export interface CreateOneTimeRevenueInput {
 export class CreateOneTimeRevenueUseCase {
   constructor(private readonly repository: OneTimeRevenueRepository) {}
 
-  async execute(input: CreateOneTimeRevenueInput): Promise<OneTimeRevenue> {
+  public async execute(input: CreateOneTimeRevenueInput): Promise<OneTimeRevenue> {
     const competence = MonthlyCompetence.create(input.competenceMonth, input.competenceYear);
 
     if (competence.isPastMonth()) {
@@ -32,7 +33,9 @@ export class CreateOneTimeRevenueUseCase {
   }
 }
 
-export class PastCompetenceError extends Error {
+export class PastCompetenceError extends DomainError {
+  public readonly code = "PAST_COMPETENCE";
+
   constructor() {
     super("Cannot create revenue for a past month");
     this.name = "PastCompetenceError";

@@ -10,7 +10,7 @@ export interface ListOneTimeRevenuesInput {
 export class ListOneTimeRevenuesUseCase {
   constructor(private readonly repository: OneTimeRevenueRepository) {}
 
-  async execute(input: ListOneTimeRevenuesInput): Promise<OneTimeRevenue[]> {
+  public async execute(input: ListOneTimeRevenuesInput): Promise<OneTimeRevenue[]> {
     if (input.competenceYear !== undefined && input.competenceMonth !== undefined) {
       return this.repository.findByUserAndCompetence(
         input.userId,

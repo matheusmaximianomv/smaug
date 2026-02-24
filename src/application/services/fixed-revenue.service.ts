@@ -22,7 +22,7 @@ export class FixedRevenueService {
     private readonly terminateUseCase?: TerminateFixedRevenueUseCase,
   ) {}
 
-  async create(
+  public async create(
     userId: string,
     input: {
       description: string;
@@ -38,12 +38,12 @@ export class FixedRevenueService {
     return FixedRevenueService.toResponseDto(revenue, [version]);
   }
 
-  async getById(userId: string, id: string): Promise<FixedRevenueResponseDto> {
+  public async getById(userId: string, id: string): Promise<FixedRevenueResponseDto> {
     const { revenue, versions } = await this.getUseCase.execute({ id, userId });
     return FixedRevenueService.toResponseDto(revenue, versions);
   }
 
-  async update(
+  public async update(
     userId: string,
     id: string,
     input: { description: string; amount: number; effectiveMonth: number; effectiveYear: number },
@@ -53,7 +53,7 @@ export class FixedRevenueService {
     return FixedRevenueService.toVersionResponseDto(version);
   }
 
-  async terminate(
+  public async terminate(
     userId: string,
     id: string,
     input: { endMonth: number; endYear: number },
@@ -63,11 +63,11 @@ export class FixedRevenueService {
     return FixedRevenueService.toResponseDto(revenue);
   }
 
-  async delete(userId: string, id: string): Promise<void> {
+  public async delete(userId: string, id: string): Promise<void> {
     await this.deleteUseCase.execute({ id, userId });
   }
 
-  async list(
+  public async list(
     userId: string,
     filters?: { competenceYear?: number; competenceMonth?: number },
   ): Promise<FixedRevenueResponseDto[]> {
@@ -79,7 +79,7 @@ export class FixedRevenueService {
     return revenues.map((r) => FixedRevenueService.toResponseDto(r));
   }
 
-  static toResponseDto(revenue: FixedRevenue, versions?: FixedRevenueVersion[]): FixedRevenueResponseDto {
+  public static toResponseDto(revenue: FixedRevenue, versions?: FixedRevenueVersion[]): FixedRevenueResponseDto {
     const dto: FixedRevenueResponseDto = {
       id: revenue.id,
       userId: revenue.userId,
@@ -97,7 +97,7 @@ export class FixedRevenueService {
     return dto;
   }
 
-  static toVersionResponseDto(version: FixedRevenueVersion): FixedRevenueVersionResponseDto {
+  public static toVersionResponseDto(version: FixedRevenueVersion): FixedRevenueVersionResponseDto {
     return {
       id: version.id,
       fixedRevenueId: version.fixedRevenueId,

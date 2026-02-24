@@ -7,13 +7,13 @@ import { FixedRevenueModality } from "@src/domain/entities/fixed-revenue.entity"
 export class PrismaFixedRevenueRepository implements FixedRevenueRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async findById(id: string): Promise<FixedRevenue | null> {
+  public async findById(id: string): Promise<FixedRevenue | null> {
     const record = await this.prisma.fixedRevenue.findUnique({ where: { id } });
     if (!record) return null;
     return PrismaFixedRevenueRepository.toRevenueDomain(record);
   }
 
-  async findByIdWithVersions(
+  public async findByIdWithVersions(
     id: string,
   ): Promise<{ revenue: FixedRevenue; versions: FixedRevenueVersion[] } | null> {
     const record = await this.prisma.fixedRevenue.findUnique({
@@ -27,7 +27,7 @@ export class PrismaFixedRevenueRepository implements FixedRevenueRepository {
     };
   }
 
-  async findAllByUser(userId: string): Promise<FixedRevenue[]> {
+  public async findAllByUser(userId: string): Promise<FixedRevenue[]> {
     const records = await this.prisma.fixedRevenue.findMany({
       where: { userId },
       orderBy: [{ startYear: "desc" }, { startMonth: "desc" }, { createdAt: "desc" }],
@@ -35,7 +35,7 @@ export class PrismaFixedRevenueRepository implements FixedRevenueRepository {
     return records.map(PrismaFixedRevenueRepository.toRevenueDomain);
   }
 
-  async findActiveForCompetence(
+  public async findActiveForCompetence(
     userId: string,
     competenceYear: number,
     competenceMonth: number,
@@ -46,7 +46,7 @@ export class PrismaFixedRevenueRepository implements FixedRevenueRepository {
       .filter((r: FixedRevenue) => r.isActiveForMonth(competenceMonth, competenceYear));
   }
 
-  async create(revenue: FixedRevenue, initialVersion: FixedRevenueVersion): Promise<FixedRevenue> {
+  public async create(revenue: FixedRevenue, initialVersion: FixedRevenueVersion): Promise<FixedRevenue> {
     const record = await this.prisma.fixedRevenue.create({
       data: {
         id: revenue.id,
@@ -73,7 +73,7 @@ export class PrismaFixedRevenueRepository implements FixedRevenueRepository {
     return PrismaFixedRevenueRepository.toRevenueDomain(record);
   }
 
-  async update(revenue: FixedRevenue): Promise<FixedRevenue> {
+  public async update(revenue: FixedRevenue): Promise<FixedRevenue> {
     const record = await this.prisma.fixedRevenue.update({
       where: { id: revenue.id },
       data: {
@@ -85,11 +85,11 @@ export class PrismaFixedRevenueRepository implements FixedRevenueRepository {
     return PrismaFixedRevenueRepository.toRevenueDomain(record);
   }
 
-  async delete(id: string): Promise<void> {
+  public async delete(id: string): Promise<void> {
     await this.prisma.fixedRevenue.delete({ where: { id } });
   }
 
-  async addVersion(version: FixedRevenueVersion): Promise<FixedRevenueVersion> {
+  public async addVersion(version: FixedRevenueVersion): Promise<FixedRevenueVersion> {
     const record = await this.prisma.fixedRevenueVersion.create({
       data: {
         id: version.id,
@@ -104,7 +104,7 @@ export class PrismaFixedRevenueRepository implements FixedRevenueRepository {
     return PrismaFixedRevenueRepository.toVersionDomain(record);
   }
 
-  async findVersionsForRevenue(fixedRevenueId: string): Promise<FixedRevenueVersion[]> {
+  public async findVersionsForRevenue(fixedRevenueId: string): Promise<FixedRevenueVersion[]> {
     const records = await this.prisma.fixedRevenueVersion.findMany({
       where: { fixedRevenueId },
       orderBy: [{ effectiveYear: "asc" }, { effectiveMonth: "asc" }],
@@ -112,7 +112,7 @@ export class PrismaFixedRevenueRepository implements FixedRevenueRepository {
     return records.map(PrismaFixedRevenueRepository.toVersionDomain);
   }
 
-  async findVersionForMonth(
+  public async findVersionForMonth(
     fixedRevenueId: string,
     month: number,
     year: number,

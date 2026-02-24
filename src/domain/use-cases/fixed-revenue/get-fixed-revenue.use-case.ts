@@ -11,7 +11,7 @@ export interface GetFixedRevenueInput {
 export class GetFixedRevenueUseCase {
   constructor(private readonly repository: FixedRevenueRepository) {}
 
-  async execute(input: GetFixedRevenueInput): Promise<{ revenue: FixedRevenue; versions: FixedRevenueVersion[] }> {
+  public async execute(input: GetFixedRevenueInput): Promise<{ revenue: FixedRevenue; versions: FixedRevenueVersion[] }> {
     const result = await this.repository.findByIdWithVersions(input.id);
 
     if (!result || result.revenue.userId !== input.userId) {

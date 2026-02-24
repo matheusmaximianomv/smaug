@@ -5,13 +5,13 @@ import { OneTimeRevenueRepository } from "@src/domain/ports/one-time-revenue.rep
 export class PrismaOneTimeRevenueRepository implements OneTimeRevenueRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async findById(id: string): Promise<OneTimeRevenue | null> {
+  public async findById(id: string): Promise<OneTimeRevenue | null> {
     const record = await this.prisma.oneTimeRevenue.findUnique({ where: { id } });
     if (!record) return null;
     return PrismaOneTimeRevenueRepository.toDomain(record);
   }
 
-  async findAllByUser(userId: string): Promise<OneTimeRevenue[]> {
+  public async findAllByUser(userId: string): Promise<OneTimeRevenue[]> {
     const records = await this.prisma.oneTimeRevenue.findMany({
       where: { userId },
       orderBy: [{ competenceYear: "desc" }, { competenceMonth: "desc" }, { createdAt: "desc" }],
@@ -19,7 +19,7 @@ export class PrismaOneTimeRevenueRepository implements OneTimeRevenueRepository 
     return records.map(PrismaOneTimeRevenueRepository.toDomain);
   }
 
-  async findByUserAndCompetence(
+  public async findByUserAndCompetence(
     userId: string,
     competenceYear: number,
     competenceMonth: number,
@@ -31,7 +31,7 @@ export class PrismaOneTimeRevenueRepository implements OneTimeRevenueRepository 
     return records.map(PrismaOneTimeRevenueRepository.toDomain);
   }
 
-  async create(revenue: OneTimeRevenue): Promise<OneTimeRevenue> {
+  public async create(revenue: OneTimeRevenue): Promise<OneTimeRevenue> {
     const record = await this.prisma.oneTimeRevenue.create({
       data: {
         id: revenue.id,
@@ -47,7 +47,7 @@ export class PrismaOneTimeRevenueRepository implements OneTimeRevenueRepository 
     return PrismaOneTimeRevenueRepository.toDomain(record);
   }
 
-  async update(revenue: OneTimeRevenue): Promise<OneTimeRevenue> {
+  public async update(revenue: OneTimeRevenue): Promise<OneTimeRevenue> {
     const record = await this.prisma.oneTimeRevenue.update({
       where: { id: revenue.id },
       data: {
@@ -59,7 +59,7 @@ export class PrismaOneTimeRevenueRepository implements OneTimeRevenueRepository 
     return PrismaOneTimeRevenueRepository.toDomain(record);
   }
 
-  async delete(id: string): Promise<void> {
+  public async delete(id: string): Promise<void> {
     await this.prisma.oneTimeRevenue.delete({ where: { id } });
   }
 

@@ -10,7 +10,7 @@ export interface DeleteOneTimeRevenueInput {
 export class DeleteOneTimeRevenueUseCase {
   constructor(private readonly repository: OneTimeRevenueRepository) {}
 
-  async execute(input: DeleteOneTimeRevenueInput): Promise<void> {
+  public async execute(input: DeleteOneTimeRevenueInput): Promise<void> {
     const revenue = await this.repository.findById(input.id);
 
     if (!revenue || revenue.userId !== input.userId) {

@@ -5,7 +5,7 @@ import { UserRepository } from "@src/domain/ports/user.repository";
 export class PrismaUserRepository implements UserRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async findById(id: string): Promise<User | null> {
+  public async findById(id: string): Promise<User | null> {
     const record = await this.prisma.user.findUnique({ where: { id } });
     if (!record) return null;
     return User.create({
@@ -16,7 +16,7 @@ export class PrismaUserRepository implements UserRepository {
     });
   }
 
-  async findByEmail(email: string): Promise<User | null> {
+  public async findByEmail(email: string): Promise<User | null> {
     const record = await this.prisma.user.findUnique({ where: { email } });
     if (!record) return null;
     return User.create({
@@ -27,7 +27,7 @@ export class PrismaUserRepository implements UserRepository {
     });
   }
 
-  async create(user: User): Promise<User> {
+  public async create(user: User): Promise<User> {
     const record = await this.prisma.user.create({
       data: {
         id: user.id,

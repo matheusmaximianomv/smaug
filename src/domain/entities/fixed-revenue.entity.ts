@@ -16,15 +16,15 @@ export interface FixedRevenueProps {
 }
 
 export class FixedRevenue {
-  readonly id: string;
-  readonly userId: string;
-  readonly modality: FixedRevenueModality;
-  readonly startMonth: number;
-  readonly startYear: number;
-  readonly endMonth: number | null;
-  readonly endYear: number | null;
-  readonly createdAt: Date;
-  readonly updatedAt: Date;
+  public readonly id: string;
+  public readonly userId: string;
+  public readonly modality: FixedRevenueModality;
+  public readonly startMonth: number;
+  public readonly startYear: number;
+  public readonly endMonth: number | null;
+  public readonly endYear: number | null;
+  public readonly createdAt: Date;
+  public readonly updatedAt: Date;
 
   private constructor(props: {
     id: string;
@@ -48,7 +48,7 @@ export class FixedRevenue {
     this.updatedAt = props.updatedAt;
   }
 
-  static create(props: FixedRevenueProps): FixedRevenue {
+  public static create(props: FixedRevenueProps): FixedRevenue {
     FixedRevenue.validateModality(props.modality);
 
     const start = MonthlyCompetence.create(props.startMonth, props.startYear);
@@ -79,7 +79,7 @@ export class FixedRevenue {
     });
   }
 
-  terminate(endMonth: number, endYear: number): FixedRevenue {
+  public terminate(endMonth: number, endYear: number): FixedRevenue {
     const end = MonthlyCompetence.create(endMonth, endYear);
     const start = this.getStartCompetence();
     if (end.isBefore(start)) {
@@ -98,7 +98,7 @@ export class FixedRevenue {
     });
   }
 
-  isActiveForMonth(month: number, year: number): boolean {
+  public isActiveForMonth(month: number, year: number): boolean {
     const target = MonthlyCompetence.create(month, year);
     const start = this.getStartCompetence();
 
@@ -112,11 +112,11 @@ export class FixedRevenue {
     return true;
   }
 
-  getStartCompetence(): MonthlyCompetence {
+  public getStartCompetence(): MonthlyCompetence {
     return MonthlyCompetence.create(this.startMonth, this.startYear);
   }
 
-  getEndCompetence(): MonthlyCompetence | null {
+  public getEndCompetence(): MonthlyCompetence | null {
     if (this.endMonth == null || this.endYear == null) return null;
     return MonthlyCompetence.create(this.endMonth, this.endYear);
   }

@@ -6,7 +6,7 @@ import { revenueQuerySchema } from "@src/application/dtos/revenue-query.dto";
 export function createRevenueQueryRoutes(controller: RevenueQueryController): Router {
   const router = Router();
 
-  router.get("/", validateQuery(revenueQuerySchema), controller.query);
+  router.get("/", validateQuery(revenueQuerySchema), controller.query.bind(controller));
 
   return router;
 }

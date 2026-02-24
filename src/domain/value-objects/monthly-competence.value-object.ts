@@ -1,23 +1,28 @@
+const MIN_MONTH = 1;
+const MAX_MONTH = 12;
+const MIN_YEAR = 2000;
+const MONTH_PAD_LENGTH = 2;
+
 export class MonthlyCompetence {
-  readonly month: number;
-  readonly year: number;
+  public readonly month: number;
+  public readonly year: number;
 
   private constructor(month: number, year: number) {
     this.month = month;
     this.year = year;
   }
 
-  static create(month: number, year: number): MonthlyCompetence {
-    if (!Number.isInteger(month) || month < 1 || month > 12) {
+  public static create(month: number, year: number): MonthlyCompetence {
+    if (!Number.isInteger(month) || month < MIN_MONTH || month > MAX_MONTH) {
       throw new Error("Month must be an integer between 1 and 12");
     }
-    if (!Number.isInteger(year) || year < 2000) {
+    if (!Number.isInteger(year) || year < MIN_YEAR) {
       throw new Error("Year must be an integer >= 2000");
     }
     return new MonthlyCompetence(month, year);
   }
 
-  isPastMonth(referenceDate: Date = new Date()): boolean {
+  public isPastMonth(referenceDate: Date = new Date()): boolean {
     const refYear = referenceDate.getFullYear();
     const refMonth = referenceDate.getMonth() + 1;
 
@@ -26,35 +31,35 @@ export class MonthlyCompetence {
     return false;
   }
 
-  isFutureOrCurrent(referenceDate: Date = new Date()): boolean {
+  public isFutureOrCurrent(referenceDate: Date = new Date()): boolean {
     return !this.isPastMonth(referenceDate);
   }
 
-  isBeforeOrEqual(other: MonthlyCompetence): boolean {
+  public isBeforeOrEqual(other: MonthlyCompetence): boolean {
     if (this.year < other.year) return true;
     if (this.year === other.year && this.month <= other.month) return true;
     return false;
   }
 
-  isBefore(other: MonthlyCompetence): boolean {
+  public isBefore(other: MonthlyCompetence): boolean {
     if (this.year < other.year) return true;
     if (this.year === other.year && this.month < other.month) return true;
     return false;
   }
 
-  isAfter(other: MonthlyCompetence): boolean {
+  public isAfter(other: MonthlyCompetence): boolean {
     return !this.isBeforeOrEqual(other);
   }
 
-  isAfterOrEqual(other: MonthlyCompetence): boolean {
+  public isAfterOrEqual(other: MonthlyCompetence): boolean {
     return !this.isBefore(other);
   }
 
-  equals(other: MonthlyCompetence): boolean {
+  public equals(other: MonthlyCompetence): boolean {
     return this.month === other.month && this.year === other.year;
   }
 
-  toString(): string {
-    return `${this.year}-${String(this.month).padStart(2, "0")}`;
+  public toString(): string {
+    return `${this.year}-${String(this.month).padStart(MONTH_PAD_LENGTH, "0")}`;
   }
 }

@@ -12,15 +12,19 @@ export interface OneTimeRevenueProps {
   updatedAt?: Date;
 }
 
+const MIN_DESCRIPTION_LENGTH = 1;
+const MAX_DESCRIPTION_LENGTH = 255;
+const MAX_DECIMAL_PLACES = 2;
+
 export class OneTimeRevenue {
-  readonly id: string;
-  readonly userId: string;
-  readonly description: string;
-  readonly amount: number;
-  readonly competenceMonth: number;
-  readonly competenceYear: number;
-  readonly createdAt: Date;
-  readonly updatedAt: Date;
+  public readonly id: string;
+  public readonly userId: string;
+  public readonly description: string;
+  public readonly amount: number;
+  public readonly competenceMonth: number;
+  public readonly competenceYear: number;
+  public readonly createdAt: Date;
+  public readonly updatedAt: Date;
 
   private constructor(props: Required<OneTimeRevenueProps>) {
     this.id = props.id;
@@ -33,7 +37,7 @@ export class OneTimeRevenue {
     this.updatedAt = props.updatedAt;
   }
 
-  static create(props: OneTimeRevenueProps): OneTimeRevenue {
+  public static create(props: OneTimeRevenueProps): OneTimeRevenue {
     const description = props.description.trim();
     OneTimeRevenue.validateDescription(description);
     OneTimeRevenue.validateAmount(props.amount);
@@ -53,7 +57,7 @@ export class OneTimeRevenue {
     });
   }
 
-  update(changes: { description?: string; amount?: number }): OneTimeRevenue {
+  public update(changes: { description?: string; amount?: number }): OneTimeRevenue {
     const newDescription = changes.description !== undefined
       ? changes.description.trim()
       : this.description;
@@ -78,7 +82,7 @@ export class OneTimeRevenue {
     });
   }
 
-  getCompetence(): MonthlyCompetence {
+  public getCompetence(): MonthlyCompetence {
     return MonthlyCompetence.create(this.competenceMonth, this.competenceYear);
   }
 
@@ -88,13 +92,13 @@ export class OneTimeRevenue {
     }
     const decimalStr = amount.toString();
     const decimalIndex = decimalStr.indexOf(".");
-    if (decimalIndex !== -1 && decimalStr.length - decimalIndex - 1 > 2) {
+    if (decimalIndex !== -1 && decimalStr.length - decimalIndex - 1 > MAX_DECIMAL_PLACES) {
       throw new Error("Amount must have at most 2 decimal places");
     }
   }
 
   private static validateDescription(description: string): void {
-    if (description.length < 1 || description.length > 255) {
+    if (description.length < MIN_DESCRIPTION_LENGTH || description.length > MAX_DESCRIPTION_LENGTH) {
       throw new Error("Description must be between 1 and 255 characters");
     }
   }

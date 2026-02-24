@@ -2,6 +2,7 @@ import { FixedRevenue } from "@src/domain/entities/fixed-revenue.entity";
 import { FixedRevenueRepository } from "@src/domain/ports/fixed-revenue.repository";
 import { MonthlyCompetence } from "@src/domain/value-objects/monthly-competence.value-object";
 import { FixedRevenueNotFoundError } from "@src/domain/use-cases/fixed-revenue/delete-fixed-revenue.use-case";
+import { DomainError } from "@src/domain/errors/domain-error";
 
 export interface TerminateFixedRevenueInput {
   id: string;
@@ -13,7 +14,7 @@ export interface TerminateFixedRevenueInput {
 export class TerminateFixedRevenueUseCase {
   constructor(private readonly repository: FixedRevenueRepository) {}
 
-  async execute(input: TerminateFixedRevenueInput): Promise<FixedRevenue> {
+  public async execute(input: TerminateFixedRevenueInput): Promise<FixedRevenue> {
     const revenue = await this.repository.findById(input.id);
 
     if (!revenue || revenue.userId !== input.userId) {
@@ -39,14 +40,18 @@ export class TerminateFixedRevenueUseCase {
   }
 }
 
-export class AlreadyExpiredError extends Error {
+export class AlreadyExpiredError extends DomainError {
+  public readonly code = "ALREADY_EXPIRED";
+
   constructor() {
     super("Fixed revenue has already expired");
     this.name = "AlreadyExpiredError";
   }
 }
 
-export class PastTerminationDateError extends Error {
+export class PastTerminationDateError extends DomainError {
+  public readonly code = "PAST_TERMINATION_DATE";
+
   constructor() {
     super("Termination date must be current or future month");
     this.name = "PastTerminationDateError";

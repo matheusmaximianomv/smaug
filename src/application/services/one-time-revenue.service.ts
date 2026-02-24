@@ -13,7 +13,7 @@ export class OneTimeRevenueService {
     private readonly listUseCase: ListOneTimeRevenuesUseCase,
   ) {}
 
-  async create(
+  public async create(
     userId: string,
     input: { description: string; amount: number; competenceMonth: number; competenceYear: number },
   ): Promise<OneTimeRevenueResponseDto> {
@@ -21,7 +21,7 @@ export class OneTimeRevenueService {
     return OneTimeRevenueService.toResponseDto(revenue);
   }
 
-  async update(
+  public async update(
     userId: string,
     id: string,
     input: { description?: string; amount?: number },
@@ -30,11 +30,11 @@ export class OneTimeRevenueService {
     return OneTimeRevenueService.toResponseDto(revenue);
   }
 
-  async delete(userId: string, id: string): Promise<void> {
+  public async delete(userId: string, id: string): Promise<void> {
     await this.deleteUseCase.execute({ id, userId });
   }
 
-  async list(
+  public async list(
     userId: string,
     filters?: { competenceYear?: number; competenceMonth?: number },
   ): Promise<OneTimeRevenueResponseDto[]> {
@@ -46,7 +46,7 @@ export class OneTimeRevenueService {
     return revenues.map(OneTimeRevenueService.toResponseDto);
   }
 
-  static toResponseDto(revenue: OneTimeRevenue): OneTimeRevenueResponseDto {
+  public static toResponseDto(revenue: OneTimeRevenue): OneTimeRevenueResponseDto {
     return {
       id: revenue.id,
       userId: revenue.userId,

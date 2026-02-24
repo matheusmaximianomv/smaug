@@ -32,28 +32,28 @@ describe("CreateUserUseCase", () => {
     useCase = new CreateUserUseCase(repository);
   });
 
-  it("should create a user successfully", async () => {
+  it("should create a user when valid input is provided", async () => {
     const user = await useCase.execute({ name: "João", email: "joao@example.com" });
     expect(user.id).toBeDefined();
     expect(user.name).toBe("João");
     expect(user.email).toBe("joao@example.com");
   });
 
-  it("should persist the user in the repository", async () => {
+  it("should persist the user in the repository when user is created", async () => {
     const user = await useCase.execute({ name: "João", email: "joao@example.com" });
     const found = await repository.findById(user.id);
     expect(found).not.toBeNull();
     expect(found!.email).toBe("joao@example.com");
   });
 
-  it("should throw EmailAlreadyExistsError if email already exists", async () => {
+  it("should throw EmailAlreadyExistsError when email already exists", async () => {
     await useCase.execute({ name: "João", email: "joao@example.com" });
     await expect(useCase.execute({ name: "Maria", email: "joao@example.com" })).rejects.toThrow(
       EmailAlreadyExistsError,
     );
   });
 
-  it("should normalize email before checking duplicates", async () => {
+  it("should throw EmailAlreadyExistsError when normalized email already exists", async () => {
     await useCase.execute({ name: "João", email: "JOAO@Example.COM" });
     await expect(useCase.execute({ name: "Maria", email: "joao@example.com" })).rejects.toThrow(
       EmailAlreadyExistsError,

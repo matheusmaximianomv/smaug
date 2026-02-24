@@ -1,4 +1,5 @@
 import { FixedRevenueRepository } from "@src/domain/ports/fixed-revenue.repository";
+import { DomainError } from "@src/domain/errors/domain-error";
 
 export interface DeleteFixedRevenueInput {
   id: string;
@@ -8,7 +9,7 @@ export interface DeleteFixedRevenueInput {
 export class DeleteFixedRevenueUseCase {
   constructor(private readonly repository: FixedRevenueRepository) {}
 
-  async execute(input: DeleteFixedRevenueInput): Promise<void> {
+  public async execute(input: DeleteFixedRevenueInput): Promise<void> {
     const revenue = await this.repository.findById(input.id);
 
     if (!revenue || revenue.userId !== input.userId) {
@@ -19,7 +20,9 @@ export class DeleteFixedRevenueUseCase {
   }
 }
 
-export class FixedRevenueNotFoundError extends Error {
+export class FixedRevenueNotFoundError extends DomainError {
+  public readonly code = "FIXED_REVENUE_NOT_FOUND";
+
   constructor(id: string) {
     super(`Fixed revenue with id "${id}" not found`);
     this.name = "FixedRevenueNotFoundError";

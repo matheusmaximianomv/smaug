@@ -1,5 +1,6 @@
 import { User } from "@src/domain/entities/user.entity";
 import { UserRepository } from "@src/domain/ports/user.repository";
+import { DomainError } from "@src/domain/errors/domain-error";
 
 export interface CreateUserInput {
   name: string;
@@ -9,7 +10,7 @@ export interface CreateUserInput {
 export class CreateUserUseCase {
   constructor(private readonly userRepository: UserRepository) {}
 
-  async execute(input: CreateUserInput): Promise<User> {
+  public async execute(input: CreateUserInput): Promise<User> {
     const existingUser = await this.userRepository.findByEmail(input.email.trim().toLowerCase());
     if (existingUser) {
       throw new EmailAlreadyExistsError(input.email);
@@ -24,7 +25,9 @@ export class CreateUserUseCase {
   }
 }
 
-export class EmailAlreadyExistsError extends Error {
+export class EmailAlreadyExistsError extends DomainError {
+  public readonly code = "EMAIL_ALREADY_EXISTS";
+
   constructor(email: string) {
     super(`A user with email "${email}" already exists`);
     this.name = "EmailAlreadyExistsError";

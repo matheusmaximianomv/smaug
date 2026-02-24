@@ -6,12 +6,12 @@ import { createFixedRevenueSchema, updateFixedRevenueSchema, terminateFixedReven
 export function createFixedRevenueRoutes(controller: FixedRevenueController): Router {
   const router = Router();
 
-  router.post("/", validateRequest(createFixedRevenueSchema), controller.create);
-  router.get("/", controller.list);
-  router.get("/:id", controller.getById);
-  router.patch("/:id", validateRequest(updateFixedRevenueSchema), controller.update);
-  router.patch("/:id/terminate", validateRequest(terminateFixedRevenueSchema), controller.terminate);
-  router.delete("/:id", controller.delete);
+  router.post("/", validateRequest(createFixedRevenueSchema), controller.create.bind(controller));
+  router.get("/", controller.list.bind(controller));
+  router.get("/:id", controller.getById.bind(controller));
+  router.patch("/:id", validateRequest(updateFixedRevenueSchema), controller.update.bind(controller));
+  router.patch("/:id/terminate", validateRequest(terminateFixedRevenueSchema), controller.terminate.bind(controller));
+  router.delete("/:id", controller.delete.bind(controller));
 
   return router;
 }

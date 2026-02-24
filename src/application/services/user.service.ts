@@ -9,17 +9,17 @@ export class UserService {
     private readonly getUserUseCase: GetUserUseCase,
   ) {}
 
-  async createUser(input: { name: string; email: string }): Promise<UserResponseDto> {
+  public async createUser(input: { name: string; email: string }): Promise<UserResponseDto> {
     const user = await this.createUserUseCase.execute(input);
     return UserService.toResponseDto(user);
   }
 
-  async getUserById(id: string): Promise<UserResponseDto> {
+  public async getUserById(id: string): Promise<UserResponseDto> {
     const user = await this.getUserUseCase.execute(id);
     return UserService.toResponseDto(user);
   }
 
-  static toResponseDto(user: User): UserResponseDto {
+  public static toResponseDto(user: User): UserResponseDto {
     return {
       id: user.id,
       name: user.name,

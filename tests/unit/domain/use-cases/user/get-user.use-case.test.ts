@@ -32,7 +32,7 @@ describe("GetUserUseCase", () => {
     useCase = new GetUserUseCase(repository);
   });
 
-  it("should return user when found", async () => {
+  it("should return user when user exists in repository", async () => {
     const created = User.create({ name: "João", email: "joao@example.com" });
     await repository.create(created);
 
@@ -41,7 +41,7 @@ describe("GetUserUseCase", () => {
     expect(found.name).toBe("João");
   });
 
-  it("should throw UserNotFoundError when user does not exist", async () => {
+  it("should throw UserNotFoundError when user id does not exist", async () => {
     await expect(useCase.execute("non-existent-id")).rejects.toThrow(UserNotFoundError);
   });
 });

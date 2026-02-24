@@ -9,10 +9,10 @@ import {
 export function createOneTimeRevenueRoutes(controller: OneTimeRevenueController): Router {
   const router = Router();
 
-  router.post("/", validateRequest(createOneTimeRevenueSchema), controller.create);
-  router.get("/", controller.list);
-  router.put("/:id", validateRequest(updateOneTimeRevenueSchema), controller.update);
-  router.delete("/:id", controller.delete);
+  router.post("/", validateRequest(createOneTimeRevenueSchema), controller.create.bind(controller));
+  router.get("/", controller.list.bind(controller));
+  router.put("/:id", validateRequest(updateOneTimeRevenueSchema), controller.update.bind(controller));
+  router.delete("/:id", controller.delete.bind(controller));
 
   return router;
 }

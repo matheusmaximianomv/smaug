@@ -10,7 +10,7 @@ export interface ListFixedRevenuesInput {
 export class ListFixedRevenuesUseCase {
   constructor(private readonly repository: FixedRevenueRepository) {}
 
-  async execute(input: ListFixedRevenuesInput): Promise<FixedRevenue[]> {
+  public async execute(input: ListFixedRevenuesInput): Promise<FixedRevenue[]> {
     if (input.competenceYear !== undefined && input.competenceMonth !== undefined) {
       return this.repository.findActiveForCompetence(
         input.userId,

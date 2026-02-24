@@ -5,13 +5,15 @@ import { FixedRevenueService } from "@src/application/services/fixed-revenue.ser
 import { OneTimeRevenueResponseDto } from "@src/application/dtos/one-time-revenue.dto";
 import { ConsolidatedRevenueResponseDto, FixedRevenueWithVersionDto } from "@src/application/dtos/revenue-query.dto";
 
+const CENTS_MULTIPLIER = 100;
+
 export class RevenueQueryService {
   constructor(
     private readonly oneTimeRevenueRepository: OneTimeRevenueRepository,
     private readonly fixedRevenueRepository: FixedRevenueRepository,
   ) {}
 
-  async getConsolidatedRevenues(
+  public async getConsolidatedRevenues(
     userId: string,
     competenceYear: number,
     competenceMonth: number,
@@ -44,7 +46,7 @@ export class RevenueQueryService {
 
     const oneTimeTotal = oneTimeRevenues.reduce((sum, r) => sum + r.amount, 0);
     const fixedTotal = fixedDtos.reduce((sum, r) => sum + r.currentVersion.amount, 0);
-    const total = Math.round((oneTimeTotal + fixedTotal) * 100) / 100;
+    const total = Math.round((oneTimeTotal + fixedTotal) * CENTS_MULTIPLIER) / CENTS_MULTIPLIER;
 
     return {
       competenceYear,
@@ -52,8 +54,8 @@ export class RevenueQueryService {
       oneTimeRevenues: oneTimeDtos,
       fixedRevenues: fixedDtos,
       totals: {
-        oneTimeTotal: Math.round(oneTimeTotal * 100) / 100,
-        fixedTotal: Math.round(fixedTotal * 100) / 100,
+        oneTimeTotal: Math.round(oneTimeTotal * CENTS_MULTIPLIER) / CENTS_MULTIPLIER,
+        fixedTotal: Math.round(fixedTotal * CENTS_MULTIPLIER) / CENTS_MULTIPLIER,
         total,
       },
     };
