@@ -23,8 +23,8 @@ export class MonthlyCompetence {
   }
 
   public isPastMonth(referenceDate: Date = new Date()): boolean {
-    const refYear = referenceDate.getFullYear();
-    const refMonth = referenceDate.getMonth() + 1;
+    const refYear = referenceDate.getUTCFullYear();
+    const refMonth = referenceDate.getUTCMonth() + 1;
 
     if (this.year < refYear) return true;
     if (this.year === refYear && this.month < refMonth) return true;

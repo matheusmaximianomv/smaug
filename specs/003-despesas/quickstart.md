@@ -36,6 +36,8 @@ npm run dev
 curl -X POST http://localhost:3000/users \
   -H "Content-Type: application/json" \
   -d '{"name": "João", "email": "joao@example.com"}'
+# Response (201):
+#{"id":"a88ef50d-18d1-47a3-a667-c6ac12c6f285","name":"João","email":"joao@example.com","createdAt":"2026-03-08T04:52:21.934Z"}
 # → Save the returned "id" as USER_ID
 
 # --- CATEGORIES ---
@@ -45,11 +47,15 @@ curl -X POST http://localhost:3000/expenses/categories \
   -H "Content-Type: application/json" \
   -H "X-User-Id: <USER_ID>" \
   -d '{"name": "Alimentação"}'
+# Response (201):
+#{"id":"8c06e870-ee67-44c2-8c27-ae4a46ae2612","userId":"<USER_ID>","name":"Alimentação","createdAt":"2026-03-08T04:52:42.207Z","updatedAt":"2026-03-08T04:52:42.207Z"}
 # → Save the returned "id" as CATEGORY_ID
 
 # List categories
 curl http://localhost:3000/expenses/categories \
   -H "X-User-Id: <USER_ID>"
+# Response (200):
+#[{"id":"8c06e870-ee67-44c2-8c27-ae4a46ae2612","userId":"<USER_ID>","name":"Alimentação","createdAt":"2026-03-08T04:52:42.207Z","updatedAt":"2026-03-08T04:52:42.207Z"}]
 
 # --- ONE-TIME EXPENSE ---
 
@@ -58,6 +64,8 @@ curl -X POST http://localhost:3000/expenses/one-time \
   -H "Content-Type: application/json" \
   -H "X-User-Id: <USER_ID>" \
   -d '{"description": "Jantar restaurante", "amount": 150.00, "competenceYear": 2026, "competenceMonth": 3, "categoryId": "<CATEGORY_ID>"}'
+# Response (201):
+#{"id":"a2bffcfc-2d06-49e1-8745-4b1600e44495","userId":"<USER_ID>","categoryId":"<CATEGORY_ID>","category":{"id":"<CATEGORY_ID>","name":"Alimentação"},"description":"Jantar restaurante","amount":150,"competenceYear":2026,"competenceMonth":3,"createdAt":"2026-03-08T04:53:26.024Z","updatedAt":"2026-03-08T04:53:26.024Z"}
 
 # --- INSTALLMENT EXPENSE ---
 
@@ -67,6 +75,8 @@ curl -X POST http://localhost:3000/expenses/installment \
   -H "X-User-Id: <USER_ID>" \
   -d '{"description": "Notebook", "totalAmount": 1000.00, "installmentCount": 3, "startYear": 2026, "startMonth": 3, "categoryId": "<CATEGORY_ID>"}'
 # Installments: 2026-03 = R$333.34, 2026-04 = R$333.33, 2026-05 = R$333.33
+# Response (201):
+#{"id":"e1b92690-5f90-40c7-afc8-0c7d7d0a8962","userId":"<USER_ID>","categoryId":"<CATEGORY_ID>","category":{"id":"<CATEGORY_ID>","name":"Alimentação"},"description":"Notebook","totalAmount":1000,"installmentCount":3,"startYear":2026,"startMonth":3,"installments":[{"id":"<UUID>","installmentNumber":1,"amount":333.34,"competenceYear":2026,"competenceMonth":3},{"id":"<UUID>","installmentNumber":2,"amount":333.33,"competenceYear":2026,"competenceMonth":4},{"id":"<UUID>","installmentNumber":3,"amount":333.33,"competenceYear":2026,"competenceMonth":5}],"createdAt":"2026-03-08T04:54:03.564Z","updatedAt":"2026-03-08T04:54:03.564Z"}
 
 # --- RECURRING EXPENSE ---
 
@@ -76,19 +86,24 @@ curl -X POST http://localhost:3000/expenses/recurring \
   -H "X-User-Id: <USER_ID>" \
   -d '{"description": "Aluguel", "amount": 2000.00, "categoryId": "<CATEGORY_ID>", "startYear": 2026, "startMonth": 3}'
 # → Save the returned "id" as RECURRING_ID
+# Response (201):
+#{"id":"17eed176-9a61-4daa-a8c8-dac597cf3c94","userId":"<USER_ID>","startYear":2026,"startMonth":3,"endYear":null,"endMonth":null,"currentVersion":{"id":"eabbe2d9-832b-46df-ad97-61a5eb338357","categoryId":"<CATEGORY_ID>","category":{"id":"<CATEGORY_ID>","name":"Alimentação"},"description":"Aluguel","amount":2000,"effectiveYear":2026,"effectiveMonth":3,"createdAt":"2026-03-08T04:54:24.907Z"},"createdAt":"2026-03-08T04:54:24.907Z","updatedAt":"2026-03-08T04:54:24.907Z"}
 
 # Update recurring expense (creates new version from month 6)
 curl -X PATCH http://localhost:3000/expenses/recurring/<RECURRING_ID> \
   -H "Content-Type: application/json" \
   -H "X-User-Id: <USER_ID>" \
   -d '{"amount": 2200.00, "effectiveYear": 2026, "effectiveMonth": 6}'
+# Response (200):
+#{"id":"17eed176-9a61-4daa-a8c8-dac597cf3c94","currentVersion":{"id":"81d8dba8-c6c3-4cae-b954-58dc9d571cb3","amount":2200,"effectiveYear":2026,"effectiveMonth":6,...},"versions":[{"id":"eabbe2d9-832b-46df-ad97-61a5eb338357",...},{"id":"81d8dba8-c6c3-4cae-b954-58dc9d571cb3",...}],"updatedAt":"2026-03-08T04:54:48.565Z"}
 
 # --- CONSOLIDATED QUERY ---
 
 # Query all expenses for March 2026
 curl "http://localhost:3000/expenses?competenceYear=2026&competenceMonth=3" \
   -H "X-User-Id: <USER_ID>"
-# Returns: oneTimeExpenses + installments + recurringExpenses + total
+# Response (200):
+#{"competenceYear":2026,"competenceMonth":3,"expenses":[{"type":"ONE_TIME","description":"Jantar restaurante",...},{"type":"INSTALLMENT","description":"Notebook",...},{"type":"RECURRING","description":"Aluguel",...}],"totals":{"oneTime":150,"installment":333.34,"recurring":2000,"total":2483.34}}
 ```
 
 ## Running Tests

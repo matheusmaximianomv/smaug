@@ -7,7 +7,7 @@ description: "Task list for Gestão de Despesas feature implementation"
 **Input**: Design documents from `/specs/003-despesas/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: Tests are REQUIRED. The feature specification and constitution require coverage for domain rules and use cases at minimum, plus integration coverage for the main expense flows.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -30,8 +30,8 @@ description: "Task list for Gestão de Despesas feature implementation"
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Run database migration to add expense models in prisma/schema.prisma
-- [ ] T002 Update DI container with new expense repositories and services in src/infrastructure/config/container.ts
+- [x] T001 Update Prisma schema with ExpenseCategory, OneTimeExpense, InstallmentExpense, Installment, RecurringExpense, and RecurringExpenseVersion models and relations in prisma/schema.prisma
+- [x] T002 Run database migration to add expense models after schema changes are defined
 
 ---
 
@@ -41,21 +41,21 @@ description: "Task list for Gestão de Despesas feature implementation"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Create ExpenseCategory entity in src/domain/entities/expense-category.entity.ts
-- [ ] T004 [P] Create OneTimeExpense entity in src/domain/entities/one-time-expense.entity.ts
-- [ ] T005 [P] Create InstallmentExpense entity in src/domain/entities/installment-expense.entity.ts
-- [ ] T006 [P] Create Installment entity in src/domain/entities/installment.entity.ts
-- [ ] T007 [P] Create RecurringExpense entity in src/domain/entities/recurring-expense.entity.ts
-- [ ] T008 [P] Create RecurringExpenseVersion entity in src/domain/entities/recurring-expense-version.entity.ts
-- [ ] T009 Create IExpenseCategoryRepository interface in src/domain/ports/expense-category.repository.ts
-- [ ] T010 [P] Create IOneTimeExpenseRepository interface in src/domain/ports/one-time-expense.repository.ts
-- [ ] T011 [P] Create IInstallmentExpenseRepository interface in src/domain/ports/installment-expense.repository.ts
-- [ ] T012 [P] Create IRecurringExpenseRepository interface in src/domain/ports/recurring-expense.repository.ts
-- [ ] T013 Create PrismaExpenseCategoryRepository in src/infrastructure/database/repositories/prisma-expense-category.repository.ts
-- [ ] T014 [P] Create PrismaOneTimeExpenseRepository in src/infrastructure/database/repositories/prisma-one-time-expense.repository.ts
-- [ ] T015 [P] Create PrismaInstallmentExpenseRepository in src/infrastructure/database/repositories/prisma-installment-expense.repository.ts
-- [ ] T016 [P] Create PrismaRecurringExpenseRepository in src/infrastructure/database/repositories/prisma-recurring-expense.repository.ts
-- [ ] T017 Add new domain error codes for expenses in src/domain/errors/domain.error.ts
+- [x] T003 Create ExpenseCategory entity in src/domain/entities/expense-category.entity.ts
+- [x] T004 [P] Create OneTimeExpense entity in src/domain/entities/one-time-expense.entity.ts
+- [x] T005 [P] Create InstallmentExpense entity in src/domain/entities/installment-expense.entity.ts
+- [x] T006 [P] Create Installment entity in src/domain/entities/installment.entity.ts
+- [x] T007 [P] Create RecurringExpense entity in src/domain/entities/recurring-expense.entity.ts
+- [x] T008 [P] Create RecurringExpenseVersion entity in src/domain/entities/recurring-expense-version.entity.ts
+- [x] T009 Create IExpenseCategoryRepository interface in src/domain/ports/expense-category.repository.ts
+- [x] T010 [P] Create IOneTimeExpenseRepository interface in src/domain/ports/one-time-expense.repository.ts
+- [x] T011 [P] Create IInstallmentExpenseRepository interface in src/domain/ports/installment-expense.repository.ts
+- [x] T012 [P] Create IRecurringExpenseRepository interface in src/domain/ports/recurring-expense.repository.ts
+- [x] T013 Create PrismaExpenseCategoryRepository in src/infrastructure/database/repositories/prisma-expense-category.repository.ts
+- [x] T014 [P] Create PrismaOneTimeExpenseRepository in src/infrastructure/database/repositories/prisma-one-time-expense.repository.ts
+- [x] T015 [P] Create PrismaInstallmentExpenseRepository in src/infrastructure/database/repositories/prisma-installment-expense.repository.ts
+- [x] T016 [P] Create PrismaRecurringExpenseRepository in src/infrastructure/database/repositories/prisma-recurring-expense.repository.ts
+- [x] T017 Add new domain error codes for expenses in src/domain/errors/domain.error.ts
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -67,18 +67,25 @@ description: "Task list for Gestão de Despesas feature implementation"
 
 **Independent Test**: Create a category, update its name, verify uniqueness constraint, test deletion blocking when linked expenses exist
 
+### Tests for User Story 1
+
+- [x] T017A [P] [US1] Create unit tests for ExpenseCategory entity validation and case-insensitive uniqueness invariants in tests/unit/domain/entities/expense-category.entity.test.ts
+- [x] T017B [P] [US1] Create unit tests for create/get/list/update/delete expense-category use cases in tests/unit/domain/use-cases/expense-category/
+- [x] T017C [P] [US1] Create integration tests for expense-category endpoints including deletion blocking when linked expenses exist in tests/integration/presentation/expense-category.test.ts
+
 ### Implementation for User Story 1
 
-- [ ] T018 [P] [US1] Create create-expense-category.use-case.ts in src/domain/use-cases/expense-category/
-- [ ] T019 [P] [US1] Create get-expense-category.use-case.ts in src/domain/use-cases/expense-category/
-- [ ] T020 [P] [US1] Create list-expense-categories.use-case.ts in src/domain/use-cases/expense-category/
-- [ ] T021 [P] [US1] Create update-expense-category.use-case.ts in src/domain/use-cases/expense-category/
-- [ ] T022 [P] [US1] Create delete-expense-category.use-case.ts in src/domain/use-cases/expense-category/
-- [ ] T023 [P] [US1] Create expense-category.dto.ts in src/application/dtos/
-- [ ] T024 [P] [US1] Create expense-category.service.ts in src/application/services/
-- [ ] T025 [US1] Create expense-category.controller.ts in src/presentation/controllers/
-- [ ] T026 [US1] Create expense-category.routes.ts in src/presentation/routes/
-- [ ] T027 [US1] Update main routes index.ts to include expense-category routes
+- [x] T018 [P] [US1] Create create-expense-category.use-case.ts in src/domain/use-cases/expense-category/
+- [x] T019 [P] [US1] Create get-expense-category.use-case.ts in src/domain/use-cases/expense-category/
+- [x] T020 [P] [US1] Create list-expense-categories.use-case.ts in src/domain/use-cases/expense-category/
+- [x] T021 [P] [US1] Create update-expense-category.use-case.ts in src/domain/use-cases/expense-category/
+- [x] T022 [P] [US1] Create delete-expense-category.use-case.ts in src/domain/use-cases/expense-category/
+- [x] T023 [P] [US1] Create expense-category.dto.ts in src/application/dtos/
+- [x] T024 [P] [US1] Create expense-category.service.ts in src/application/services/
+- [x] T025 [US1] Create expense-category.controller.ts in src/presentation/controllers/
+- [x] T026 [US1] Create expense-category.routes.ts in src/presentation/routes/
+- [x] T026A [US1] Register ExpenseCategory repository and service in src/infrastructure/config/container.ts
+- [x] T027 [US1] Update main routes index.ts to include expense-category routes
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -90,17 +97,24 @@ description: "Task list for Gestão de Despesas feature implementation"
 
 **Independent Test**: Create a one-time expense, update its amount/category, verify temporal eligibility rules, test deletion
 
+### Tests for User Story 2
+
+- [x] T027A [P] [US2] Create unit tests for OneTimeExpense entity validation in tests/unit/domain/entities/one-time-expense.entity.test.ts
+- [x] T027B [P] [US2] Create unit tests for create/list/update/delete one-time-expense use cases including category ownership and temporal eligibility in tests/unit/domain/use-cases/one-time-expense/
+- [x] T027C [P] [US2] Create integration tests for one-time-expense endpoints in tests/integration/presentation/one-time-expense.test.ts
+
 ### Implementation for User Story 2
 
-- [ ] T028 [P] [US2] Create create-one-time-expense.use-case.ts in src/domain/use-cases/one-time-expense/
-- [ ] T029 [P] [US2] Create list-one-time-expenses.use-case.ts in src/domain/use-cases/one-time-expense/
-- [ ] T030 [P] [US2] Create update-one-time-expense.use-case.ts in src/domain/use-cases/one-time-expense/
-- [ ] T031 [P] [US2] Create delete-one-time-expense.use-case.ts in src/domain/use-cases/one-time-expense/
-- [ ] T032 [P] [US2] Create one-time-expense.dto.ts in src/application/dtos/
-- [ ] T033 [P] [US2] Create one-time-expense.service.ts in src/application/services/
-- [ ] T034 [US2] Create one-time-expense.controller.ts in src/presentation/controllers/
-- [ ] T035 [US2] Create one-time-expense.routes.ts in src/presentation/routes/
-- [ ] T036 [US2] Update main routes index.ts to include one-time-expense routes
+- [x] T028 [P] [US2] Create create-one-time-expense.use-case.ts in src/domain/use-cases/one-time-expense/
+- [x] T029 [P] [US2] Create list-one-time-expenses.use-case.ts in src/domain/use-cases/one-time-expense/
+- [x] T030 [P] [US2] Create update-one-time-expense.use-case.ts in src/domain/use-cases/one-time-expense/
+- [x] T031 [P] [US2] Create delete-one-time-expense.use-case.ts in src/domain/use-cases/one-time-expense/
+- [x] T032 [P] [US2] Create one-time-expense.dto.ts in src/application/dtos/
+- [x] T033 [P] [US2] Create one-time-expense.service.ts in src/application/services/
+- [x] T034 [US2] Create one-time-expense.controller.ts in src/presentation/controllers/
+- [x] T035 [US2] Create one-time-expense.routes.ts in src/presentation/routes/
+- [x] T035A [US2] Register OneTimeExpense repository and service in src/infrastructure/config/container.ts
+- [x] T036 [US2] Update main routes index.ts to include one-time-expense routes
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -112,18 +126,25 @@ description: "Task list for Gestão de Despesas feature implementation"
 
 **Independent Test**: Create installment expense, verify cents arithmetic (remainder in first installment), test update/delete restrictions, test early termination
 
+### Tests for User Story 3
+
+- [x] T036A [P] [US3] Create unit tests for InstallmentExpense and Installment entities including cents arithmetic, consecutive competence generation, and financial immutability in tests/unit/domain/entities/
+- [x] T036B [P] [US3] Create unit tests for create/get/update/terminate/delete installment-expense use cases in tests/unit/domain/use-cases/installment-expense/
+- [x] T036C [P] [US3] Create integration tests for installment-expense endpoints including past-month deletion blocking and early termination in tests/integration/presentation/installment-expense.test.ts
+
 ### Implementation for User Story 3
 
-- [ ] T037 [P] [US3] Create create-installment-expense.use-case.ts in src/domain/use-cases/installment-expense/
-- [ ] T038 [P] [US3] Create get-installment-expense.use-case.ts in src/domain/use-cases/installment-expense/
-- [ ] T039 [P] [US3] Create update-installment-expense.use-case.ts in src/domain/use-cases/installment-expense/
-- [ ] T040 [P] [US3] Create terminate-installment-expense.use-case.ts in src/domain/use-cases/installment-expense/
-- [ ] T041 [P] [US3] Create delete-installment-expense.use-case.ts in src/domain/use-cases/installment-expense/
-- [ ] T042 [P] [US3] Create installment-expense.dto.ts in src/application/dtos/
-- [ ] T043 [P] [US3] Create installment-expense.service.ts in src/application/services/
-- [ ] T044 [US3] Create installment-expense.controller.ts in src/presentation/controllers/
-- [ ] T045 [US3] Create installment-expense.routes.ts in src/presentation/routes/
-- [ ] T046 [US3] Update main routes index.ts to include installment-expense routes
+- [x] T037 [P] [US3] Create create-installment-expense.use-case.ts in src/domain/use-cases/installment-expense/
+- [x] T038 [P] [US3] Create get-installment-expense.use-case.ts in src/domain/use-cases/installment-expense/
+- [x] T039 [P] [US3] Create update-installment-expense.use-case.ts in src/domain/use-cases/installment-expense/
+- [x] T040 [P] [US3] Create terminate-installment-expense.use-case.ts in src/domain/use-cases/installment-expense/
+- [x] T041 [P] [US3] Create delete-installment-expense.use-case.ts in src/domain/use-cases/installment-expense/
+- [x] T042 [P] [US3] Create installment-expense.dto.ts in src/application/dtos/
+- [x] T043 [P] [US3] Create installment-expense.service.ts in src/application/services/
+- [x] T044 [US3] Create installment-expense.controller.ts in src/presentation/controllers/
+- [x] T045 [US3] Create installment-expense.routes.ts in src/presentation/routes/
+- [x] T045A [US3] Register InstallmentExpense repository and service in src/infrastructure/config/container.ts
+- [x] T046 [US3] Update main routes index.ts to include installment-expense routes
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -131,38 +152,50 @@ description: "Task list for Gestão de Despesas feature implementation"
 
 ## Phase 6: User Story 4 - Cadastro e gestão de despesas recorrentes (Priority: P4)
 
-**Goal**: Allow users to create recurring expenses with versioning and early termination
+**Goal**: Allow users to create, read, list, terminate, and delete recurring expenses with explicit monthly invariants
 
-**Independent Test**: Create recurring expense, verify versioning on updates, test early termination, validate date constraints
+**Independent Test**: Create recurring expense, verify monthly/date constraints, test retrieval, early termination, and deletion
+
+### Tests for User Story 4
+
+- [x] T046A [P] [US4] Create unit tests for RecurringExpense and RecurringExpenseVersion entities including monthly periodicity and date invariants in tests/unit/domain/entities/
+- [x] T046B [P] [US4] Create unit tests for create/get/list/terminate/delete recurring-expense use cases in tests/unit/domain/use-cases/recurring-expense/
+- [x] T046C [P] [US4] Create integration tests for recurring-expense create/get/list/terminate/delete endpoints in tests/integration/presentation/recurring-expense.test.ts
 
 ### Implementation for User Story 4
 
-- [ ] T047 [P] [US4] Create create-recurring-expense.use-case.ts in src/domain/use-cases/recurring-expense/
-- [ ] T048 [P] [US4] Create get-recurring-expense.use-case.ts in src/domain/use-cases/recurring-expense/
-- [ ] T049 [P] [US4] Create list-recurring-expenses.use-case.ts in src/domain/use-cases/recurring-expense/
-- [ ] T050 [P] [US4] Create update-recurring-expense.use-case.ts in src/domain/use-cases/recurring-expense/
-- [ ] T051 [P] [US4] Create terminate-recurring-expense.use-case.ts in src/domain/use-cases/recurring-expense/
-- [ ] T052 [P] [US4] Create delete-recurring-expense.use-case.ts in src/domain/use-cases/recurring-expense/
-- [ ] T053 [P] [US4] Create recurring-expense.dto.ts in src/application/dtos/
-- [ ] T054 [P] [US4] Create recurring-expense.service.ts in src/application/services/
-- [ ] T055 [US4] Create recurring-expense.controller.ts in src/presentation/controllers/
-- [ ] T056 [US4] Create recurring-expense.routes.ts in src/presentation/routes/
-- [ ] T057 [US4] Update main routes index.ts to include recurring-expense routes
+- [x] T047 [P] [US4] Create create-recurring-expense.use-case.ts in src/domain/use-cases/recurring-expense/
+- [x] T048 [P] [US4] Create get-recurring-expense.use-case.ts in src/domain/use-cases/recurring-expense/
+- [x] T049 [P] [US4] Create list-recurring-expenses.use-case.ts in src/domain/use-cases/recurring-expense/
+- [x] T049A [US4] Enforce monthly-only recurrence invariants and active-period validation for recurring expenses in src/domain/entities/recurring-expense.entity.ts and related use cases
+- [x] T051 [P] [US4] Create terminate-recurring-expense.use-case.ts in src/domain/use-cases/recurring-expense/
+- [x] T052 [P] [US4] Create delete-recurring-expense.use-case.ts in src/domain/use-cases/recurring-expense/
+- [x] T053 [P] [US4] Create recurring-expense.dto.ts in src/application/dtos/
+- [x] T054 [P] [US4] Create recurring-expense.service.ts in src/application/services/
+- [x] T055 [US4] Create recurring-expense.controller.ts in src/presentation/controllers/
+- [x] T056 [US4] Create recurring-expense.routes.ts in src/presentation/routes/
+- [x] T056A [US4] Register RecurringExpense repository and service in src/infrastructure/config/container.ts
+- [x] T057 [US4] Update main routes index.ts to include recurring-expense routes
 
 ---
 
 ## Phase 7: User Story 5 - Alteração de despesas recorrentes com preservação histórica (Priority: P5)
 
-**Goal**: Ensure recurring expense modifications preserve historical data with proper versioning
+**Goal**: Allow users to update recurring expenses with versioning and early termination
 
 **Independent Test**: Create recurring expense, apply future changes, verify past months unchanged, test version history
 
+### Tests for User Story 5
+
+- [x] T057A [P] [US5] Create unit tests for recurring-expense update and version-history retrieval use cases in tests/unit/domain/use-cases/recurring-expense/
+- [x] T057B [P] [US5] Create integration tests for recurring-expense update and version-history responses in tests/integration/presentation/recurring-expense-history.test.ts
+
 ### Implementation for User Story 5
 
-- [ ] T058 [US5] Enhance update-recurring-expense.use-case.ts to enforce future-only effective dates
-- [ ] T059 [US5] Add version history retrieval to get-recurring-expense.use-case.ts
-- [ ] T060 [US5] Update recurring-expense.dto.ts to include version history in responses
-- [ ] T061 [US5] Add validation in recurring-expense.service.ts for effective date constraints
+- [x] T058 [US5] Create update-recurring-expense.use-case.ts with future-only effective dates and version creation in src/domain/use-cases/recurring-expense/
+- [x] T059 [US5] Add version history retrieval to get-recurring-expense.use-case.ts in src/domain/use-cases/recurring-expense/
+- [x] T060 [US5] Update recurring-expense.dto.ts to include version history in responses in src/application/dtos/
+- [x] T061 [US5] Add update and history validation orchestration in recurring-expense.service.ts in src/application/services/
 
 ---
 
@@ -172,13 +205,19 @@ description: "Task list for Gestão de Despesas feature implementation"
 
 **Independent Test**: Create mixed expense types, query specific month, verify all applicable expenses returned with correct totals
 
+### Tests for User Story 6
+
+- [x] T061A [P] [US6] Create unit tests for expense query consolidation covering coexistence of multiple expense types in the same month in tests/unit/application/services/expense-query.service.test.ts
+- [x] T061B [P] [US6] Create integration tests for expense-query endpoint including category, type, and installment origin reference in tests/integration/presentation/expense-query.test.ts
+
 ### Implementation for User Story 6
 
-- [ ] T062 [P] [US6] Create expense-query.dto.ts in src/application/dtos/
-- [ ] T063 [P] [US6] Create expense-query.service.ts in src/application/services/
-- [ ] T064 [US6] Create expense-query.controller.ts in src/presentation/controllers/
-- [ ] T065 [US6] Create expense-query.routes.ts in src/presentation/routes/
-- [ ] T066 [US6] Update main routes index.ts to include expense-query routes
+- [x] T062 [P] [US6] Create expense-query.dto.ts in src/application/dtos/
+- [x] T063 [P] [US6] Create expense-query.service.ts in src/application/services/ to consolidate one-time, installment, and recurring expenses for the same competence month
+- [x] T064 [US6] Create expense-query.controller.ts in src/presentation/controllers/
+- [x] T065 [US6] Create expense-query.routes.ts in src/presentation/routes/
+- [x] T065A [US6] Include installment-expense origin reference fields in expense-query.dto.ts and expense-query.service.ts responses
+- [x] T066 [US6] Update main routes index.ts to include expense-query routes
 
 ---
 
@@ -186,13 +225,11 @@ description: "Task list for Gestão de Despesas feature implementation"
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T067 [P] Create unit tests for expense entities in tests/unit/domain/entities/
-- [ ] T068 [P] Create unit tests for expense use-cases in tests/unit/domain/use-cases/
-- [ ] T069 [P] Create integration tests for expense endpoints in tests/integration/presentation/
-- [ ] T070 Update quickstart.md with actual curl examples from contracts
-- [ ] T071 Code cleanup and refactoring across expense modules
-- [ ] T072 Performance optimization for consolidated expense queries
-- [ ] T073 Run validation of all quickstart.md examples
+- [x] T067 [P] Validate that all story-level tests cover spec edge cases and success criteria in tests/unit and tests/integration
+- [x] T068 [P] Validate quickstart and contract examples against the implemented endpoints and payloads
+- [x] T069 [P] Validate response-time expectations for key expense flows against SC-001, SC-002, and SC-005
+- [x] T070 Update quickstart.md with actual curl examples from contracts
+- [x] T071 Run validation of all quickstart.md examples
 
 ---
 
@@ -213,11 +250,12 @@ description: "Task list for Gestão de Despesas feature implementation"
 - **User Story 2 (P2)**: Can start after Foundational (Phase 2) - Depends on US1 for category reference
 - **User Story 3 (P3)**: Can start after Foundational (Phase 2) - Depends on US1 for category reference
 - **User Story 4 (P4)**: Can start after Foundational (Phase 2) - Depends on US1 for category reference
-- **User Story 5 (P5)**: Can start after US4 completion - Enhances recurring expense versioning
+- **User Story 5 (P5)**: Can start after US4 completion - Adds recurring expense update/version-history behavior
 - **User Story 6 (P6)**: Can start after US2, US3, US4 completion - Queries all expense types
 
 ### Within Each User Story
 
+- Tests must be written before or alongside implementation and must cover domain and use-case behavior
 - Models before services
 - Services before endpoints
 - Core implementation before integration
@@ -226,7 +264,7 @@ description: "Task list for Gestão de Despesas feature implementation"
 ### Parallel Opportunities
 
 - All Foundational tasks marked [P] can run in parallel (within Phase 2)
-- Once Foundational phase completes, user stories 1-4 can start in parallel (if team capacity allows)
+- Once Foundational phase completes, user stories can start in parallel only when their stated dependencies are satisfied
 - All tests for a user story marked [P] can run in parallel
 - Models within a story marked [P] can run in parallel
 - Different user stories can be worked on in parallel by different team members

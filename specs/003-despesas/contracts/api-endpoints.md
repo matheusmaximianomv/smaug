@@ -703,37 +703,63 @@ Consulta consolidada de todas as despesas aplicáveis ao mês informado (FR-012,
 {
   "competenceYear": 2026,
   "competenceMonth": 3,
-  "oneTimeExpenses": [
+  "expenses": [
     {
       "id": "uuid",
-      "description": "Jantar restaurante",
-      "amount": 150.0,
+      "type": "ONE_TIME",
+      "userId": "uuid",
+      "categoryId": "uuid",
       "category": { "id": "uuid", "name": "Alimentação" },
-      "type": "ONE_TIME"
-    }
-  ],
-  "installments": [
+      "description": "Jantar restaurante",
+      "amount": 150,
+      "competenceYear": 2026,
+      "competenceMonth": 3,
+      "createdAt": "2026-03-01T00:00:00.000Z",
+      "updatedAt": "2026-03-01T00:00:00.000Z"
+    },
     {
       "id": "uuid",
+      "type": "INSTALLMENT",
+      "userId": "uuid",
+      "categoryId": "uuid",
+      "category": { "id": "uuid", "name": "Eletrônicos" },
+      "description": "Notebook",
+      "amount": 333.34,
       "installmentExpenseId": "uuid",
       "installmentNumber": 1,
       "installmentCount": 3,
-      "description": "Notebook",
-      "amount": 333.34,
-      "category": { "id": "uuid", "name": "Eletrônicos" },
-      "type": "INSTALLMENT"
-    }
-  ],
-  "recurringExpenses": [
+      "totalAmount": 1000,
+      "startYear": 2026,
+      "startMonth": 3,
+      "createdAt": "2026-03-01T00:00:00.000Z",
+      "updatedAt": "2026-03-01T00:00:00.000Z"
+    },
     {
       "id": "uuid",
-      "description": "Aluguel",
-      "amount": 2000.0,
+      "type": "RECURRING",
+      "userId": "uuid",
+      "categoryId": "uuid",
       "category": { "id": "uuid", "name": "Moradia" },
-      "type": "RECURRING"
+      "description": "Aluguel",
+      "amount": 2000,
+      "recurringExpenseId": "uuid",
+      "startYear": 2026,
+      "startMonth": 3,
+      "endYear": null,
+      "endMonth": null,
+      "effectiveYear": 2026,
+      "effectiveMonth": 3,
+      "versionId": "uuid",
+      "createdAt": "2026-03-01T00:00:00.000Z",
+      "updatedAt": "2026-03-01T00:00:00.000Z"
     }
   ],
-  "total": 2483.34
+  "totals": {
+    "oneTime": 150,
+    "installment": 333.34,
+    "recurring": 2000,
+    "total": 2483.34
+  }
 }
 ```
 
