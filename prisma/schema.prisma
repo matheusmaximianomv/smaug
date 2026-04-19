@@ -14,6 +14,10 @@ model User {
   createdAt       DateTime         @default(now()) @map("created_at")
   oneTimeRevenues OneTimeRevenue[]
   fixedRevenues   FixedRevenue[]
+  expenseCategories     ExpenseCategory[]
+  oneTimeExpenses       OneTimeExpense[]
+  installmentExpenses   InstallmentExpense[]
+  recurringExpenses     RecurringExpense[]
 
   @@map("t_users")
 }
@@ -62,4 +66,104 @@ model FixedRevenueVersion {
 
   @@index([fixedRevenueId, effectiveYear, effectiveMonth], map: "i_fixed_revenue_versions_revenue_effective")
   @@map("t_fixed_revenue_versions")
+}
+
+model ExpenseCategory {
+  id                       String                    @id @map("id")
+  userId                   String                    @map("user_id")
+  name                     String                    @map("name")
+  nameLower                String                    @map("name_lower")
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
+  user                     User                      @relation(fields: [userId], references: [id])
+  oneTimeExpenses          OneTimeExpense[]
+  installmentExpenses      InstallmentExpense[]
+  recurringExpenseVersions RecurringExpenseVersion[]
+
+  @@unique([userId, nameLower], map: "u_expense_categories_user_name_lower")
+  @@index([userId], map: "i_expense_categories_user")
+  @@map("t_expense_categories")
+}
+
+model OneTimeExpense {
+  id               String          @id @map("id")
+  userId           String          @map("user_id")
+  categoryId       String          @map("category_id")
+  description      String          @map("description")
+  amount           Float           @map("amount")
+  competenceMonth  Int             @map("competence_month")
+  competenceYear   Int             @map("competence_year")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  user             User            @relation(fields: [userId], references: [id])
+  category         ExpenseCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([userId, competenceYear, competenceMonth], map: "i_one_time_expenses_user_competence")
+  @@map("t_one_time_expenses")
+}
+
+model InstallmentExpense {
+  id               String          @id @map("id")
+  userId           String          @map("user_id")
+  categoryId       String          @map("category_id")
+  description      String          @map("description")
+  totalAmount      Float           @map("total_amount")
+  installmentCount Int             @map("installment_count")
+  startMonth       Int             @map("start_month")
+  startYear        Int             @map("start_year")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  user             User            @relation(fields: [userId], references: [id])
+  category         ExpenseCategory @relation(fields: [categoryId], references: [id])
+  installments     Installment[]
+
+  @@index([userId], map: "i_installment_expenses_user")
+  @@map("t_installment_expenses")
+}
+
+model Installment {
+  id                   String             @id @map("id")
+  installmentExpenseId String             @map("installment_expense_id")
+  installmentNumber    Int                @map("installment_number")
+  amount               Float              @map("amount")
+  competenceMonth      Int                @map("competence_month")
+  competenceYear       Int                @map("competence_year")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  installmentExpense   InstallmentExpense @relation(fields: [installmentExpenseId], references: [id], onDelete: Cascade)
+
+  @@index([installmentExpenseId], map: "i_installments_expense")
+  @@index([competenceYear, competenceMonth], map: "i_installments_competence")
+  @@map("t_installments")
+}
+
+model RecurringExpense {
+  id         String                   @id @map("id")
+  userId     String                   @map("user_id")
+  startMonth Int                      @map("start_month")
+  startYear  Int                      @map("start_year")
+  endMonth   Int?                     @map("end_month")
+  endYear    Int?                     @map("end_year")
+  createdAt  DateTime                 @default(now()) @map("created_at")
+  updatedAt  DateTime                 @updatedAt @map("updated_at")
+  user       User                     @relation(fields: [userId], references: [id])
+  versions   RecurringExpenseVersion[]
+
+  @@index([userId, startYear, startMonth], map: "i_recurring_expenses_user_start")
+  @@map("t_recurring_expenses")
+}
+
+model RecurringExpenseVersion {
+  id                 String           @id @map("id")
+  recurringExpenseId String           @map("recurring_expense_id")
+  categoryId         String           @map("category_id")
+  description        String           @map("description")
+  amount             Float            @map("amount")
+  effectiveMonth     Int              @map("effective_month")
+  effectiveYear      Int              @map("effective_year")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  recurringExpense   RecurringExpense @relation(fields: [recurringExpenseId], references: [id], onDelete: Cascade)
+  category           ExpenseCategory  @relation(fields: [categoryId], references: [id])
+
+  @@index([recurringExpenseId, effectiveYear, effectiveMonth], map: "i_recurring_expense_versions_expense_effective")
+  @@map("t_recurring_expense_versions")
 }

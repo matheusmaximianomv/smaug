@@ -4,6 +4,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-22
 
 ## Active Technologies
 
+- SQLite via Prisma (herdado de 002-receitas — mesmo arquivo `dev.db`) (003-despesas)
+
 - TypeScript 5.x (strict mode) + Express 5.x, Prisma (ORM), tsyringe (DI), zod (validação), pino (logging) (002-receitas)
 - SQLite via Prisma (conforme solicitação do usuário) (002-receitas)
 
@@ -26,6 +28,8 @@ npm test && npm run lint
 TypeScript 5.x (strict mode) sobre Node.js 22 LTS: Follow standard conventions
 
 ## Recent Changes
+
+- 003-despesas: Added TypeScript 5.x (strict mode) + Express 5.x, Prisma (ORM), tsyringe (DI), zod (validação), pino (logging)
 
 - 002-receitas: Added TypeScript 5.x (strict mode) + Express 5.x, Prisma (ORM), tsyringe (DI), zod (validação), pino (logging)
 
