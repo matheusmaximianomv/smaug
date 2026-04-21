@@ -72,17 +72,22 @@ tests/
 # [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
 backend/
 ├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
+│   ├── domain/
+│   ├── application/
+│   ├── infrastructure/
+│   └── presentation/
 └── tests/
 
 frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
+├── app/                  # Next.js App Router (rotas, layouts, RSC)
+├── features/
+│   └── [feature]/
+│       ├── components/
+│       ├── hooks/
+│       ├── services/
+│       └── types/
+├── shared/               # UI reutilizável, utilitários, tipos comuns
+└── infra/                # Adapters externos (API client, router, storage)
 
 # [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
 api/

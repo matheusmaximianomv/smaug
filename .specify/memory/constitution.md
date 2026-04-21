@@ -1,16 +1,20 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: N/A → 1.0.0 (initial ratification)
-  Modified principles: N/A (first version)
+  Version change: 1.0.0 → 1.1.0 (MINOR: frontend context added)
+  Modified principles: None (backend principles I–V text unchanged)
   Added sections:
-    - Core Principles (5 principles)
-    - Technology Stack & Constraints
-    - Development Workflow
-    - Governance
+    - ## Frontend
+      - ### Core Principles (Principles I–V)
+      - ### Architecture / Camadas
+      - ### Technology Stack & Constraints
+      - ### Development Workflow
+  Modified sections:
+    - ## Technology Stack & Constraints (backend):
+        "Tipo de aplicação" updated to include frontend
   Removed sections: None
   Templates requiring updates:
-    - .specify/templates/plan-template.md ✅ no changes needed
+    - .specify/templates/plan-template.md ✅ updated (Option 2 frontend structure)
     - .specify/templates/spec-template.md ✅ no changes needed
     - .specify/templates/tasks-template.md ✅ no changes needed
     - .specify/templates/agent-file-template.md ✅ no changes needed
@@ -104,7 +108,7 @@ entrega constante ao longo do tempo.
 
 - **Linguagem**: TypeScript (strict mode habilitado).
 - **Plataforma**: Node.js.
-- **Tipo de aplicação**: API REST — sem interface gráfica.
+- **Tipo de aplicação**: API REST (backend) + Interface gráfica Next.js (frontend).
 - **Domínio funcional**: Finanças pessoais — registro de
   receitas e despesas (fixas e eventuais), cálculo automático
   de saldo mensal, total economizado e evolução financeira.
@@ -141,4 +145,163 @@ a constituição prevalece.
   Constitution Check no plan.md DEVE validar aderência
   aos princípios aqui definidos.
 
-**Version**: 1.0.0 | **Ratified**: 2026-02-22 | **Last Amended**: 2026-02-22
+---
+
+## Frontend
+
+### Core Principles
+
+#### I. Arquitetura Orientada a Domínio
+
+O frontend DEVE ser organizado por features/domínios, não por
+tipo técnico. A estrutura de pastas DEVE refletir as entidades
+do negócio.
+
+- Cada feature DEVE conter seus próprios `components`, `hooks`,
+  `services` e `types` internamente.
+- Estruturas globais como `/components` ou `/hooks` NÃO DEVEM
+  concentrar lógica de features específicas.
+- Componentes DEVEM ser preferencialmente presentacionais:
+  recebem dados via props e disparam eventos.
+
+**Rationale**: Organização por domínio facilita localização de
+código, isolamento de mudanças e evolução independente de
+features.
+
+#### II. Separação entre UI e Lógica
+
+Componentes React, hooks e services DEVEM ter responsabilidades
+claramente distintas e não se sobrepor.
+
+- Componentes DEVEM apenas renderizar, receber dados via props
+  e disparar eventos — sem lógica de negócio.
+- Hooks DEVEM encapsular regras de negócio, controle de estado
+  e efeitos colaterais.
+- Services DEVEM ser responsáveis exclusivamente por chamadas
+  externas (API, armazenamento, etc.).
+- Regras de negócio complexas NÃO DEVEM residir dentro de JSX.
+- APIs externas NÃO DEVEM ser acessadas diretamente dentro de
+  componentes.
+
+**Rationale**: Separação clara de responsabilidades facilita
+testes unitários, reutilização e manutenção independente.
+
+#### III. Independência de Framework (Frontend)
+
+A lógica de negócio do frontend NÃO DEVE depender diretamente
+de APIs específicas do Next.js ou de qualquer outro framework.
+
+- `useRouter`, `useSearchParams` e APIs específicas do Next.js
+  NÃO DEVEM ser usados diretamente em hooks de negócio.
+- Adapters DEVEM ser criados para: roteamento, cookies/sessão
+  e acesso a serviços externos.
+- O objetivo é permitir que a lógica de negócio seja
+  reutilizável fora do contexto Next.js.
+
+**Rationale**: Evitar vendor lock-in no frontend e garantir
+portabilidade da lógica de negócio.
+
+#### IV. Baixo Acoplamento entre Features
+
+Features DEVEM ser independentes entre si. Importações diretas
+de lógica entre features são PROIBIDAS.
+
+- Compartilhamento de código DEVE ocorrer exclusivamente via
+  `/shared` (UI e utilitários reutilizáveis) ou `/infra`
+  (adapters e integrações externas).
+- Comunicação entre partes DEVE usar props, context controlado
+  ou eventos.
+- Uma feature NÃO DEVE conhecer os detalhes internos de outra.
+
+**Rationale**: Baixo acoplamento permite evolução e remoção de
+features sem efeitos colaterais em outras partes do sistema.
+
+#### V. Sustentabilidade e Simplicidade
+
+O frontend DEVE priorizar soluções simples, legíveis e de fácil
+manutenção. Complexidade DEVE ser justificada por demanda
+concreta.
+
+- YAGNI DEVE ser aplicado: não antecipar complexidade sem
+  demanda real.
+- Abstrações prematuras DEVEM ser evitadas.
+- Código DEVE ser autoexplicativo; funções DEVEM ter
+  responsabilidade única.
+- Código morto NÃO DEVE ser mantido na base.
+- Convenções de nomenclatura DEVEM ser seguidas:
+  hooks → `useX`, services → `XService`, types → `XType`.
+
+**Rationale**: Simplicidade mantém velocidade de entrega e
+reduz o custo cognitivo de evolução do sistema.
+
+### Architecture / Camadas
+
+#### Fluxo de Dependências
+
+A arquitetura em camadas do frontend DEVE seguir o fluxo
+unidirecional abaixo. Dependências inversas são PROIBIDAS.
+
+```
+UI (components)
+      ↓
+Hooks / Use Cases
+      ↓
+Services / API Layer
+      ↓
+Infra / External
+```
+
+- UI DEVE depender de hooks — NÃO de services ou infra.
+- Hooks DEVEM depender de services — NÃO de UI.
+- Services NÃO DEVEM depender de UI ou hooks.
+
+#### Modelo Híbrido Next.js (Server vs. Client)
+
+- Server Components DEVEM ser o padrão para toda renderização.
+- `"use client"` DEVE ser adicionado apenas quando necessário:
+  interatividade, estado (`useState`/`useReducer`), efeitos
+  (`useEffect`) ou APIs do browser.
+- Lazy loading (`next/dynamic`) DEVE ser aplicado para
+  componentes client pesados quando fizer sentido.
+
+#### Estrutura de Pastas
+
+```
+/app                  # Next.js App Router (rotas, layouts, RSC)
+/features             # Módulos organizados por domínio
+  /[feature]/
+    /components       # UI presentacional da feature
+    /hooks            # Lógica de negócio e estado
+    /services         # Integração com APIs externas
+    /types            # Contratos e tipos da feature
+/shared               # UI reutilizável, utilitários, tipos comuns
+/infra                # Adapters externos (API client, router, storage)
+```
+
+### Technology Stack & Constraints
+
+- **Framework**: Next.js com App Router.
+- **Linguagem**: TypeScript (strict mode habilitado).
+- **Renderização**: Server Components por padrão; Client
+  Components apenas quando necessário (interatividade, estado,
+  APIs do browser).
+- **Estado**: Priorizar estado local (`useState`); estado
+  global DEVE ser introduzido apenas com demanda concreta.
+- **Domínio funcional**: Interface gráfica para finanças
+  pessoais — visualização e gestão de receitas, despesas e
+  saldo mensal.
+
+### Development Workflow
+
+- PRs DEVEM ser obrigatórios para merge na branch principal.
+- Commits DEVEM seguir Conventional Commits.
+- Lint e formatação DEVEM ser executados automaticamente.
+- Testes DEVEM focar em hooks e lógica de negócio.
+- PRs DEVEM incluir contexto da mudança e evidências visuais
+  (screenshots ou gravações) para alterações de UI.
+- A cada nova feature, o Constitution Check no plan.md DEVE
+  validar aderência aos princípios desta seção.
+
+---
+
+**Version**: 1.1.0 | **Ratified**: 2026-02-22 | **Last Amended**: 2026-04-21
