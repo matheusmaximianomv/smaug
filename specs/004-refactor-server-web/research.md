@@ -1,6 +1,6 @@
 # Research: Refatoração da Estrutura de Pastas (Server/Web)
 
-**Feature**: 001-refactor-server-web  
+**Feature**: 004-refactor-server-web  
 **Date**: 2025-04-21  
 **Status**: Complete
 

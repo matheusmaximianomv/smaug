@@ -1,7 +1,7 @@
 # Implementation Plan: Refatoração da Estrutura de Pastas (Server/Web)
 
-**Branch**: `001-refactor-server-web` | **Date**: 2025-04-21 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/001-refactor-server-web/spec.md`
+**Branch**: `004-refactor-server-web` | **Date**: 2025-04-21 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/004-refactor-server-web/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
 
@@ -87,7 +87,7 @@ Nenhuma violação identificada. A refatoração é puramente estrutural e alinh
 ### Documentation (this feature)
 
 ```text
-specs/001-refactor-server-web/
+specs/004-refactor-server-web/
 ├── spec.md              # Feature specification (completed)
 ├── plan.md              # This file (/speckit.plan command output)
 ├── research.md          # Phase 0 output (to be generated)

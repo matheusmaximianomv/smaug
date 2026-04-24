@@ -1,6 +1,6 @@
 # Feature Specification: Refatoração da Estrutura de Pastas (Server/Web)
 
-**Feature Branch**: `001-refactor-server-web`  
+**Feature Branch**: `004-refactor-server-web`  
 **Created**: 2025-04-21  
 **Status**: Clarified  
 **Input**: User description: "Preparar a estrutura do projeto para suportar a futura implementação de uma interface gráfica (frontend), garantindo uma separação clara entre backend (API) e frontend (web), sem impactar o funcionamento atual da aplicação."

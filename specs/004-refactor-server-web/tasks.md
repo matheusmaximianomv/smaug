@@ -1,7 +1,7 @@
 # Tasks: Refatoração da Estrutura de Pastas (Server/Web)
 
-**Feature**: 001-refactor-server-web  
-**Input**: Design documents from `/specs/001-refactor-server-web/`  
+**Feature**: 004-refactor-server-web  
+**Input**: Design documents from `/specs/004-refactor-server-web/`  
 **Prerequisites**: plan.md, spec.md, research.md, quickstart.md
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
