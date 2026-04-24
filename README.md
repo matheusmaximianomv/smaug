@@ -1,104 +1,141 @@
-# Smaug Project Base
+# Smaug Monorepo
 
-Base API scaffold for personal finance backend built with Node.js 22, TypeScript (strict), Clean Architecture, Prisma, Express, Pino, Vitest, and Docker.
+Estrutura reorganizada para separar a API (`server/`) da aplicação Next.js (`web/`), mantendo ferramentas compartilhadas na raiz.
 
 ## Tech Stack
 
-- Runtime: Node.js 22 (ESM)
-- Language: TypeScript 5.x (strict)
-- HTTP: Express 4 (adapter in infrastructure)
-- ORM: Prisma (PostgreSQL, SQLite, in-memory via repository)
-- DI: tsyringe
-- Env: dotenv + zod validation
-- Logging: pino / pino-pretty (dev)
-- Testing: Vitest (unit + integration), Supertest
-- Container: Docker (node:22-alpine), docker-compose with PostgreSQL 16
+- **Server**: Node.js 22 (ESM), TypeScript 5.x (strict), Express 5, Prisma, tsyringe, Vitest, Supertest, Pino.
+- **Web**: Next.js 15 (App Router), React 19 RC, Tailwind CSS, TypeScript.
+- **Tooling**: ESLint, Prettier, Husky, lint-staged, dependency-cruiser.
 
-## Project Structure
+## Estrutura do Projeto
 
 ```
-src/
-  domain/           # entities, ports, use-cases (pure)
-  application/      # ports, services, dtos
-  infrastructure/   # database, logging, config, http
-  presentation/     # controllers, middlewares, routes
-  main.ts           # bootstrap
-prisma/             # schema.prisma
-tests/
-  unit/
-  integration/
+server/                 # API em Clean Architecture
+  src/
+  prisma/
+  tests/
+  package.json
+
+web/                    # Next.js 15
+  app/
+  features/
+  infra/
+  shared/
+  package.json
+
+specs/                  # Artefatos Speckit
+.husky/                 # Hooks git
+.lintstagedrc.json
+.dependency-cruiser.js
+package.json            # Scripts de orquestração e devDeps globais
 ```
 
-## Setup (local, no Docker)
+## Instalação
 
 ```bash
-npm install
-cp .env.example .env
-# adjust DATABASE_PROVIDER (memory|sqlite|postgresql) and DATABASE_URL
-npm run prisma:prepare   # sets datasource provider in schema
-npm run prisma:generate  # generates Prisma client
-npm run build
-npm run dev              # or: npm start after build
+npm run install:all
 ```
 
-## Docker
+Depois da instalação, configure ambientes:
 
 ```bash
-docker compose up --build
-# then check health
-curl http://localhost:3000/health
+cp server/.env.example server/.env
+cp web/.env.example web/.env
 ```
 
-Env overrides: see `.env.docker` (postgres connection). Dockerfile runs `npm run migrate:deploy` before starting app.
+Atualize `DATABASE_PROVIDER` e `DATABASE_URL` para o backend conforme necessário.
 
-## Testing
+## Desenvolvimento
+
+- Subir API e Web juntos:
+
+  ```bash
+  npm run dev
+  ```
+
+- Apenas API:
+
+  ```bash
+  npm run dev:server
+  ```
+
+- Apenas Next.js:
+
+  ```bash
+  npm run dev:web
+  ```
+
+API responde em `http://localhost:3000`. Next.js usa a porta 3000 quando livre ou cai para 3001 se a API estiver ativa.
+
+## Testes
 
 ```bash
-npm run test:unit
-npm run test:integration
+npm test                 # executa server + web
+npm run test:server      # somente API (Vitest)
+npm run test:web         # somente Next.js
 ```
 
-## Lint & Format
+## Build
 
 ```bash
-npm run lint
-npm run format
+npm run build            # build server + web
+npm run build:server
+npm run build:web
 ```
 
-## Dependency boundaries
+## Validação e Qualidade
 
-Dependency-cruiser config enforces domain/application not importing infrastructure/presentation. Run:
+- Regras de dependência (evita importações cruzadas entre server/web e alerta ciclos):
+
+  ```bash
+  npm run validate:deps
+  ```
+
+- Lint & format globais:
+
+  ```bash
+  npm run lint
+  npm run format
+  ```
+
+Husky + lint-staged executam estes comandos nos arquivos staged antes dos commits.
+
+## Prisma (Backend)
 
 ```bash
-npm run validate:deps
+npm run --prefix server prisma:prepare
+npm run --prefix server prisma:generate
 ```
 
-## Provider swap (Prisma)
-
-Prisma requires generation per provider. Before using a provider, run:
+Para trabalhar com PostgreSQL:
 
 ```bash
-DATABASE_PROVIDER=postgresql npm run prisma:generate   # for postgres
-# or
-DATABASE_PROVIDER=sqlite npm run prisma:generate       # for sqlite
+DATABASE_PROVIDER=postgresql npm run --prefix server prisma:prepare
+DATABASE_PROVIDER=postgresql npm run --prefix server prisma:generate
 ```
 
-Memory mode uses sqlite provider.
+O modo `memory` usa SQLite internamente para facilitar testes.
 
-## Health check contract
+## Next.js (Frontend)
 
-`GET /health` returns status, timestamp, uptime, and database status; responds 503 if DB disconnected.
+Página inicial padrão exibe:
 
-## Useful scripts
+```
+Smaug
+Sistema de Gestão Financeira Pessoal
+Interface em construção
+```
 
-- `dev`: tsx watch main.ts
-- `build`: tsc
-- `start`: node dist/main.js
-- `migrate:deploy`: prisma migrate deploy
-- `validate:deps`: dependency-cruiser
+Use `npm run dev:web` e acesse `http://localhost:3000` (ou porta fallback) para conferir.
 
-## Notes
+## Fluxo de Commit
 
-- Use Node 22+ (package.json engines).
-- Husky + lint-staged run lint/format on commits.
-- Placeholder Prisma model present; extend schema as business entities are added.
+1. Instale dependências com `npm run install:all`.
+2. Desenvolva usando os scripts root (`dev`, `test`, `build`).
+3. Ao commitar, Husky executa lint-staged:
+   - `server/**/*.{ts,tsx}` → `npm run --prefix server lint -- --fix` + `prettier --write`
+   - `web/**/*.{ts,tsx}` → `npm run --prefix web lint -- --fix` + `prettier --write`
+   - `*.{json,md}` → `prettier --write`
+
+Consulte `specs/` para instruções detalhadas de cada feature.

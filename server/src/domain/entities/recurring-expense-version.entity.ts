@@ -17,7 +17,7 @@ export interface RecurringExpenseVersionProps {
   createdAt?: Date;
 }
 
-type RecurringExpenseVersionPersistenceProps = Required<RecurringExpenseVersionProps>;
+export type RecurringExpenseVersionPersistenceProps = Required<RecurringExpenseVersionProps>;
 
 export class RecurringExpenseVersion {
   public readonly id: string;
