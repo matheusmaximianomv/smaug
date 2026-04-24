@@ -22,6 +22,20 @@ module.exports = {
       to: { path: "^server/" },
     },
     {
+      name: "no-domain-to-infra",
+      comment: "Domain must not depend on infrastructure or presentation",
+      severity: "error",
+      from: { path: "^server/src/domain" },
+      to: { path: "^server/src/(infrastructure|presentation)" },
+    },
+    {
+      name: "no-application-to-infra",
+      comment: "Application must not depend on infrastructure or presentation",
+      severity: "error",
+      from: { path: "^server/src/application" },
+      to: { path: "^server/src/(infrastructure|presentation)" },
+    },
+    {
       name: "no-circular-dependencies",
       comment: "Evita ciclos entre módulos",
       severity: "warn",
