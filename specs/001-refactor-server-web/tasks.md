@@ -174,11 +174,11 @@ Esta refatoração trabalha com estrutura monorepo:
 - [x] T076 [P] Executar `npm run build` para validação final de build de ambos os projetos
 - [x] T077 Executar `npm run dev` para testar execução simultânea de server e web
 - [x] T078 Verificar que server roda em `http://localhost:3000` e web em `http://localhost:3001`
-- [ ] T079 [P] Revisar mudanças com `git status` e `git diff`
-- [ ] T080 Executar `git add .` para adicionar todos os arquivos
-- [ ] T081 Criar commit com mensagem: "refactor: reorganizar projeto em estrutura server/web" incluindo BREAKING CHANGE
-- [ ] T082 [P] Atualizar documentação adicional que referencie estrutura antiga (se existir)
-- [ ] T083 [P] Atualizar scripts de CI/CD para refletir nova estrutura (se existir)
+- [x] T079 [P] Revisar mudanças com `git status` e `git diff`
+- [x] T080 Executar `git add .` para adicionar todos os arquivos
+- [x] T081 Criar commit com mensagem: "refactor: reorganizar projeto em estrutura server/web" incluindo BREAKING CHANGE
+- [x] T082 [P] Atualizar documentação adicional que referencie estrutura antiga (se existir)
+- [x] T083 [P] Atualizar scripts de CI/CD para refletir nova estrutura (se existir)
 
 ---
 
