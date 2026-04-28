@@ -14,6 +14,7 @@ const envSchema = z
       .transform((val) => Number(val))
       .pipe(z.number().int().min(1).max(65535)),
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+    CORS_ORIGIN: z.string().default("http://localhost:3001"),
   })
   .passthrough();
 
