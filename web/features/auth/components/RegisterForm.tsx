@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
 import { useRegister } from "../hooks/useRegister";
+import { getApiErrorMessage } from "@/infra/api-error";
 import { registerSchema, type RegisterFormData } from "../types/schemas";
 import { Copy, Check } from "lucide-react";
 
@@ -77,7 +78,7 @@ export function RegisterForm() {
       />
       {error && (
         <div className="rounded-lg border border-red bg-red-light p-3 text-sm text-red">
-          Erro ao criar conta. Tente novamente.
+          {getApiErrorMessage(error, "Erro ao criar conta. Tente novamente.")}
         </div>
       )}
       <Button type="submit" className="w-full" isLoading={isPending}>

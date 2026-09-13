@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
 import { useAuth } from "../hooks/useAuth";
+import { getApiErrorMessage, isInvalidSessionError } from "@/infra/api-error";
 import { loginSchema, type LoginFormData } from "../types/schemas";
 
 export function LoginForm() {
@@ -27,7 +28,11 @@ export function LoginForm() {
     try {
       await login(data.userId);
     } catch (err) {
-      setError("Usuário não encontrado. Verifique o ID e tente novamente.");
+      setError(
+        isInvalidSessionError(err)
+          ? "Usuário não encontrado. Verifique o ID e tente novamente."
+          : getApiErrorMessage(err, "Não foi possível entrar. Tente novamente."),
+      );
     } finally {
       setIsLoading(false);
     }
