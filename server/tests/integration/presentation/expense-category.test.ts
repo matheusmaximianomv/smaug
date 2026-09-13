@@ -45,11 +45,13 @@ describe("Expense Category Endpoints", () => {
   });
 
   beforeEach(async () => {
-    await prisma.expenseCategory.deleteMany();
+    // Filhos antes do pai: as despesas referenciam a categoria por chave estrangeira.
     await prisma.oneTimeExpense.deleteMany();
+    await prisma.installment.deleteMany();
     await prisma.installmentExpense.deleteMany();
-    await prisma.recurringExpense.deleteMany();
     await prisma.recurringExpenseVersion.deleteMany();
+    await prisma.recurringExpense.deleteMany();
+    await prisma.expenseCategory.deleteMany();
   });
 
   const authHeaders = () => ({ "X-User-Id": userId });
@@ -128,5 +130,44 @@ describe("Expense Category Endpoints", () => {
       .set(authHeaders());
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("EXPENSE_CATEGORY_HAS_LINKED_EXPENSES");
+  });
+
+  it("should expose linkedExpensesCount when listing categories", async () => {
+    const usedRes = await request(app)
+      .post("/expenses/categories")
+      .set(authHeaders())
+      .send({ name: "Alimentação" });
+    const unusedRes = await request(app)
+      .post("/expenses/categories")
+      .set(authHeaders())
+      .send({ name: "Lazer" });
+
+    for (const n of [1, 2]) {
+      await prisma.oneTimeExpense.create({
+        data: {
+          id: `linked-expense-${n}`,
+          userId,
+          categoryId: usedRes.body.id,
+          description: `Compra ${n}`,
+          amount: 50,
+          competenceYear: 2026,
+          competenceMonth: 3,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    const listRes = await request(app).get("/expenses/categories").set(authHeaders());
+    expect(listRes.status).toBe(200);
+
+    const byId = Object.fromEntries(
+      listRes.body.map((c: { id: string; linkedExpensesCount: number }) => [
+        c.id,
+        c.linkedExpensesCount,
+      ]),
+    );
+    expect(byId[usedRes.body.id]).toBe(2);
+    expect(byId[unusedRes.body.id]).toBe(0);
   });
 });

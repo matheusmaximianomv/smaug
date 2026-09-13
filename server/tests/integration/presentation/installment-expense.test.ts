@@ -62,6 +62,11 @@ describe("Installment Expense Endpoints", () => {
 
   const authHeaders = () => ({ "X-User-Id": userId });
 
+  const currentStart = () => {
+    const now = new Date();
+    return { startYear: now.getFullYear(), startMonth: now.getMonth() + 1 };
+  };
+
   it("should create, list, get, update, terminate, and delete an installment expense", async () => {
     const createRes = await request(app)
       .post("/expenses/installment")
@@ -70,8 +75,7 @@ describe("Installment Expense Endpoints", () => {
         description: "Notebook",
         totalAmount: 1000,
         installmentCount: 3,
-        startYear: 2026,
-        startMonth: 4,
+        ...currentStart(),
         categoryId,
       });
 
