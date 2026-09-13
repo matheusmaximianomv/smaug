@@ -113,6 +113,7 @@ const listExpenseCategoriesUseCase = new ListExpenseCategoriesUseCase(expenseCat
 const updateExpenseCategoryUseCase = new UpdateExpenseCategoryUseCase(expenseCategoryRepository);
 const deleteExpenseCategoryUseCase = new DeleteExpenseCategoryUseCase(expenseCategoryRepository);
 const expenseCategoryService = new ExpenseCategoryService(
+  expenseCategoryRepository,
   createExpenseCategoryUseCase,
   getExpenseCategoryUseCase,
   listExpenseCategoriesUseCase,
@@ -218,6 +219,7 @@ const listFixedRevenuesUseCase = new ListFixedRevenuesUseCase(fixedRevenueReposi
 const updateFixedRevenueUseCase = new UpdateFixedRevenueUseCase(fixedRevenueRepository);
 const terminateFixedRevenueUseCase = new TerminateFixedRevenueUseCase(fixedRevenueRepository);
 const fixedRevenueService = new FixedRevenueService(
+  fixedRevenueRepository,
   createFixedRevenueUseCase,
   deleteFixedRevenueUseCase,
   getFixedRevenueUseCase,
