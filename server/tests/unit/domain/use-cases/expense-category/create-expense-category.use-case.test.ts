@@ -12,7 +12,7 @@ describe("CreateExpenseCategoryUseCase", () => {
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
-    hasLinkedExpenses: vi.fn(),
+    countLinkedExpenses: vi.fn(),
   };
 
   const useCase = new CreateExpenseCategoryUseCase(repository);

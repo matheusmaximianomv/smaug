@@ -15,7 +15,7 @@ describe("DeleteExpenseCategoryUseCase", () => {
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
-    hasLinkedExpenses: vi.fn(),
+    countLinkedExpenses: vi.fn(),
   };
 
   const useCase = new DeleteExpenseCategoryUseCase(repository);
@@ -28,11 +28,11 @@ describe("DeleteExpenseCategoryUseCase", () => {
 
   it("should delete category when it belongs to user and has no linked expenses", async () => {
     (repository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(category);
-    (repository.hasLinkedExpenses as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    (repository.countLinkedExpenses as ReturnType<typeof vi.fn>).mockResolvedValue(false);
 
     await useCase.execute({ id: "cat-1", userId: "user-1" });
 
-    expect(repository.hasLinkedExpenses).toHaveBeenCalledWith("cat-1");
+    expect(repository.countLinkedExpenses).toHaveBeenCalledWith("cat-1");
     expect(repository.delete).toHaveBeenCalledWith("cat-1");
   });
 
@@ -57,7 +57,7 @@ describe("DeleteExpenseCategoryUseCase", () => {
 
   it("should throw error when category has linked expenses", async () => {
     (repository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(category);
-    (repository.hasLinkedExpenses as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    (repository.countLinkedExpenses as ReturnType<typeof vi.fn>).mockResolvedValue(true);
 
     await expect(useCase.execute({ id: "cat-1", userId: "user-1" })).rejects.toThrow(
       ExpenseCategoryHasLinkedExpensesError,

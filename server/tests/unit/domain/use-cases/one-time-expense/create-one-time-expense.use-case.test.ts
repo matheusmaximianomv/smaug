@@ -44,7 +44,7 @@ describe("CreateOneTimeExpenseUseCase", () => {
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
-      hasLinkedExpenses: vi.fn(),
+      countLinkedExpenses: vi.fn(),
     };
     useCase = new CreateOneTimeExpenseUseCase(
       expenseRepository as unknown as OneTimeExpenseRepository,

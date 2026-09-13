@@ -57,7 +57,7 @@ describe("UpdateOneTimeExpenseUseCase", () => {
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
-      hasLinkedExpenses: vi.fn(),
+      countLinkedExpenses: vi.fn(),
     };
 
     useCase = new UpdateOneTimeExpenseUseCase(
@@ -132,5 +132,61 @@ describe("UpdateOneTimeExpenseUseCase", () => {
       useCase.execute({ id: pastExpense.id, userId: "user-1", description: "Updated" }),
     ).rejects.toThrow(OneTimeExpensePastCompetenceEditError);
     expect(expenseRepository.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("UpdateOneTimeExpenseUseCase without a category change", () => {
+  let expenseRepository: OneTimeExpenseRepositoryMock;
+  let categoryRepository: ExpenseCategoryRepositoryMock;
+  let useCase: UpdateOneTimeExpenseUseCase;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE_DATE);
+
+    expenseRepository = {
+      findById: vi.fn(),
+      findAllByUser: vi.fn(),
+      findByUserAndCompetence: vi.fn(),
+      findByCategoryId: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    };
+
+    categoryRepository = {
+      findById: vi.fn(),
+      findByNameLower: vi.fn(),
+      listByUser: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      countLinkedExpenses: vi.fn(),
+    };
+
+    useCase = new UpdateOneTimeExpenseUseCase(
+      expenseRepository as unknown as OneTimeExpenseRepository,
+      categoryRepository as unknown as ExpenseCategoryRepository,
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it("should not look up a category when categoryId is omitted", async () => {
+    expenseRepository.findById.mockResolvedValue(OneTimeExpense.create(BASE_EXPENSE_PROPS));
+    expenseRepository.update.mockImplementation(async (updated) => updated);
+
+    const result = await useCase.execute({
+      id: "expense-1",
+      userId: "user-1",
+      description: "Jantar de aniversário",
+    });
+
+    expect(categoryRepository.findById).not.toHaveBeenCalled();
+    expect(result.description).toBe("Jantar de aniversário");
+    expect(result.categoryId).toBe("category-1");
   });
 });

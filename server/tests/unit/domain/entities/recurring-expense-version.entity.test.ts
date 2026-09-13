@@ -51,3 +51,61 @@ describe("RecurringExpenseVersion", () => {
     );
   });
 });
+
+describe("RecurringExpenseVersion rehydrate and validation", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE_DATE);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should rehydrate from persistence without running validations", () => {
+    const createdAt = new Date("2020-01-01T00:00:00.000Z");
+
+    const version = RecurringExpenseVersion.rehydrate({
+      id: "version-1",
+      recurringExpenseId: "recurring-1",
+      categoryId: "category-1",
+      description: "Aluguel",
+      amount: 1500,
+      effectiveMonth: 1,
+      effectiveYear: 2020,
+      createdAt,
+    });
+
+    expect(version.id).toBe("version-1");
+    expect(version.effectiveMonth).toBe(1);
+    expect(version.effectiveYear).toBe(2020);
+    expect(version.createdAt).toBe(createdAt);
+  });
+
+  it("should expose the effective competence", () => {
+    const competence = RecurringExpenseVersion.create({
+      recurringExpenseId: "recurring-1",
+      categoryId: "category-1",
+      description: "Aluguel",
+      amount: 1500,
+      effectiveMonth: 5,
+      effectiveYear: 2026,
+    }).getEffectiveCompetence();
+
+    expect(competence.month).toBe(5);
+    expect(competence.year).toBe(2026);
+  });
+
+  it("should throw for a non-positive amount", () => {
+    expect(() =>
+      RecurringExpenseVersion.create({
+        recurringExpenseId: "recurring-1",
+        categoryId: "category-1",
+        description: "Aluguel",
+        amount: 0,
+        effectiveMonth: 5,
+        effectiveYear: 2026,
+      }),
+    ).toThrow("Amount must be greater than 0");
+  });
+});

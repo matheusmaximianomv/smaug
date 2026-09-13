@@ -24,3 +24,18 @@ describe("InMemoryRepository", () => {
     expect(afterDelete).toBeNull();
   });
 });
+
+describe("InMemoryRepository missing entities", () => {
+  it("throws when updating an unknown id", async () => {
+    const repo = new InMemoryRepository<Entity>();
+
+    await expect(repo.update("missing", { name: "bar" })).rejects.toThrow("Entity not found");
+  });
+
+  it("is a no-op when deleting an unknown id", async () => {
+    const repo = new InMemoryRepository<Entity>();
+
+    await expect(repo.delete("missing")).resolves.toBeUndefined();
+    await expect(repo.findAll()).resolves.toEqual([]);
+  });
+});
