@@ -1,5 +1,6 @@
 import { ExpenseCategoryResponseDto, CreateExpenseCategoryDto, UpdateExpenseCategoryDto } from "@src/application/dtos/expense-category.dto";
 import { ExpenseCategory } from "@src/domain/entities/expense-category.entity";
+import { ExpenseCategoryRepository } from "@src/domain/ports/expense-category.repository";
 import { CreateExpenseCategoryUseCase } from "@src/domain/use-cases/expense-category/create-expense-category.use-case";
 import { GetExpenseCategoryUseCase } from "@src/domain/use-cases/expense-category/get-expense-category.use-case";
 import { ListExpenseCategoriesUseCase } from "@src/domain/use-cases/expense-category/list-expense-categories.use-case";
@@ -8,6 +9,7 @@ import { DeleteExpenseCategoryUseCase } from "@src/domain/use-cases/expense-cate
 
 export class ExpenseCategoryService {
   public constructor(
+    private readonly categoryRepository: ExpenseCategoryRepository,
     private readonly createUseCase: CreateExpenseCategoryUseCase,
     private readonly getUseCase: GetExpenseCategoryUseCase,
     private readonly listUseCase: ListExpenseCategoriesUseCase,
@@ -27,7 +29,15 @@ export class ExpenseCategoryService {
 
   public async list(userId: string): Promise<ExpenseCategoryResponseDto[]> {
     const categories = await this.listUseCase.execute({ userId });
-    return categories.map(ExpenseCategoryService.toResponseDto);
+
+    const counts = await Promise.all(
+      categories.map((category) => this.categoryRepository.countLinkedExpenses(category.id)),
+    );
+
+    return categories.map((category, index) => ({
+      ...ExpenseCategoryService.toResponseDto(category),
+      linkedExpensesCount: counts[index],
+    }));
   }
 
   public async update(userId: string, id: string, input: UpdateExpenseCategoryDto): Promise<ExpenseCategoryResponseDto> {

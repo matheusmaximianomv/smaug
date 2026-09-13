@@ -90,3 +90,48 @@ describe("InstallmentExpense", () => {
     expect(updated.updatedAt.getTime()).toBeGreaterThan(expense.updatedAt.getTime());
   });
 });
+
+describe("InstallmentExpense validation guards", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE_DATE);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const props = {
+    userId: "user-1",
+    categoryId: "category-1",
+    description: "Notebook",
+    totalAmount: 1000,
+    installmentCount: 3,
+    startMonth: 3,
+    startYear: 2026,
+  };
+
+  it("should throw for an empty description", () => {
+    expect(() => InstallmentExpense.create({ ...props, description: "   " })).toThrow(
+      "Description must be between 1 and 255 characters",
+    );
+  });
+
+  it("should throw for a description longer than 255 characters", () => {
+    expect(() => InstallmentExpense.create({ ...props, description: "a".repeat(256) })).toThrow(
+      "Description must be between 1 and 255 characters",
+    );
+  });
+
+  it("should throw for a non-positive total amount", () => {
+    expect(() => InstallmentExpense.create({ ...props, totalAmount: 0 })).toThrow(
+      "Total amount must be greater than 0",
+    );
+  });
+
+  it("should throw for a non-integer installment count", () => {
+    expect(() => InstallmentExpense.create({ ...props, installmentCount: 2.5 })).toThrow(
+      "Installment count must be an integer",
+    );
+  });
+});

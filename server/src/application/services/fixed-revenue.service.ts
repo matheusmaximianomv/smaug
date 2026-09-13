@@ -1,5 +1,7 @@
 import { FixedRevenue } from "@src/domain/entities/fixed-revenue.entity";
 import { FixedRevenueVersion } from "@src/domain/entities/fixed-revenue-version.entity";
+import { FixedRevenueRepository } from "@src/domain/ports/fixed-revenue.repository";
+import { MonthlyCompetence } from "@src/domain/value-objects/monthly-competence.value-object";
 import { CreateFixedRevenueUseCase } from "@src/domain/use-cases/fixed-revenue/create-fixed-revenue.use-case";
 import { DeleteFixedRevenueUseCase } from "@src/domain/use-cases/fixed-revenue/delete-fixed-revenue.use-case";
 import { GetFixedRevenueUseCase } from "@src/domain/use-cases/fixed-revenue/get-fixed-revenue.use-case";
@@ -12,8 +14,11 @@ import {
 } from "@src/application/dtos/fixed-revenue.dto";
 import { FixedRevenueModality } from "@src/domain/entities/fixed-revenue.entity";
 
+const MONTHS_IN_YEAR = 12;
+
 export class FixedRevenueService {
   constructor(
+    private readonly repository: FixedRevenueRepository,
     private readonly createUseCase: CreateFixedRevenueUseCase,
     private readonly deleteUseCase: DeleteFixedRevenueUseCase,
     private readonly getUseCase: GetFixedRevenueUseCase,
@@ -76,7 +81,18 @@ export class FixedRevenueService {
       competenceYear: filters?.competenceYear,
       competenceMonth: filters?.competenceMonth,
     });
-    return revenues.map((r) => FixedRevenueService.toResponseDto(r));
+
+    if (revenues.length === 0) {
+      return [];
+    }
+
+    const versionsByRevenue = await Promise.all(
+      revenues.map((revenue) => this.repository.findVersionsForRevenue(revenue.id)),
+    );
+
+    return revenues.map((revenue, index) =>
+      FixedRevenueService.toResponseDto(revenue, versionsByRevenue[index]),
+    );
   }
 
   public static toResponseDto(revenue: FixedRevenue, versions?: FixedRevenueVersion[]): FixedRevenueResponseDto {
@@ -92,9 +108,48 @@ export class FixedRevenueService {
       updatedAt: revenue.updatedAt.toISOString(),
     };
     if (versions) {
-      dto.versions = versions.map(FixedRevenueService.toVersionResponseDto);
+      const sorted = FixedRevenueService.sortVersions(versions);
+      dto.versions = sorted.map(FixedRevenueService.toVersionResponseDto);
+
+      const active = FixedRevenueService.resolveActiveVersion(sorted);
+      if (active) {
+        dto.currentVersion = FixedRevenueService.toVersionResponseDto(active);
+      }
     }
     return dto;
+  }
+
+  private static sortVersions(versions: FixedRevenueVersion[]): FixedRevenueVersion[] {
+    return [...versions].sort(
+      (a, b) =>
+        a.effectiveYear * MONTHS_IN_YEAR +
+        a.effectiveMonth -
+        (b.effectiveYear * MONTHS_IN_YEAR + b.effectiveMonth),
+    );
+  }
+
+  /**
+   * Versão em vigor no mês corrente: a última cujo início é anterior ou igual a hoje.
+   * Quando a vigência ainda não começou, devolve a primeira versão, para que a receita
+   * seja exibível antes de entrar em vigor.
+   */
+  private static resolveActiveVersion(
+    sortedVersions: FixedRevenueVersion[],
+  ): FixedRevenueVersion | undefined {
+    if (sortedVersions.length === 0) {
+      return undefined;
+    }
+
+    const now = new Date();
+    const currentCompetence = MonthlyCompetence.create(now.getMonth() + 1, now.getFullYear());
+
+    const inEffect = sortedVersions.filter((version) =>
+      MonthlyCompetence.create(version.effectiveMonth, version.effectiveYear).isBeforeOrEqual(
+        currentCompetence,
+      ),
+    );
+
+    return inEffect.at(-1) ?? sortedVersions[0];
   }
 
   public static toVersionResponseDto(version: FixedRevenueVersion): FixedRevenueVersionResponseDto {

@@ -16,8 +16,8 @@ export class DeleteExpenseCategoryUseCase {
       throw new ExpenseCategoryNotFoundError(input.id);
     }
 
-    const hasLinkedExpenses = await this.repository.hasLinkedExpenses(input.id);
-    if (hasLinkedExpenses) {
+    const linkedExpensesCount = await this.repository.countLinkedExpenses(input.id);
+    if (linkedExpensesCount > 0) {
       throw new ExpenseCategoryHasLinkedExpensesError();
     }
 

@@ -12,7 +12,7 @@ describe("UpdateExpenseCategoryUseCase", () => {
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
-    hasLinkedExpenses: vi.fn(),
+    countLinkedExpenses: vi.fn(),
   };
 
   const useCase = new UpdateExpenseCategoryUseCase(repository);
@@ -64,5 +64,36 @@ describe("UpdateExpenseCategoryUseCase", () => {
       ExpenseCategoryNameAlreadyExistsError,
     );
     expect(repository.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("UpdateExpenseCategoryUseCase name unchanged", () => {
+  const repository: ExpenseCategoryRepository = {
+    findById: vi.fn(),
+    findByNameLower: vi.fn(),
+    listByUser: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    countLinkedExpenses: vi.fn(),
+  };
+
+  const useCase = new UpdateExpenseCategoryUseCase(repository);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should skip the uniqueness check when only the casing changes", async () => {
+    (repository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
+      ExpenseCategory.create({ id: "cat-1", userId: "user-1", name: "Transporte" }),
+    );
+    (repository.update as ReturnType<typeof vi.fn>).mockImplementation(async (updated) => updated);
+
+    const result = await useCase.execute({ id: "cat-1", userId: "user-1", name: "TRANSPORTE" });
+
+    expect(repository.findByNameLower).not.toHaveBeenCalled();
+    expect(result.name).toBe("TRANSPORTE");
+    expect(result.nameLower).toBe("transporte");
   });
 });

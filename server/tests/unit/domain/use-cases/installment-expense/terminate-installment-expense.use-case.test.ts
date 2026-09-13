@@ -129,3 +129,76 @@ describe("TerminateInstallmentExpenseUseCase", () => {
     );
   });
 });
+
+describe("TerminateInstallmentExpenseUseCase installments in a future year", () => {
+  let repository: { [K in keyof InstallmentExpenseRepository]: ReturnType<typeof vi.fn> };
+  let useCase: TerminateInstallmentExpenseUseCase;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE_DATE);
+
+    repository = {
+      findById: vi.fn(),
+      listByUser: vi.fn(),
+      findByCategoryId: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateInstallments: vi.fn(),
+      delete: vi.fn(),
+      deleteFutureInstallments: vi.fn(),
+      hasPastInstallments: vi.fn(),
+      findInstallmentsByExpense: vi.fn(),
+      findInstallmentsByCompetence: vi.fn(),
+    };
+
+    useCase = new TerminateInstallmentExpenseUseCase(
+      repository as unknown as InstallmentExpenseRepository,
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it("should detect future installments that fall in a later year", async () => {
+    const expense = InstallmentExpense.create({
+      id: "expense-1",
+      userId: USER_ID,
+      categoryId: "category-1",
+      description: "Notebook",
+      totalAmount: 1000,
+      installmentCount: 2,
+      startMonth: 1,
+      startYear: 2027,
+    });
+    const installments = [
+      Installment.create({
+        installmentExpenseId: expense.id,
+        installmentNumber: 1,
+        amount: 500,
+        competenceMonth: 1,
+        competenceYear: 2027,
+      }),
+      Installment.create({
+        installmentExpenseId: expense.id,
+        installmentNumber: 2,
+        amount: 500,
+        competenceMonth: 2,
+        competenceYear: 2027,
+      }),
+    ];
+
+    repository.findById.mockResolvedValue(expense);
+    repository.findInstallmentsByExpense
+      .mockResolvedValueOnce(installments)
+      .mockResolvedValueOnce([]);
+    repository.update.mockResolvedValue(expense);
+
+    const result = await useCase.execute({ id: expense.id, userId: USER_ID });
+
+    expect(repository.deleteFutureInstallments).toHaveBeenCalled();
+    expect(result.installments).toHaveLength(0);
+  });
+});

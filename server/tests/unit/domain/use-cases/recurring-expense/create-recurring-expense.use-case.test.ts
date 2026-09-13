@@ -48,7 +48,7 @@ describe("CreateRecurringExpenseUseCase", () => {
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
-      hasLinkedExpenses: vi.fn(),
+      countLinkedExpenses: vi.fn(),
     };
 
     useCase = new CreateRecurringExpenseUseCase(

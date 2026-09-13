@@ -148,3 +148,23 @@ describe("MonthlyCompetence", () => {
     });
   });
 });
+
+describe("MonthlyCompetence year-level comparisons", () => {
+  const earlier = MonthlyCompetence.create(12, 2025);
+  const later = MonthlyCompetence.create(1, 2026);
+
+  it("should treat an earlier year as before", () => {
+    expect(earlier.isBefore(later)).toBe(true);
+    expect(earlier.isBeforeOrEqual(later)).toBe(true);
+  });
+
+  it("should treat a later year as after", () => {
+    expect(later.isAfter(earlier)).toBe(true);
+    expect(later.isAfterOrEqual(earlier)).toBe(true);
+  });
+
+  it("should not treat an earlier year as after", () => {
+    expect(earlier.isAfter(later)).toBe(false);
+    expect(earlier.isAfterOrEqual(later)).toBe(false);
+  });
+});

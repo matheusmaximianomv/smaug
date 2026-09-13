@@ -158,3 +158,20 @@ describe("OneTimeRevenue Entity", () => {
     });
   });
 });
+
+describe("OneTimeRevenue.getCompetence", () => {
+  it("should expose the competence value object", () => {
+    const revenue = OneTimeRevenue.create({
+      userId: "user-1",
+      description: "Bônus",
+      amount: 1200,
+      competenceMonth: 7,
+      competenceYear: 2026,
+    });
+
+    const competence = revenue.getCompetence();
+
+    expect(competence.month).toBe(7);
+    expect(competence.year).toBe(2026);
+  });
+});

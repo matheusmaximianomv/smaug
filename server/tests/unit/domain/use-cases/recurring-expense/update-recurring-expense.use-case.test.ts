@@ -46,7 +46,7 @@ describe("UpdateRecurringExpenseUseCase", () => {
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
-      hasLinkedExpenses: vi.fn(),
+      countLinkedExpenses: vi.fn(),
     };
 
     useCase = new UpdateRecurringExpenseUseCase(
@@ -202,5 +202,154 @@ describe("UpdateRecurringExpenseUseCase", () => {
         description: "Aluguel",
       }),
     ).rejects.toThrow(EffectiveDateOutOfRangeError);
+  });
+});
+
+describe("UpdateRecurringExpenseUseCase version resolution", () => {
+  let repository: { [K in keyof RecurringExpenseRepository]: ReturnType<typeof vi.fn> };
+  let categoryRepository: { [K in keyof ExpenseCategoryRepository]: ReturnType<typeof vi.fn> };
+  let useCase: UpdateRecurringExpenseUseCase;
+  let expense: RecurringExpense;
+
+  const buildVersion = (overrides: {
+    categoryId?: string;
+    description?: string;
+    amount?: number;
+    effectiveMonth: number;
+    effectiveYear: number;
+  }) =>
+    RecurringExpenseVersion.create({
+      recurringExpenseId: "recurring-1",
+      categoryId: overrides.categoryId ?? "category-1",
+      description: overrides.description ?? "Aluguel",
+      amount: overrides.amount ?? 2000,
+      effectiveMonth: overrides.effectiveMonth,
+      effectiveYear: overrides.effectiveYear,
+    });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE_DATE);
+
+    repository = {
+      findById: vi.fn(),
+      findByIdWithVersions: vi.fn(),
+      listByUser: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      terminate: vi.fn(),
+      delete: vi.fn(),
+      addVersion: vi.fn(),
+      findVersions: vi.fn(),
+      findVersionForMonth: vi.fn(),
+      findActiveForCompetence: vi.fn(),
+    };
+
+    categoryRepository = {
+      findById: vi.fn(),
+      findByNameLower: vi.fn(),
+      listByUser: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      countLinkedExpenses: vi.fn(),
+    };
+
+    useCase = new UpdateRecurringExpenseUseCase(
+      repository as unknown as RecurringExpenseRepository,
+      categoryRepository as unknown as ExpenseCategoryRepository,
+    );
+
+    expense = RecurringExpense.create({
+      id: "recurring-1",
+      userId: "user-1",
+      startMonth: 3,
+      startYear: 2026,
+    });
+
+    repository.findById.mockResolvedValue(expense);
+    repository.addVersion.mockImplementation(async (version) => version);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it("should reject an update with no fields", async () => {
+    await expect(
+      useCase.execute({
+        id: "recurring-1",
+        userId: "user-1",
+        effectiveMonth: 5,
+        effectiveYear: 2026,
+      }),
+    ).rejects.toThrow("At least one field must be provided");
+    expect(repository.findById).not.toHaveBeenCalled();
+  });
+
+  it("should inherit description and category from the latest applicable version", async () => {
+    const older = buildVersion({ effectiveMonth: 3, effectiveYear: 2026 });
+    const newer = buildVersion({
+      categoryId: "category-9",
+      description: "Aluguel reajustado",
+      amount: 2500,
+      effectiveMonth: 4,
+      effectiveYear: 2026,
+    });
+    repository.findVersions.mockResolvedValue([newer, older]);
+
+    const result = await useCase.execute({
+      id: "recurring-1",
+      userId: "user-1",
+      amount: 2800,
+      effectiveMonth: 5,
+      effectiveYear: 2026,
+    });
+
+    const created = repository.addVersion.mock.calls[0][0] as RecurringExpenseVersion;
+    expect(created.amount).toBe(2800);
+    expect(created.description).toBe("Aluguel reajustado");
+    expect(created.categoryId).toBe("category-9");
+    expect(result.expense).toBe(expense);
+  });
+
+  it("should inherit amount and description when only the category changes", async () => {
+    repository.findVersions.mockResolvedValue([
+      buildVersion({ effectiveMonth: 3, effectiveYear: 2026 }),
+    ]);
+    categoryRepository.findById.mockResolvedValue(
+      ExpenseCategory.create({ id: "category-2", userId: "user-1", name: "Moradia" }),
+    );
+
+    await useCase.execute({
+      id: "recurring-1",
+      userId: "user-1",
+      categoryId: "category-2",
+      effectiveMonth: 5,
+      effectiveYear: 2026,
+    });
+
+    const created = repository.addVersion.mock.calls[0][0] as RecurringExpenseVersion;
+    expect(created.categoryId).toBe("category-2");
+    expect(created.description).toBe("Aluguel");
+    expect(created.amount).toBe(2000);
+  });
+
+  it("should throw EffectiveDateOutOfRangeError when no version applies to the competence", async () => {
+    repository.findVersions.mockResolvedValue([
+      buildVersion({ effectiveMonth: 9, effectiveYear: 2026 }),
+    ]);
+
+    await expect(
+      useCase.execute({
+        id: "recurring-1",
+        userId: "user-1",
+        amount: 2800,
+        effectiveMonth: 5,
+        effectiveYear: 2026,
+      }),
+    ).rejects.toThrow(EffectiveDateOutOfRangeError);
+    expect(repository.addVersion).not.toHaveBeenCalled();
   });
 });

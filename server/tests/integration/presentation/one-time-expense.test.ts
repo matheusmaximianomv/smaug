@@ -56,6 +56,12 @@ describe("One-Time Expense Endpoints", () => {
 
   const authHeaders = () => ({ "X-User-Id": userId });
 
+  const futureCompetence = (monthsAhead: number) => {
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth() + monthsAhead, 1);
+    return { competenceYear: target.getFullYear(), competenceMonth: target.getMonth() + 1 };
+  };
+
   it("should create, list, update, and delete a one-time expense when data is valid", async () => {
     const createRes = await request(app)
       .post("/expenses/one-time")
@@ -63,8 +69,7 @@ describe("One-Time Expense Endpoints", () => {
       .send({
         description: "Jantar",
         amount: 150,
-        competenceYear: 2026,
-        competenceMonth: 4,
+        ...futureCompetence(0),
         categoryId,
       });
     expect(createRes.status).toBe(201);
@@ -72,7 +77,7 @@ describe("One-Time Expense Endpoints", () => {
 
     const listRes = await request(app)
       .get("/expenses/one-time")
-      .query({ competenceYear: 2026, competenceMonth: 4 })
+      .query(futureCompetence(0))
       .set(authHeaders());
     expect(listRes.status).toBe(200);
     expect(listRes.body).toHaveLength(1);
@@ -93,10 +98,37 @@ describe("One-Time Expense Endpoints", () => {
 
     const listAfterDeleteRes = await request(app)
       .get("/expenses/one-time")
-      .query({ competenceYear: 2026, competenceMonth: 4 })
+      .query(futureCompetence(0))
       .set(authHeaders());
     expect(listAfterDeleteRes.status).toBe(200);
     expect(listAfterDeleteRes.body).toHaveLength(0);
+  });
+
+  it("should list every expense of the user when no competence filter is provided", async () => {
+    const competences = [futureCompetence(1), futureCompetence(4)];
+
+    for (const competence of competences) {
+      const res = await request(app)
+        .post("/expenses/one-time")
+        .set(authHeaders())
+        .send({ description: "Mercado", amount: 100, categoryId, ...competence });
+      expect(res.status).toBe(201);
+    }
+
+    const listRes = await request(app).get("/expenses/one-time").set(authHeaders());
+
+    expect(listRes.status).toBe(200);
+    expect(listRes.body).toHaveLength(2);
+  });
+
+  it("should return 400 when only one part of the competence filter is provided", async () => {
+    const res = await request(app)
+      .get("/expenses/one-time")
+      .query({ competenceYear: 2026 })
+      .set(authHeaders());
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("VALIDATION_ERROR");
   });
 
   it("should return 409 when creating an expense for past competence", async () => {
@@ -133,10 +165,10 @@ describe("One-Time Expense Endpoints", () => {
       .send({
         description: "Uber",
         amount: 60,
-        competenceYear: 2026,
-        competenceMonth: 6,
+        ...futureCompetence(2),
         categoryId: otherCategoryId,
       });
+    expect(otherExpenseRes.status).toBe(201);
 
     const res = await request(app)
       .put(`/expenses/one-time/${otherExpenseRes.body.id}`)

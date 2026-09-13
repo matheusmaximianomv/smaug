@@ -23,7 +23,8 @@
       "@/features/*": ["./features/*"],
       "@/shared/*": ["./shared/*"],
       "@/infra/*": ["./infra/*"]
-    }
+    },
+    "types": ["node", "vitest/globals", "@testing-library/jest-dom/vitest"]
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]

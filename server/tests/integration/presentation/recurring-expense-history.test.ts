@@ -138,6 +138,8 @@ describe("Recurring Expense History Endpoints", () => {
     expect(latestVersion.effectiveMonth).toBe(8);
     expect(latestVersion.category.name).toBe("Condomínio");
 
-    expect(historyResponse.body.currentVersion.id).toBe(latestVersion.id);
+    // Hoje é março/2026 e todas as versões começam depois disso: nenhuma está em vigor,
+    // então currentVersion cai na primeira — e não na última cadastrada.
+    expect(historyResponse.body.currentVersion.id).toBe(initialVersion.id);
   });
 });

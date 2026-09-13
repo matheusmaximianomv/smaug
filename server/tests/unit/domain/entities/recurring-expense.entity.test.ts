@@ -68,3 +68,34 @@ describe("RecurringExpense", () => {
     expect(expense.isActiveForMonth(7, 2026)).toBe(false);
   });
 });
+
+describe("RecurringExpense clearTermination and open-ended activity", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE_DATE);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const build = () =>
+    RecurringExpense.create({ userId: "user-1", startMonth: 4, startYear: 2026 });
+
+  it("should remove the end competence", () => {
+    const terminated = build().terminate(10, 2026);
+    expect(terminated.endMonth).toBe(10);
+
+    const cleared = terminated.clearTermination();
+
+    expect(cleared.id).toBe(terminated.id);
+    expect(cleared.startMonth).toBe(terminated.startMonth);
+    expect(cleared.createdAt).toBe(terminated.createdAt);
+    expect(cleared.endMonth).toBeNull();
+    expect(cleared.endYear).toBeNull();
+  });
+
+  it("should stay active indefinitely when there is no end competence", () => {
+    expect(build().isActiveForMonth(12, 2040)).toBe(true);
+  });
+});

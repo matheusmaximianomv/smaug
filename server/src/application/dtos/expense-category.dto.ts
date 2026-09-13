@@ -28,4 +28,6 @@ export interface ExpenseCategoryResponseDto {
   name: string;
   createdAt: string;
   updatedAt: string;
+  /** Presente na listagem; usado para bloquear a exclusão de categorias em uso. */
+  linkedExpensesCount?: number;
 }

@@ -105,8 +105,16 @@ describe("Recurring Expense Endpoints", () => {
       });
     expect(updateRes.status).toBe(200);
     expect(updateRes.body.versions).toHaveLength(2);
-    expect(updateRes.body.currentVersion.description).toBe("Aluguel reajustado");
-    expect(updateRes.body.currentVersion.category.id).toBe(newCategoryId);
+    expect(updateRes.body.versions[1]).toMatchObject({
+      description: "Aluguel reajustado",
+      amount: 2100,
+      effectiveYear: 2026,
+      effectiveMonth: 5,
+    });
+    expect(updateRes.body.versions[1].category.id).toBe(newCategoryId);
+    // Hoje é março/2026: nem abril nem maio estão em vigor, então currentVersion
+    // permanece na primeira versão — a nova só passa a valer em maio.
+    expect(updateRes.body.currentVersion.description).toBe("Aluguel");
 
     const terminateRes = await request(app)
       .patch(`/expenses/recurring/${createRes.body.id}/terminate`)
@@ -124,6 +132,36 @@ describe("Recurring Expense Endpoints", () => {
     const listAfterDelete = await request(app).get("/expenses/recurring").set(authHeaders());
     expect(listAfterDelete.status).toBe(200);
     expect(listAfterDelete.body).toHaveLength(0);
+  });
+
+  it("should keep currentVersion on the version in effect when a future version exists", async () => {
+    const createRes = await request(app)
+      .post("/expenses/recurring")
+      .set(authHeaders())
+      .send({
+        description: "Academia",
+        amount: 120,
+        categoryId,
+        startYear: 2026,
+        startMonth: 3,
+      });
+    expect(createRes.status).toBe(201);
+
+    const updateRes = await request(app)
+      .patch(`/expenses/recurring/${createRes.body.id}`)
+      .set(authHeaders())
+      .send({
+        description: "Academia (reajuste)",
+        amount: 150,
+        categoryId,
+        effectiveYear: 2026,
+        effectiveMonth: 6,
+      });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.versions).toHaveLength(2);
+    // Março/2026 já está em vigor; junho ainda não.
+    expect(updateRes.body.currentVersion.amount).toBe(120);
   });
 
   it("should return 409 when creating recurring expense in past competence", async () => {

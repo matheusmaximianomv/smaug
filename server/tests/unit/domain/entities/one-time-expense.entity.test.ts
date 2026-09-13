@@ -106,3 +106,32 @@ describe("OneTimeExpense", () => {
     });
   });
 });
+
+describe("OneTimeExpense partial updates", () => {
+  const build = () =>
+    OneTimeExpense.create({
+      userId: "user-1",
+      categoryId: "cat-1",
+      description: "Mercado",
+      amount: 250,
+      competenceMonth: 3,
+      competenceYear: 2026,
+    });
+
+  it("should keep amount and categoryId when only the description changes", () => {
+    const expense = build();
+
+    const updated = expense.update({ description: "Mercado do mês" });
+
+    expect(updated.description).toBe("Mercado do mês");
+    expect(updated.amount).toBe(250);
+    expect(updated.categoryId).toBe("cat-1");
+  });
+
+  it("should expose the competence value object", () => {
+    const competence = build().getCompetence();
+
+    expect(competence.month).toBe(3);
+    expect(competence.year).toBe(2026);
+  });
+});

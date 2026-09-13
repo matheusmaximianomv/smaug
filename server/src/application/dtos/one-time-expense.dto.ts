@@ -57,18 +57,28 @@ export const updateOneTimeExpenseSchema = z
 
 export type UpdateOneTimeExpenseDto = z.infer<typeof updateOneTimeExpenseSchema>;
 
-export const listOneTimeExpenseQuerySchema = z.object({
-  competenceYear: z
-    .string()
-    .transform((value) => Number(value))
-    .refine((value) => Number.isInteger(value), "Competence year must be an integer")
-    .refine((value) => value >= 2000, "Competence year must be >= 2000"),
-  competenceMonth: z
-    .string()
-    .transform((value) => Number(value))
-    .refine((value) => Number.isInteger(value), "Competence month must be an integer")
-    .refine((value) => value >= 1 && value <= 12, "Competence month must be between 1 and 12"),
-});
+export const listOneTimeExpenseQuerySchema = z
+  .object({
+    competenceYear: z
+      .string()
+      .transform((value) => Number(value))
+      .refine((value) => Number.isInteger(value), "Competence year must be an integer")
+      .refine((value) => value >= 2000, "Competence year must be >= 2000")
+      .optional(),
+    competenceMonth: z
+      .string()
+      .transform((value) => Number(value))
+      .refine((value) => Number.isInteger(value), "Competence month must be an integer")
+      .refine((value) => value >= 1 && value <= 12, "Competence month must be between 1 and 12")
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      (data.competenceYear === undefined) === (data.competenceMonth === undefined),
+    {
+      message: "Competence year and month must be provided together",
+    },
+  );
 
 export type ListOneTimeExpenseQueryDto = z.infer<typeof listOneTimeExpenseQuerySchema>;
 

@@ -10,7 +10,11 @@ import { InstallmentExpense } from "@src/domain/entities/installment-expense.ent
 import { Installment } from "@src/domain/entities/installment.entity";
 import { RecurringExpense } from "@src/domain/entities/recurring-expense.entity";
 import { RecurringExpenseVersion } from "@src/domain/entities/recurring-expense-version.entity";
-import { ExpenseCategoryNotFoundError } from "@src/domain/errors/domain-error";
+import {
+  ExpenseCategoryNotFoundError,
+  InstallmentExpenseNotFoundError,
+  RecurringExpenseNotFoundError,
+} from "@src/domain/errors/domain-error";
 
 describe("ExpenseQueryService", () => {
   let categoryRepository: { [K in keyof ExpenseCategoryRepository]: ReturnType<typeof vi.fn> };
@@ -32,7 +36,7 @@ describe("ExpenseQueryService", () => {
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
-      hasLinkedExpenses: vi.fn(),
+      countLinkedExpenses: vi.fn(),
     } as unknown as { [K in keyof ExpenseCategoryRepository]: ReturnType<typeof vi.fn> };
 
     oneTimeExpenseRepository = {
@@ -194,5 +198,139 @@ describe("ExpenseQueryService", () => {
     await expect(
       service.getConsolidatedExpenses("user-1", { competenceYear: 2026, competenceMonth: 3 }),
     ).rejects.toBeInstanceOf(ExpenseCategoryNotFoundError);
+  });
+});
+
+describe("ExpenseQueryService data integrity guards", () => {
+  const BASE_DATE = new Date("2026-03-01T00:00:00.000Z");
+
+  let categoryRepository: { findById: ReturnType<typeof vi.fn> } & Record<string, unknown>;
+  let oneTimeExpenseRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let installmentExpenseRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let recurringExpenseRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let service: ExpenseQueryService;
+
+  const query = { competenceYear: 2026, competenceMonth: 3 };
+
+  const buildInstallment = () =>
+    Installment.create({
+      id: "installment-1",
+      installmentExpenseId: "expense-1",
+      installmentNumber: 1,
+      amount: 500,
+      competenceMonth: 3,
+      competenceYear: 2026,
+    });
+
+  const buildParent = () =>
+    InstallmentExpense.create({
+      id: "expense-1",
+      userId: "user-1",
+      categoryId: "category-1",
+      description: "Notebook",
+      totalAmount: 1000,
+      installmentCount: 2,
+      startMonth: 3,
+      startYear: 2026,
+    });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE_DATE);
+
+    categoryRepository = { findById: vi.fn() };
+    oneTimeExpenseRepository = { findByUserAndCompetence: vi.fn().mockResolvedValue([]) };
+    installmentExpenseRepository = {
+      findInstallmentsByCompetence: vi.fn().mockResolvedValue([]),
+      findById: vi.fn(),
+    };
+    recurringExpenseRepository = {
+      findActiveForCompetence: vi.fn().mockResolvedValue([]),
+      findVersionForMonth: vi.fn(),
+    };
+
+    service = new ExpenseQueryService(
+      categoryRepository as unknown as ExpenseCategoryRepository,
+      oneTimeExpenseRepository as unknown as OneTimeExpenseRepository,
+      installmentExpenseRepository as unknown as InstallmentExpenseRepository,
+      recurringExpenseRepository as unknown as RecurringExpenseRepository,
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it("should fail when an installment has no parent expense", async () => {
+    installmentExpenseRepository.findInstallmentsByCompetence.mockResolvedValue([
+      buildInstallment(),
+    ]);
+    installmentExpenseRepository.findById.mockResolvedValue(null);
+
+    await expect(service.getConsolidatedExpenses("user-1", query)).rejects.toBeInstanceOf(
+      InstallmentExpenseNotFoundError,
+    );
+  });
+
+  it("should fail when an installment parent belongs to another user", async () => {
+    installmentExpenseRepository.findInstallmentsByCompetence.mockResolvedValue([
+      buildInstallment(),
+    ]);
+    installmentExpenseRepository.findById.mockResolvedValue(
+      InstallmentExpense.create({
+        id: "expense-1",
+        userId: "user-2",
+        categoryId: "category-1",
+        description: "Notebook",
+        totalAmount: 1000,
+        installmentCount: 2,
+        startMonth: 3,
+        startYear: 2026,
+      }),
+    );
+
+    await expect(service.getConsolidatedExpenses("user-1", query)).rejects.toBeInstanceOf(
+      InstallmentExpenseNotFoundError,
+    );
+  });
+
+  it("should fail when a recurring expense has no version for the competence", async () => {
+    recurringExpenseRepository.findActiveForCompetence.mockResolvedValue([
+      RecurringExpense.create({ id: "rec-1", userId: "user-1", startMonth: 3, startYear: 2026 }),
+    ]);
+    recurringExpenseRepository.findVersionForMonth.mockResolvedValue(null);
+
+    await expect(service.getConsolidatedExpenses("user-1", query)).rejects.toBeInstanceOf(
+      RecurringExpenseNotFoundError,
+    );
+  });
+
+  // Guardas defensivas: os mapas montados por `loadInstallmentParents` e `loadCategories`
+  // sempre contêm as chaves consultadas, então só são alcançáveis chamando os helpers direto.
+  it("should reject an installment whose parent is absent from the parent map", () => {
+    expect(() =>
+      (
+        service as unknown as {
+          getInstallmentParent: (parents: Map<string, unknown>, installment: Installment) => unknown;
+        }
+      ).getInstallmentParent(new Map(), buildInstallment()),
+    ).toThrow(InstallmentExpenseNotFoundError);
+  });
+
+  it("should reject an installment whose category is absent from the category map", () => {
+    const parents = new Map([["expense-1", buildParent()]]);
+
+    expect(() =>
+      (
+        service as unknown as {
+          getInstallmentCategory: (
+            categories: Map<string, unknown>,
+            parents: Map<string, unknown>,
+            installment: Installment,
+          ) => unknown;
+        }
+      ).getInstallmentCategory(new Map(), parents, buildInstallment()),
+    ).toThrow(ExpenseCategoryNotFoundError);
   });
 });

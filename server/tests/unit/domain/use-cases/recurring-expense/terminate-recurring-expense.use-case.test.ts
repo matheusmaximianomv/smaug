@@ -142,3 +142,58 @@ describe("TerminateRecurringExpenseUseCase", () => {
     );
   });
 });
+
+describe("TerminateRecurringExpenseUseCase end date guard", () => {
+  let repository: { [K in keyof RecurringExpenseRepository]: ReturnType<typeof vi.fn> };
+  let useCase: TerminateRecurringExpenseUseCase;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE_DATE);
+
+    repository = {
+      findById: vi.fn(),
+      findByIdWithVersions: vi.fn(),
+      listByUser: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      terminate: vi.fn(),
+      delete: vi.fn(),
+      addVersion: vi.fn(),
+      findVersions: vi.fn(),
+      findVersionForMonth: vi.fn(),
+      findActiveForCompetence: vi.fn(),
+    };
+
+    useCase = new TerminateRecurringExpenseUseCase(
+      repository as unknown as RecurringExpenseRepository,
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it("should propagate EndDateBeforeStartError for a future expense terminated before its start", async () => {
+    repository.findById.mockResolvedValue(
+      RecurringExpense.create({ id: "recurring-1", userId: "user-1", startMonth: 8, startYear: 2026 }),
+    );
+
+    await expect(
+      useCase.execute({ id: "recurring-1", userId: "user-1", endMonth: 5, endYear: 2026 }),
+    ).rejects.toThrow(EndDateBeforeStartError);
+    expect(repository.terminate).not.toHaveBeenCalled();
+  });
+
+  it("should propagate unrelated persistence errors", async () => {
+    repository.findById.mockResolvedValue(
+      RecurringExpense.create({ id: "recurring-1", userId: "user-1", startMonth: 4, startYear: 2026 }),
+    );
+    repository.terminate.mockRejectedValue(new Error("database is down"));
+
+    await expect(
+      useCase.execute({ id: "recurring-1", userId: "user-1", endMonth: 6, endYear: 2026 }),
+    ).rejects.toThrow("database is down");
+  });
+});

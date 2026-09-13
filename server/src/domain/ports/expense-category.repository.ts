@@ -7,5 +7,6 @@ export interface ExpenseCategoryRepository {
   create(category: ExpenseCategory): Promise<ExpenseCategory>;
   update(category: ExpenseCategory): Promise<ExpenseCategory>;
   delete(id: string): Promise<void>;
-  hasLinkedExpenses(categoryId: string): Promise<boolean>;
+  /** Quantidade de despesas (avulsas, parceladas e versões de recorrentes) ligadas à categoria. */
+  countLinkedExpenses(categoryId: string): Promise<number>;
 }
