@@ -12,7 +12,10 @@ export function CategoryCard({ category, onEdit, onDelete }: CategoryCardProps) 
   const count = category.linkedExpensesCount;
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:shadow-sm transition-shadow">
+    <article
+      data-testid="category-card"
+      className="flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:shadow-sm transition-shadow"
+    >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-light text-[15px] font-bold text-red">
         {initial}
       </div>
@@ -40,6 +43,6 @@ export function CategoryCard({ category, onEdit, onDelete }: CategoryCardProps) 
           <Trash2 size={14} />
         </button>
       </div>
-    </div>
+    </article>
   );
 }
