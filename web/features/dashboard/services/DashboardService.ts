@@ -101,13 +101,15 @@ export const DashboardService = {
     }));
 
     // Chart months
+    // `fetchTargets` começa com os 6 meses do gráfico, então results[0..5]
+    // sempre existe — o índice aqui é o do gráfico, não o do mês selecionado.
     const chartMonths = chartMonthDates.map((cm, i) => {
       const r = results[i];
       return {
         year: cm.year,
         month: cm.month,
-        revenues: r?.rev.totals.total ?? 0,
-        expenses: r?.exp.totals.total ?? 0,
+        revenues: r.rev.totals.total,
+        expenses: r.exp.totals.total,
       };
     });
 
