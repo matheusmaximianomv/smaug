@@ -21,7 +21,7 @@ function toEntries(
   const entries: VersionHistoryEntry[] = [];
 
   for (const rev of fixedRevenues) {
-    for (const ver of rev.versions) {
+    for (const ver of rev.versions ?? []) {
       entries.push({
         id: ver.id,
         parentId: rev.id,
@@ -38,7 +38,7 @@ function toEntries(
   }
 
   for (const exp of recurringExpenses) {
-    for (const ver of exp.versions) {
+    for (const ver of exp.versions ?? []) {
       entries.push({
         id: ver.id,
         parentId: exp.id,
