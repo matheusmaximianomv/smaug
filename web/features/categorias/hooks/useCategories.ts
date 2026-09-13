@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CategoriasService } from "../services/CategoriasService";
 import { toast } from "@/shared/hooks/useToast";
+import { getApiErrorMessage } from "@/infra/api-error";
 
 const QUERY_KEY = ["categories"];
 
@@ -21,7 +22,10 @@ export function useCategories() {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success("Categoria criada com sucesso!");
     },
-    onError: () => toast.error("Erro ao criar categoria."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao criar categoria."), {
+        action: { label: "Tentar novamente", onClick: () => create.mutate(variables) },
+      }),
   });
 
   const update = useMutation({
@@ -30,7 +34,10 @@ export function useCategories() {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success("Categoria atualizada!");
     },
-    onError: () => toast.error("Erro ao atualizar categoria."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao atualizar categoria."), {
+        action: { label: "Tentar novamente", onClick: () => update.mutate(variables) },
+      }),
   });
 
   const remove = useMutation({
@@ -39,7 +46,10 @@ export function useCategories() {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success("Categoria excluída!");
     },
-    onError: () => toast.error("Erro ao excluir categoria."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao excluir categoria."), {
+        action: { label: "Tentar novamente", onClick: () => remove.mutate(variables) },
+      }),
   });
 
   return { ...query, create, update, remove };
