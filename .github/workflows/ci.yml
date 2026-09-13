@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, typecheck e testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Os quatro lockfiles são independentes (raiz, server, web e e2e): o cache
+      # precisa invalidar quando qualquer um deles mudar.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            web/package-lock.json
+            e2e/package-lock.json
+
+      - name: Instalar dependências (raiz, server, web e e2e)
+        run: npm run install:all
+
+      # ATENÇÃO: não rode `prisma:generate` nem `prisma:prepare` aqui. O
+      # postinstall do @prisma/client já gera o client a partir do schema
+      # versionado (que está em `sqlite`), e `prisma:prepare` sem
+      # DATABASE_PROVIDER reescreveria o datasource para postgresql.
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck (server)
+        run: npm run --prefix server typecheck
+
+      - name: Typecheck (web)
+        run: npm run --prefix web typecheck
+
+      - name: Typecheck (e2e)
+        run: npm run --prefix e2e typecheck
+
+      # Regras de arquitetura: Clean Architecture no server e as proibições de
+      # import cruzado entre server/, web/ e e2e/.
+      - name: Validar regras de dependência
+        run: npm run validate:deps
+
+      # Os testes de integração do server criam os próprios arquivos SQLite via
+      # `prisma db push`, então não há banco a provisionar aqui.
+      - name: Testes (server e web)
+        run: npm test

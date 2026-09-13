@@ -30,13 +30,13 @@ npm run e2e:install-browsers              # uma vez por máquina
 npm run build            # tsup (server) then next build (web)
 npm run lint             # eslint (server) + next lint (web)
 npm run format           # prettier across the repo
-npm run --prefix server typecheck
+npm run --prefix server typecheck         # also `--prefix web`, `--prefix e2e`
 npm run validate:deps    # dependency-cruiser architecture rules — run from ROOT only
 ```
 
-`npm run --prefix server validate:deps` is broken: it points at a `server/.dependency-cruiser.cjs` that does not exist. Use the root script, which validates both packages.
+`npm run --prefix server validate:deps` is broken: it points at a `server/.dependency-cruiser.cjs` that does not exist. Use the root script, which validates all three packages (`server web e2e`).
 
-Husky + lint-staged run `eslint --fix` on `*.{ts,tsx,js}` and `prettier --write` on `*.{json,md,yml,yaml,css,scss,html}` at commit time.
+Husky + lint-staged run the **root** `.lintstagedrc.js` at commit time: `server/**/*.{ts,tsx}` → `eslint --fix` + prettier; `web/**/*.{ts,tsx}` → `next lint` **without `--fix`**, wrapped in a function because `next lint` chokes on paths containing parens (`app/(app)`, `app/(auth)`); `e2e/**/*.ts` and `*.{json,md}` → prettier only. (The `lint-staged` block inside `server/package.json` is dead — nothing invokes it.)
 
 ### Prisma
 
@@ -58,7 +58,7 @@ infrastructure/  Prisma repos, Express server, tsyringe container, env (Zod-vali
 presentation/    controllers, routes, middlewares (validation, auth, error, request log)
 ```
 
-`domain` and `application` must never import `infrastructure` or `presentation` — enforced by `.dependency-cruiser.js` at the root, along with a hard `server/` ⇄ `web/` import ban. Circular deps are warnings.
+`domain` and `application` must never import `infrastructure` or `presentation` — enforced by `.dependency-cruiser.js` at the root, along with a hard `server/` ⇄ `web/` import ban and a `no-e2e-to-src` rule keeping `e2e/` black-box. Circular deps are warnings.
 
 **Path alias:** `@src/*` → `server/src/*`. `allowImportingTsExtensions` is on, so some imports carry an explicit `.ts` suffix; match whatever the neighbouring file does.
 
@@ -68,13 +68,15 @@ presentation/    controllers, routes, middlewares (validation, auth, error, requ
 
 **Persistence.** Each aggregate has a port in `domain/ports/` and a `Prisma*Repository` in `infrastructure/database/repositories/`. A separate generic `RepositoryFactory` (`database.provider.ts`) switches on `DATABASE_PROVIDER`: `memory` yields `InMemoryRepository`, `sqlite`/`postgresql` yield a reflective `PrismaRepository`. Unit tests use in-memory fakes; no DB required.
 
-**HTTP contract.** Routes are mounted at the root (no `/api` prefix): `/health`, `/users`, `/revenues/one-time`, `/revenues/fixed`, `/revenues` (queries), `/expenses/categories`, `/expenses/one-time`, `/expenses/installment`, `/expenses/recurring`, `/expenses` (queries).
+**HTTP contract.** Routes are mounted at the root (no `/api` prefix): `/health`, `/users`, `/revenues/one-time`, `/revenues/fixed`, `/revenues` (queries), `/expenses/categories`, `/expenses/one-time`, `/expenses/installment`, `/expenses/recurring`, `/expenses` (queries). Mount order matters — the specific prefixes are registered before the `/revenues` and `/expenses` catch-alls. `/health` returns **503 with `status: "degraded"`** when the database is unreachable, not just 200.
 
 **Auth is header-based, not token-based.** There are no passwords or JWTs. `extractUser` (`presentation/middlewares/extract-user.middleware.ts`) reads the `X-User-Id` header, requires a UUID, and 401s / 404s otherwise. It is applied per-route-group in `routes/index.ts`; `/users` and `/health` are open.
 
 **Validation & errors.** Zod schemas live beside the routes and are applied via `validateRequest` / `validateQuery`, which emit `{error: "VALIDATION_ERROR", message, details}` with 400. The terminal `errorHandlerMiddleware` logs via the container's `Logger` and returns a bare 500 — surface intended client-facing failures explicitly in the controller/service instead of throwing.
 
-**Env** (`infrastructure/config/env.ts`) is Zod-parsed at import time and calls `process.exit(1)` on failure: `DATABASE_PROVIDER` (`postgresql|sqlite|memory`), `DATABASE_URL`, `NODE_ENV`, `PORT` (3000), `LOG_LEVEL`, `CORS_ORIGIN` (`http://localhost:3001`).
+**Env** (`infrastructure/config/env.ts`) is Zod-parsed at import time and calls `process.exit(1)` on failure: `DATABASE_PROVIDER` (`postgresql|sqlite|memory`), `DATABASE_URL`, `NODE_ENV` — all three required, no default — plus `PORT` (3000), `LOG_LEVEL` (`info`), `CORS_ORIGIN` (`http://localhost:3001`).
+
+**Docker.** `server/Dockerfile` (multi-stage, `node:22-alpine`) and `server/docker-compose.yml` bring the API up against `postgres:16-alpine`, reading `server/.env.docker`; the container runs `npm run migrate:deploy` before starting. There is no image for `web/`. Migrations apply with `npm run --prefix server migrate:deploy` — there is no dev-migrate or seed script anywhere in `server/`.
 
 ### Frontend — feature-based (`web/`)
 
@@ -95,20 +97,48 @@ middleware.ts
 
 **Server state is TanStack Query v5** (not SWR). Per-feature hooks follow a fixed shape: a module-level `const QK = [...]` query key, `useQuery` with `staleTime: 30_000`, and `useMutation`s that `qc.invalidateQueries({queryKey: QK})` plus fire a `toast` from `@/shared/hooks/useToast` on success/error — see `features/despesas/hooks/useInstallments.ts`. Global defaults (retry/backoff, `gcTime`) live in `infra/query-client.ts`.
 
-**`infra/api-client.ts`** is the single axios instance: base URL from `NEXT_PUBLIC_API_URL`, a request interceptor injecting `X-User-Id` from the session cookie, and a response interceptor that on 401 clears the session and calls `redirectToLogin()` from `infra/navigation.ts`. Only 401 ends the session — network failures and 5xx are transient and must not log the user out.
+**`infra/api-client.ts`** is the single axios instance: base URL from `NEXT_PUBLIC_API_URL`, a request interceptor injecting `X-User-Id` from the session cookie, and a response interceptor that on 401 clears the session and calls `redirectToLogin()` from `infra/navigation.ts`. Only 401 ends the session — network failures and 5xx are transient and must not log the user out. `NEXT_PUBLIC_API_URL` is **inlined at build time**, so `next build` must run with the right value.
 
-**Naming conventions:** hooks `useX`, services `XService` (exported as a plain object of async functions), types under `features/<f>/types`. Forms use React Hook Form + `@hookform/resolvers` with Zod schemas in `types/schemas.ts`. Icons come from `lucide-react`; UI primitives are hand-rolled with Tailwind + `class-variance-authority`/`tailwind-merge` — there is no component library dependency.
+**`infra/api-error.ts`** maps API business codes to pt-BR copy — a ~35-entry table (`VALIDATION_ERROR`, `PAST_COMPETENCE`, `INSTALLMENT_FINANCIAL_IMMUTABLE`, …) plus offline and `ECONNABORTED` branches. Add the code here rather than hard-coding a message in a component.
+
+**Naming conventions:** hooks `useX`, services `XService` (exported as a plain object of async functions), types under `features/<f>/types`. Forms use React Hook Form + `@hookform/resolvers` with Zod schemas in `types/schemas.ts` — though only `auth` and `categorias` have one today; the other four features carry just `types/index.ts`. Icons come from `lucide-react`; UI primitives are hand-rolled with Tailwind + `class-variance-authority`/`tailwind-merge` — there is no component library dependency.
 
 ## Testing
 
 - **Server unit** (`server/tests/unit/`, mirrors the layer structure): node env, in-memory repositories, no database.
-- **Server integration** (`server/tests/integration/presentation/`): Supertest against the real Express app over SQLite.
-- `server/vitest.config.ts` supplies the `@src` alias and 100% coverage thresholds. The `test:unit` / `test:integration` scripts filter **by path** (`vitest run tests/unit`), not by project.
-- ⚠️ `server/vitest.workspace.ts` and `server/vitest.integration.config.ts` are **dead files**: Vitest 4 dropped `defineWorkspace`/`vitest.workspace.ts` in favour of `test.projects`, so `--project unit` fails with `No projects matched the filter "unit"`, and nothing references the integration config.
-- **Web unit/component/integration**: Vitest + jsdom + `@testing-library/react`, with **MSW** intercepting HTTP so the real axios interceptors are exercised. `web/vitest.setup.ts` handles the jsdom 29 gaps (`matchMedia`, `ResizeObserver`, pointer capture), the MSW lifecycle and the global `afterEach`. Shared harness lives in `web/tests/` (`renderWithProviders`, fixtures, MSW handlers); unit and component tests sit **next to the source**, page-level integration tests in `web/tests/integration/`.
+- **Server integration** (`server/tests/integration/presentation/`): Supertest against the real Express app over SQLite. Each test file shells out to `execSync("prisma db push --force-reset")` against **its own `.db` file** and then dynamically imports the app so the container picks up the test URL — so a generated Prisma client is a prerequisite, and these runs drop `.db` files in `server/`.
+- `server/tests/helpers/` is shared harness: `controller-contract.ts` exposes `describeControllerContract`, which generates the standard happy-path / mapped-domain-error / `next(err)` battery — use it when adding a controller instead of rewriting those cases.
+- `server/vitest.config.ts` supplies the `@src` alias and 100% coverage thresholds. The `test:unit` / `test:integration` scripts filter **by path** (`vitest run tests/unit`), not by project. It is the only Vitest config in `server/`.
+- **Web unit/component/integration**: Vitest + jsdom + `@testing-library/react`, with **MSW** intercepting HTTP so the real axios interceptors are exercised. `web/vitest.setup.ts` handles the jsdom 29 gaps (`matchMedia`, `ResizeObserver`, pointer capture), the MSW lifecycle and the global `afterEach`. Unit and component tests sit **next to the source**; page-level integration tests go in `web/tests/integration/`, because they import from more than one feature — which inside a feature would breach the cross-feature import ban.
 - **E2E**: Playwright in the top-level `e2e/` package. `npm run test:e2e` provisions a **SQLite file exclusive to that run**, seeds it over HTTP, and discards it at the end — see `e2e/README.md`.
 - The constitution asks that tests target hooks and business logic rather than markup; coverage thresholds in `web/vitest.config.ts` encode that as per-glob gates.
-- **Read `docs/testing/README.md`** before writing tests: it carries the Vitest×Playwright split and a table of verified pitfalls (NBSP in `formatCurrency`, non-configurable `window.location` in jsdom, the global `useToast` queue).
+
+**Vitest vs Playwright — who proves what.** MSW proves the frontend behaves correctly _given a contract_; E2E proves the contract is _real_. So page-level integration tests deliberately do **not** re-walk the happy paths E2E already covers. They cover what E2E cannot reach cheaply: every API error code rendering its pt-BR message, the "Tentar novamente" action on error toasts, the `DeleteWarningModal` vs `ConfirmDialog` branch, and the past/future competence guards.
+
+**`web/tests/` harness.**
+
+| File               | Role                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| `render.tsx`       | `renderWithProviders`, `renderHookWithProviders`, `createTestQueryClient`                  |
+| `router.tsx`       | real Next contexts + `routerAdapterMock`                                                   |
+| `msw/`             | `server`, `db` (in-memory store), per-resource handlers, `mockApiError`/`mockNetworkError` |
+| `fixtures/`        | deterministic per-entity factories                                                         |
+| `toast.ts`         | `spyOnToast`, `drainToasts`                                                                |
+| `session.ts`       | `loginAs`, `logout` (real cookie)                                                          |
+| `time.ts`          | `NOW`, `NOW_COMPETENCE`, `freezeTime`                                                      |
+| `mocked.ts`        | `Mocked<T>`, `mockService`                                                                 |
+| `harness.test.tsx` | tests of the harness itself — if these break, start here, not in a feature test            |
+
+**Verified pitfalls.** These cost real debugging time; don't rediscover them:
+
+| Pitfall                                                       | How to handle                                                                                                            |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `formatCurrency` emits **U+00A0** between `R$` and the number | Assert `toBe("R$ 1.234,56")` with an NBSP. Inside an RTL query the normalizer collapses it, so a plain space works there |
+| `window.location` is **non-configurable** in jsdom 29         | Use the `@/infra/navigation` seam (`redirectToLogin`), never `vi.spyOn(window.location, …)`                              |
+| `useToast` has a global queue with no reset                   | `spyOnToast()` by default; fake timers only in the two toast tests themselves                                            |
+| `infra/query-client.ts` is a singleton with `retry: 3`        | Always `createTestQueryClient()`; never `app/providers.tsx`                                                              |
+| `NEXT_PUBLIC_API_URL` is read at module-evaluation time       | Pinned in `test.env` in `vitest.config.ts`; `vi.stubEnv` inside a test arrives too late                                  |
+| Installing deps in `web/`                                     | **Always** `--legacy-peer-deps` (React 19 RC). Already pinned in `web/.npmrc`                                            |
 
 ## Workflow
 
@@ -116,7 +146,9 @@ This repo uses Spec Kit. Feature work lives in `specs/###-feature-name/` (`spec.
 
 `.specify/memory/constitution.md` is the normative document — it wins over ad-hoc practice. Beyond the layering rules already described, it mandates: no framework types in the domain, DI everywhere, YAGNI over speculative abstraction, no dead or commented-out code, Server Components by default with `"use client"` only for interactivity/state/effects/browser APIs, and local state preferred over global.
 
-`smaug-handoff/` is prototype material — ignore it.
+`docs/prototipo/` is prototype material, **not production code** — it runs on React UMD and persists to `localStorage`. Treat it as a visual reference only; see `docs/prototipo/v2/README.md`. Note that v2 specifies a feature that is **not implemented and has no `specs/006-*` folder yet**: the "Área de Dados" (CSV export/import), whose wire format is frozen in `docs/prototipo/v2/ESPECIFICACAO-CSV.md`.
+
+CI: `.github/workflows/ci.yml` runs lint, typecheck, `validate:deps` and the Vitest suites; `.github/workflows/e2e.yml` runs Playwright on chromium. Neither may call `prisma:generate`/`prisma:prepare` — without `DATABASE_PROVIDER` that rewrites the tracked `schema.prisma` to postgresql and the E2E wrapper fails on purpose.
 
 ## Tech Stack
 
