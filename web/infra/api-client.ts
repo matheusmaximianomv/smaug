@@ -1,5 +1,6 @@
 import axios, { AxiosError } from "axios";
 import { clearUserId, getUserId } from "./session";
+import { redirectToLogin } from "./navigation";
 
 const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000",
@@ -24,9 +25,7 @@ apiClient.interceptors.response.use(
     // derrubar o login — quem chamou trata o erro.
     if (error.response?.status === 401) {
       clearUserId();
-      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-        window.location.href = "/login";
-      }
+      redirectToLogin();
     }
     return Promise.reject(error);
   },
