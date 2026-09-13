@@ -17,6 +17,7 @@ import {
   RecurringExpenseVersionDto,
 } from "@src/application/dtos/recurring-expense.dto";
 import { ExpenseCategoryNotFoundError } from "@src/domain/errors/domain-error";
+import { MonthlyCompetence } from "@src/domain/value-objects/monthly-competence.value-object";
 
 export class RecurringExpenseService {
   public constructor(
@@ -109,7 +110,7 @@ export class RecurringExpenseService {
   ): Promise<RecurringExpenseResponseDto> {
     const sortedVersions = RecurringExpenseService.sortVersions(versions);
     const categoryMap = await this.loadCategories(sortedVersions, expense.userId);
-    const currentVersion = sortedVersions[sortedVersions.length - 1];
+    const currentVersion = RecurringExpenseService.resolveActiveVersion(sortedVersions);
 
     return {
       id: expense.id,
@@ -158,6 +159,26 @@ export class RecurringExpenseService {
     });
 
     return categoryMap;
+  }
+
+  /**
+   * Versão em vigor no mês corrente: a última cujo início é anterior ou igual a hoje.
+   * Quando a vigência ainda não começou, devolve a primeira versão, para que a despesa
+   * seja exibível antes de entrar em vigor.
+   */
+  private static resolveActiveVersion(
+    sortedVersions: RecurringExpenseVersion[],
+  ): RecurringExpenseVersion {
+    const now = new Date();
+    const currentCompetence = MonthlyCompetence.create(now.getMonth() + 1, now.getFullYear());
+
+    const inEffect = sortedVersions.filter((version) =>
+      MonthlyCompetence.create(version.effectiveMonth, version.effectiveYear).isBeforeOrEqual(
+        currentCompetence,
+      ),
+    );
+
+    return inEffect.at(-1) ?? sortedVersions[0];
   }
 
   private static sortVersions(versions: RecurringExpenseVersion[]): RecurringExpenseVersion[] {
