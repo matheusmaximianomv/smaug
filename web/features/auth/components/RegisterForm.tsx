@@ -9,6 +9,7 @@ import { useRegister } from "../hooks/useRegister";
 import { getApiErrorMessage } from "@/infra/api-error";
 import { registerSchema, type RegisterFormData } from "../types/schemas";
 import { Copy, Check } from "lucide-react";
+import { redirectToLogin } from "@/infra/navigation";
 
 export function RegisterForm() {
   const [registeredUserId, setRegisteredUserId] = useState<string | null>(null);
@@ -31,12 +32,11 @@ export function RegisterForm() {
     });
   };
 
+  // Só existe na tela de sucesso, que é renderizada sob `if (registeredUserId)`.
   const copyUserId = () => {
-    if (registeredUserId) {
-      navigator.clipboard.writeText(registeredUserId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+    navigator.clipboard.writeText(registeredUserId!);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   if (registeredUserId) {
@@ -54,15 +54,18 @@ export function RegisterForm() {
             </Button>
           </div>
         </div>
-        <Button onClick={() => (window.location.href = "/login")} className="w-full">
+        <Button onClick={redirectToLogin} className="w-full">
           Ir para Login
         </Button>
       </div>
     );
   }
 
+  // noValidate: o campo é type="email" e a validação nativa do browser barraria o
+  // submit antes do React, tornando as mensagens do Zod inalcançáveis. O schema é
+  // a fonte única de validação.
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <Input
         label="Nome"
         placeholder="Seu nome completo"
