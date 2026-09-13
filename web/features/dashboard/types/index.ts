@@ -20,8 +20,15 @@ export interface MonthChartData {
   isFuture: boolean;
 }
 
+export interface ApiMonthChartData {
+  year: number;
+  month: number;
+  revenues: number;
+  expenses: number;
+}
+
 export interface SemesterChartData {
-  months: MonthChartData[];
+  months: ApiMonthChartData[];
 }
 
 export interface CategoryBreakdown {
