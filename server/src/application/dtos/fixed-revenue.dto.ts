@@ -92,5 +92,6 @@ export interface FixedRevenueResponseDto {
   endYear: number | null;
   createdAt: string;
   updatedAt: string;
+  currentVersion?: FixedRevenueVersionResponseDto;
   versions?: FixedRevenueVersionResponseDto[];
 }
