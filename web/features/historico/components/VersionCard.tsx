@@ -23,7 +23,7 @@ export function VersionCard({ entry }: VersionCardProps) {
             <span
               className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${entry.modality === "ALTERABLE" ? "bg-green-light text-green" : "bg-border text-text-subtle"}`}
             >
-              {entry.modality === "ALTERABLE" ? "Alterável" : "Não alterável"}
+              {entry.modality === "ALTERABLE" ? "Alterável" : "Inalterável"}
             </span>
           )}
           {!isRevenue && entry.categoryName && (
