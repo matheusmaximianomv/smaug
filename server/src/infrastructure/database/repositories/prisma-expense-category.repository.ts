@@ -55,14 +55,14 @@ export class PrismaExpenseCategoryRepository implements ExpenseCategoryRepositor
     await this.prisma.expenseCategory.delete({ where: { id } });
   }
 
-  public async hasLinkedExpenses(categoryId: string): Promise<boolean> {
+  public async countLinkedExpenses(categoryId: string): Promise<number> {
     const [oneTimeExpenses, installmentExpenses, recurringVersions] = await Promise.all([
       this.prisma.oneTimeExpense.count({ where: { categoryId } }),
       this.prisma.installmentExpense.count({ where: { categoryId } }),
       this.prisma.recurringExpenseVersion.count({ where: { categoryId } }),
     ]);
 
-    return oneTimeExpenses > 0 || installmentExpenses > 0 || recurringVersions > 0;
+    return oneTimeExpenses + installmentExpenses + recurringVersions;
   }
 
   private static toDomain(record: {
