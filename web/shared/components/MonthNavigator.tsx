@@ -2,22 +2,9 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "../lib/utils";
+import { addMonths } from "../lib/competence";
+import { MONTH_NAMES_FULL } from "../lib/dateUtils";
 import type { MonthStatus } from "@/features/dashboard/types";
-
-const MONTH_NAMES = [
-  "janeiro",
-  "fevereiro",
-  "março",
-  "abril",
-  "maio",
-  "junho",
-  "julho",
-  "agosto",
-  "setembro",
-  "outubro",
-  "novembro",
-  "dezembro",
-];
 
 interface MonthNavigatorProps {
   year: number;
@@ -42,23 +29,19 @@ export function MonthNavigator({
   onGoToCurrent,
   className,
 }: MonthNavigatorProps) {
-  const label = `${MONTH_NAMES[month - 1]} de ${year}`;
+  const label = `${MONTH_NAMES_FULL[month - 1]} de ${year}`;
   const badge = STATUS_BADGE[status];
 
-  const prev = () => {
-    const d = new Date(year, month - 2, 1);
-    onChange(d.getFullYear(), d.getMonth() + 1);
-  };
-  const next = () => {
-    const d = new Date(year, month, 1);
-    onChange(d.getFullYear(), d.getMonth() + 1);
+  const shift = (offset: number) => {
+    const target = addMonths({ year, month }, offset);
+    onChange(target.year, target.month);
   };
 
   return (
     <div className={cn("flex items-center justify-between flex-wrap gap-3", className)}>
       <div className="flex items-center gap-3.5">
         <button
-          onClick={prev}
+          onClick={() => shift(-1)}
           className="rounded-lg border border-border bg-surface p-1.5 text-text-muted hover:bg-bg hover:text-text"
           aria-label="Mês anterior"
         >
@@ -78,7 +61,7 @@ export function MonthNavigator({
           </div>
         </div>
         <button
-          onClick={next}
+          onClick={() => shift(1)}
           className="rounded-lg border border-border bg-surface p-1.5 text-text-muted hover:bg-bg hover:text-text"
           aria-label="Próximo mês"
         >

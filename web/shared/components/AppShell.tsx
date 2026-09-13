@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-bg">
       {/* Desktop Sidebar */}
-      {!isMobile && <Sidebar className="w-nav shrink-0 fixed inset-y-0 left-0 z-20 h-full" />}
+      {!isMobile && <Sidebar className="w-nav shrink-0 sticky top-0 h-screen overflow-y-auto" />}
 
       {/* Mobile sidebar overlay */}
       {isMobile && sidebarOpen && (
@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Main area */}
-      <div className={`flex flex-1 flex-col overflow-hidden ${!isMobile ? "ml-nav" : ""}`}>
+      <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
         {isMobile && (
           <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-border bg-surface px-4">
