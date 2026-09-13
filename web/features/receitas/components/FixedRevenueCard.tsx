@@ -2,6 +2,7 @@ import { Trash2, History, PlusCircle, XCircle } from "lucide-react";
 import { formatCurrency } from "@/shared/lib/formatCurrency";
 import { formatMonthYear } from "@/shared/lib/dateUtils";
 import { Button } from "@/shared/components/Button";
+import { TypeBadge } from "@/shared/components/TypeBadge";
 import type { FixedRevenue } from "../types";
 
 interface FixedRevenueCardProps {
@@ -30,6 +31,7 @@ export function FixedRevenueCard({
   currentMonth,
 }: FixedRevenueCardProps) {
   const cv = revenue.currentVersion;
+  const versionCount = (revenue.versions ?? []).length;
   const isEnded =
     revenue.endMonth != null &&
     (revenue.endYear! < currentYear ||
@@ -43,9 +45,7 @@ export function FixedRevenueCard({
         <div>
           <div className="text-[14.5px] font-semibold mb-1">{cv?.description ?? "—"}</div>
           <div className="flex gap-1.5 flex-wrap items-center">
-            <span className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold bg-green-light text-green">
-              Fixa
-            </span>
+            <TypeBadge type="fixa" />
             <span
               className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${MODALITY_COLORS[revenue.modality]}`}
             >
@@ -69,7 +69,7 @@ export function FixedRevenueCard({
         Vigência: {formatMonthYear(revenue.startYear, revenue.startMonth)} →{" "}
         {revenue.endMonth ? formatMonthYear(revenue.endYear!, revenue.endMonth) : "em aberto"}
         <span className="ml-3 text-text-subtle">
-          {revenue.versions.length} versão{revenue.versions.length !== 1 ? "ões" : ""}
+          {versionCount} {versionCount === 1 ? "versão" : "versões"}
         </span>
       </div>
       <div className="flex gap-1.5 flex-wrap border-t border-border pt-2.5">

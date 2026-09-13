@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ReceitasService } from "../services/ReceitasService";
 import { toast } from "@/shared/hooks/useToast";
+import { getApiErrorMessage } from "@/infra/api-error";
 
 const QUERY_KEY = ["revenues", "one-time"];
 
@@ -21,7 +22,10 @@ export function useOneTimeRevenues() {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success("Receita avulsa criada!");
     },
-    onError: () => toast.error("Erro ao criar receita avulsa."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao criar receita avulsa."), {
+        action: { label: "Tentar novamente", onClick: () => create.mutate(variables) },
+      }),
   });
 
   const update = useMutation({
@@ -39,7 +43,10 @@ export function useOneTimeRevenues() {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success("Receita avulsa atualizada!");
     },
-    onError: () => toast.error("Erro ao atualizar receita avulsa."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao atualizar receita avulsa."), {
+        action: { label: "Tentar novamente", onClick: () => update.mutate(variables) },
+      }),
   });
 
   const remove = useMutation({
@@ -48,7 +55,10 @@ export function useOneTimeRevenues() {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success("Receita avulsa excluída!");
     },
-    onError: () => toast.error("Erro ao excluir receita avulsa."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao excluir receita avulsa."), {
+        action: { label: "Tentar novamente", onClick: () => remove.mutate(variables) },
+      }),
   });
 
   return { ...query, create, update, remove };

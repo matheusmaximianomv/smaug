@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ReceitasService } from "../services/ReceitasService";
 import { toast } from "@/shared/hooks/useToast";
+import { getApiErrorMessage } from "@/infra/api-error";
 
 const QUERY_KEY = ["revenues", "fixed"];
 
@@ -21,7 +22,10 @@ export function useFixedRevenues() {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success("Receita fixa criada!");
     },
-    onError: () => toast.error("Erro ao criar receita fixa."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao criar receita fixa."), {
+        action: { label: "Tentar novamente", onClick: () => create.mutate(variables) },
+      }),
   });
 
   const addVersion = useMutation({
@@ -39,7 +43,10 @@ export function useFixedRevenues() {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success("Nova versão criada!");
     },
-    onError: () => toast.error("Erro ao criar versão."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao criar versão."), {
+        action: { label: "Tentar novamente", onClick: () => addVersion.mutate(variables) },
+      }),
   });
 
   const terminate = useMutation({
@@ -49,7 +56,10 @@ export function useFixedRevenues() {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success("Receita fixa encerrada!");
     },
-    onError: () => toast.error("Erro ao encerrar receita."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao encerrar receita."), {
+        action: { label: "Tentar novamente", onClick: () => terminate.mutate(variables) },
+      }),
   });
 
   const remove = useMutation({
@@ -58,7 +68,10 @@ export function useFixedRevenues() {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success("Receita fixa excluída!");
     },
-    onError: () => toast.error("Erro ao excluir receita fixa."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao excluir receita fixa."), {
+        action: { label: "Tentar novamente", onClick: () => remove.mutate(variables) },
+      }),
   });
 
   return { ...query, create, addVersion, terminate, remove };

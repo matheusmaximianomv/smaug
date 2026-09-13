@@ -12,7 +12,7 @@ interface VersionHistoryModalProps {
 export function VersionHistoryModal({ isOpen, onClose, revenue }: VersionHistoryModalProps) {
   if (!revenue) return null;
 
-  const sorted = [...revenue.versions].sort((a, b) => {
+  const sorted = [...(revenue.versions ?? [])].sort((a, b) => {
     if (b.effectiveYear !== a.effectiveYear) return b.effectiveYear - a.effectiveYear;
     return b.effectiveMonth - a.effectiveMonth;
   });

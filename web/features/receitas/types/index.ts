@@ -29,7 +29,7 @@ export interface FixedRevenue {
   endYear: number | null;
   endMonth: number | null;
   currentVersion: FixedRevenueVersion;
-  versions: FixedRevenueVersion[];
+  versions?: FixedRevenueVersion[];
   createdAt: string;
   updatedAt: string;
 }

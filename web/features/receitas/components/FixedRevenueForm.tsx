@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Input } from "@/shared/components/Input";
 import { Button } from "@/shared/components/Button";
 import { MonthYearSelect } from "./MonthYearSelect";
+import { compareCompetences, isEligible } from "@/shared/lib/competence";
 
 interface FixedRevenueFormProps {
   onSave: (data: {
@@ -41,6 +42,18 @@ export function FixedRevenueForm({ onSave, onClose, isLoading }: FixedRevenueFor
     if (!desc.trim() || desc.length > 255) e.desc = "Descrição obrigatória.";
     const n = parseFloat(amount.replace(",", "."));
     if (isNaN(n) || n <= 0) e.amount = "Valor inválido.";
+    if (!isEligible({ year: startYear, month: startMonth })) {
+      e.start = "Início não pode ser em competência passada.";
+    }
+    if (
+      hasEnd &&
+      compareCompetences(
+        { year: endYear, month: endMonth },
+        { year: startYear, month: startMonth },
+      ) < 0
+    ) {
+      e.end = "Término não pode ser anterior ao início.";
+    }
     return e;
   }
 
@@ -97,6 +110,7 @@ export function FixedRevenueForm({ onSave, onClose, isLoading }: FixedRevenueFor
         onMonthChange={setStartMonth}
         onYearChange={setStartYear}
         required
+        error={errors.start}
       />
       <div>
         <label className="flex items-center gap-2 text-sm text-text">
@@ -116,6 +130,7 @@ export function FixedRevenueForm({ onSave, onClose, isLoading }: FixedRevenueFor
           year={endYear}
           onMonthChange={setEndMonth}
           onYearChange={setEndYear}
+          error={errors.end}
         />
       )}
       <div className="flex justify-end gap-2 border-t border-border pt-4">

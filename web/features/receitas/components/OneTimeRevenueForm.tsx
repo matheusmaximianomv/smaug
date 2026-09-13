@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Input } from "@/shared/components/Input";
 import { Button } from "@/shared/components/Button";
 import { MonthYearSelect } from "./MonthYearSelect";
+import { isEligible } from "@/shared/lib/competence";
 import type { OneTimeRevenue } from "../types";
 
 interface OneTimeRevenueFormProps {
@@ -41,6 +42,10 @@ export function OneTimeRevenueForm({
     if (!desc.trim() || desc.length > 255) e.desc = "Descrição obrigatória (máx. 255 caracteres).";
     const n = parseFloat(amount.replace(",", "."));
     if (isNaN(n) || n <= 0) e.amount = "Valor inválido. Use número positivo.";
+    // Só na criação: a API permite editar lançamentos já existentes em meses passados.
+    if (!initial && !isEligible({ year, month })) {
+      e.competence = "Não é permitido criar receitas em competências passadas.";
+    }
     return e;
   }
 
@@ -83,6 +88,7 @@ export function OneTimeRevenueForm({
         onMonthChange={setMonth}
         onYearChange={setYear}
         required
+        error={errors.competence}
       />
       <div className="flex justify-end gap-2 border-t border-border pt-4">
         <Button variant="ghost" type="button" onClick={onClose}>

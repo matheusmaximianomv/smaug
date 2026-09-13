@@ -1,20 +1,7 @@
 "use client";
 
-const MONTHS = [
-  "Janeiro",
-  "Fevereiro",
-  "Março",
-  "Abril",
-  "Maio",
-  "Junho",
-  "Julho",
-  "Agosto",
-  "Setembro",
-  "Outubro",
-  "Novembro",
-  "Dezembro",
-];
-const YEARS = [2025, 2026, 2027, 2028];
+import { MONTH_NAMES_FULL } from "@/shared/lib/dateUtils";
+import { selectableYears } from "@/shared/lib/competence";
 
 interface MonthYearSelectProps {
   label?: string;
@@ -35,6 +22,8 @@ export function MonthYearSelect({
   error,
   required,
 }: MonthYearSelectProps) {
+  const years = selectableYears();
+
   return (
     <div className="w-full">
       {label && (
@@ -49,7 +38,7 @@ export function MonthYearSelect({
           onChange={(e) => onMonthChange(Number(e.target.value))}
           className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
         >
-          {MONTHS.map((n, i) => (
+          {MONTH_NAMES_FULL.map((n, i) => (
             <option key={i} value={i + 1}>
               {n}
             </option>
@@ -60,7 +49,7 @@ export function MonthYearSelect({
           onChange={(e) => onYearChange(Number(e.target.value))}
           className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
         >
-          {YEARS.map((y) => (
+          {years.map((y) => (
             <option key={y} value={y}>
               {y}
             </option>

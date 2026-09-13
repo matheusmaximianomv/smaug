@@ -54,6 +54,7 @@ export const ReceitasService = {
     return data;
   },
 
+  /** A API responde com a versão criada, não com a receita completa. */
   addVersion: async (
     id: string,
     payload: {
@@ -63,7 +64,7 @@ export const ReceitasService = {
       effectiveMonth: number;
     },
   ): Promise<FixedRevenueVersion> => {
-    const { data } = await apiClient.post(`/revenues/fixed/${id}/versions`, payload);
+    const { data } = await apiClient.patch(`/revenues/fixed/${id}`, payload);
     return data;
   },
 
