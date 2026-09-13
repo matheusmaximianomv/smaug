@@ -13,7 +13,7 @@ export default function HistoricoPage() {
   const { groups, isLoading } = useVersionHistory(filter);
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-7 max-w-[1100px] space-y-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-xl font-bold flex items-center gap-2">
           <History size={20} className="text-red" />

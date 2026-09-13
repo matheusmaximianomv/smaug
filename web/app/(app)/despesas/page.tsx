@@ -12,8 +12,13 @@ import { InstallmentCard } from "@/features/despesas/components/InstallmentCard"
 import { InstallmentModal } from "@/features/despesas/components/InstallmentModal";
 import { RecurringExpenseCard } from "@/features/despesas/components/RecurringExpenseCard";
 import { RecurringExpenseForm } from "@/features/despesas/components/RecurringExpenseForm";
+import {
+  RecurringExpenseVersionForm,
+  type RecurringExpenseVersionPayload,
+} from "@/features/despesas/components/RecurringExpenseVersionForm";
 import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect";
 import { DataTable } from "@/shared/components/DataTable";
+import { Tabs } from "@/shared/components/Tabs";
 import { Modal } from "@/shared/components/Modal";
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import { Button } from "@/shared/components/Button";
@@ -56,11 +61,6 @@ export default function DespesasPage() {
   const [deleteRecurring, setDeleteRecurring] = useState<string | null>(null);
   const [endMonth, setEndMonth] = useState(now.month);
   const [endYear, setEndYear] = useState(now.year);
-  const [rvDesc, setRvDesc] = useState("");
-  const [rvAmount, setRvAmount] = useState("");
-  const [rvCat, setRvCat] = useState("");
-  const [rvMonth, setRvMonth] = useState(now.month);
-  const [rvYear, setRvYear] = useState(now.year);
 
   const avulsas = useOneTimeExpenses();
   const installments = useInstallments();
@@ -92,29 +92,15 @@ export default function DespesasPage() {
     }
   };
 
-  const handleAddRecVersion = () => {
+  const handleAddRecVersion = (data: RecurringExpenseVersionPayload) => {
     if (!selectedRecurring) return;
     recurring.addVersion.mutate(
-      {
-        id: selectedRecurring.id,
-        description: rvDesc.trim(),
-        amount: parseFloat(rvAmount.replace(",", ".")),
-        categoryId: rvCat,
-        effectiveYear: rvYear,
-        effectiveMonth: rvMonth,
-      },
-      {
-        onSuccess: () => {
-          setModal(null);
-          setRvDesc("");
-          setRvAmount("");
-          setRvCat("");
-        },
-      },
+      { id: selectedRecurring.id, ...data },
+      { onSuccess: () => setModal(null) },
     );
   };
 
-  const TABS: { id: Tab; label: string; count: number }[] = [
+  const TABS = [
     { id: "avulsas", label: "Avulsas", count: avulsas.data?.length ?? 0 },
     { id: "parceladas", label: "Parceladas", count: installments.data?.length ?? 0 },
     { id: "recorrentes", label: "Recorrentes", count: recurring.data?.length ?? 0 },
@@ -149,23 +135,7 @@ export default function DespesasPage() {
         </Button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-0.5 border-b border-border mb-5">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 text-[13.5px] font-medium border-b-2 -mb-px flex items-center gap-1.5 transition-colors ${tab === t.id ? "border-red text-red" : "border-transparent text-text-muted hover:text-text"}`}
-          >
-            {t.label}
-            <span
-              className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${tab === t.id ? "bg-red-light text-red" : "bg-bg text-text-muted"}`}
-            >
-              {t.count}
-            </span>
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={TABS} value={tab} onValueChange={(v) => setTab(v as Tab)} className="mb-5" />
 
       {/* Avulsas */}
       {tab === "avulsas" &&
@@ -331,61 +301,12 @@ export default function DespesasPage() {
         title="Nova versão da despesa"
         width="md"
       >
-        <div className="space-y-4">
-          <p className="text-xs text-text-subtle bg-bg border border-border rounded-lg px-3 py-2">
-            A alteração valerá a partir do mês selecionado. O histórico anterior é preservado.
-          </p>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-text">Nova descrição</label>
-            <input
-              value={rvDesc}
-              onChange={(e) => setRvDesc(e.target.value)}
-              className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-text">Novo valor (R$)</label>
-              <input
-                value={rvAmount}
-                onChange={(e) => setRvAmount(e.target.value)}
-                placeholder="0,00"
-                className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-text">Categoria</label>
-              <select
-                value={rvCat}
-                onChange={(e) => setRvCat(e.target.value)}
-                className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
-              >
-                <option value="">Selecione...</option>
-                {catOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <MonthYearSelect
-            label="Vigência a partir de"
-            month={rvMonth}
-            year={rvYear}
-            onMonthChange={setRvMonth}
-            onYearChange={setRvYear}
-            required
-          />
-          <div className="flex justify-end gap-2 border-t border-border pt-4">
-            <Button variant="ghost" onClick={() => setModal(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleAddRecVersion} isLoading={recurring.addVersion.isPending}>
-              Criar nova versão
-            </Button>
-          </div>
-        </div>
+        <RecurringExpenseVersionForm
+          categories={catOptions}
+          onSave={handleAddRecVersion}
+          onClose={() => setModal(null)}
+          isLoading={recurring.addVersion.isPending}
+        />
       </Modal>
 
       {/* End recurring */}
@@ -436,7 +357,7 @@ export default function DespesasPage() {
       >
         {selectedRecurring && (
           <div className="flex flex-col">
-            {[...selectedRecurring.versions]
+            {[...(selectedRecurring.versions ?? [])]
               .sort((a, b) =>
                 b.effectiveYear !== a.effectiveYear
                   ? b.effectiveYear - a.effectiveYear

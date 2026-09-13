@@ -7,27 +7,10 @@ import { KpiCard } from "@/features/dashboard/components/KpiCard";
 import { SemesterChart } from "@/features/dashboard/components/SemesterChart";
 import { ExpenseBreakdown } from "@/features/dashboard/components/ExpenseBreakdown";
 import { Skeleton } from "@/shared/components/Skeleton";
+import { TypeBadge } from "@/shared/components/TypeBadge";
 import { formatCurrency } from "@/shared/lib/formatCurrency";
-
-const MONTH_NAMES_SHORT = [
-  "Jan",
-  "Fev",
-  "Mar",
-  "Abr",
-  "Mai",
-  "Jun",
-  "Jul",
-  "Ago",
-  "Set",
-  "Out",
-  "Nov",
-  "Dez",
-];
-
-function addMonths(year: number, month: number, n: number) {
-  const d = new Date(year, month - 1 + n, 1);
-  return { year: d.getFullYear(), month: d.getMonth() + 1 };
-}
+import { formatMonthYear } from "@/shared/lib/dateUtils";
+import { addMonths, getCompetenceStatus } from "@/shared/lib/competence";
 
 export default function DashboardPage() {
   const { selected, status, current, navigate, goToCurrent } = useMonthNavigation();
@@ -37,14 +20,14 @@ export default function DashboardPage() {
 
   // Build semester chart: 3 before current + current + 2 future
   const chartMonths = Array.from({ length: 6 }, (_, i) => {
-    const m = addMonths(current.year, current.month, i - 3);
+    const m = addMonths(current, i - 3);
     return {
       year: m.year,
       month: m.month,
-      label: `${MONTH_NAMES_SHORT[m.month - 1]}/${String(m.year).slice(-2)}`,
+      label: formatMonthYear(m.year, m.month),
       revenues: 0,
       expenses: 0,
-      isFuture: m.year > current.year || (m.year === current.year && m.month > current.month),
+      isFuture: getCompetenceStatus(m, current) === "future",
     };
   });
 
@@ -144,13 +127,18 @@ export default function DashboardPage() {
                 {recentRevenues.map((r) => (
                   <tr key={r.id} className="border-b border-border last:border-0 hover:bg-bg">
                     <td className="py-2 text-[13px]">{r.description}</td>
+                    <td className="py-2">
+                      <TypeBadge type={r.type} />
+                    </td>
                     <td className="py-2 text-right text-[13px] font-semibold text-green">
                       {formatCurrency(r.amount)}
                     </td>
                   </tr>
                 ))}
                 <tr className="border-t-2 border-border font-bold">
-                  <td className="pt-2 text-[13.5px]">Total</td>
+                  <td className="pt-2 text-[13.5px]" colSpan={2}>
+                    Total
+                  </td>
                   <td className="pt-2 text-right text-[13.5px] font-bold text-green">
                     {formatCurrency(kpis.totalRevenues)}
                   </td>
@@ -177,13 +165,18 @@ export default function DashboardPage() {
                         <div className="text-[11px] text-text-subtle mt-0.5">{e.categoryName}</div>
                       )}
                     </td>
+                    <td className="py-2">
+                      <TypeBadge type={e.type} />
+                    </td>
                     <td className="py-2 text-right text-[13px] font-semibold text-red">
                       {formatCurrency(e.amount)}
                     </td>
                   </tr>
                 ))}
                 <tr className="border-t-2 border-border font-bold">
-                  <td className="pt-2 text-[13.5px]">Total</td>
+                  <td className="pt-2 text-[13.5px]" colSpan={2}>
+                    Total
+                  </td>
                   <td className="pt-2 text-right text-[13.5px] font-bold text-red">
                     {formatCurrency(kpis.totalExpenses)}
                   </td>

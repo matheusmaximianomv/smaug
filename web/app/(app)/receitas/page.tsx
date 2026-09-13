@@ -8,8 +8,13 @@ import { OneTimeRevenueForm } from "@/features/receitas/components/OneTimeRevenu
 import { FixedRevenueForm } from "@/features/receitas/components/FixedRevenueForm";
 import { FixedRevenueCard } from "@/features/receitas/components/FixedRevenueCard";
 import { VersionHistoryModal } from "@/features/receitas/components/VersionHistoryModal";
+import {
+  FixedRevenueVersionForm,
+  type FixedRevenueVersionPayload,
+} from "@/features/receitas/components/FixedRevenueVersionForm";
 import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect";
 import { DataTable } from "@/shared/components/DataTable";
+import { Tabs } from "@/shared/components/Tabs";
 import { Modal } from "@/shared/components/Modal";
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import { Button } from "@/shared/components/Button";
@@ -42,10 +47,6 @@ export default function ReceitasPage() {
   const [selectedFixed, setSelectedFixed] = useState<FixedRevenue | null>(null);
   const [deleteAvulsa, setDeleteAvulsa] = useState<OneTimeRevenue | null>(null);
   const [deleteFixed, setDeleteFixed] = useState<string | null>(null);
-  const [versionMonth, setVersionMonth] = useState(now.month);
-  const [versionYear, setVersionYear] = useState(now.year);
-  const [versionDesc, setVersionDesc] = useState("");
-  const [versionAmount, setVersionAmount] = useState("");
   const [endMonth, setEndMonth] = useState(now.month);
   const [endYear, setEndYear] = useState(now.year);
 
@@ -78,24 +79,9 @@ export default function ReceitasPage() {
     fixas.create.mutate(data, { onSuccess: () => setModal(null) });
   };
 
-  const handleAddVersion = () => {
+  const handleAddVersion = (data: FixedRevenueVersionPayload) => {
     if (!selectedFixed) return;
-    fixas.addVersion.mutate(
-      {
-        id: selectedFixed.id,
-        description: versionDesc.trim(),
-        amount: parseFloat(versionAmount.replace(",", ".")),
-        effectiveYear: versionYear,
-        effectiveMonth: versionMonth,
-      },
-      {
-        onSuccess: () => {
-          setModal(null);
-          setVersionDesc("");
-          setVersionAmount("");
-        },
-      },
-    );
+    fixas.addVersion.mutate({ id: selectedFixed.id, ...data }, { onSuccess: () => setModal(null) });
   };
 
   const handleEndFixed = () => {
@@ -106,7 +92,7 @@ export default function ReceitasPage() {
     );
   };
 
-  const TABS: { id: Tab; label: string; count: number }[] = [
+  const TABS = [
     { id: "avulsas", label: "Avulsas", count: avulsas.data?.length ?? 0 },
     { id: "fixas", label: "Fixas", count: fixas.data?.length ?? 0 },
   ];
@@ -126,27 +112,7 @@ export default function ReceitasPage() {
         </Button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-0.5 border-b border-border mb-5">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 text-[13.5px] font-medium border-b-2 -mb-px flex items-center gap-1.5 transition-colors ${
-              tab === t.id
-                ? "border-red text-red"
-                : "border-transparent text-text-muted hover:text-text"
-            }`}
-          >
-            {t.label}
-            <span
-              className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${tab === t.id ? "bg-red-light text-red" : "bg-bg text-text-muted"}`}
-            >
-              {t.count}
-            </span>
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={TABS} value={tab} onValueChange={(v) => setTab(v as Tab)} className="mb-5" />
 
       {/* Avulsas Tab */}
       {tab === "avulsas" &&
@@ -259,45 +225,11 @@ export default function ReceitasPage() {
         onClose={() => setModal(null)}
         title="Nova versão da receita fixa"
       >
-        <div className="space-y-4">
-          <p className="text-xs text-text-subtle bg-bg border border-border rounded-lg px-3 py-2">
-            A nova versão será aplicada a partir do mês selecionado. Meses anteriores preservam o
-            valor antigo.
-          </p>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-text">Nova descrição</label>
-            <input
-              value={versionDesc}
-              onChange={(e) => setVersionDesc(e.target.value)}
-              className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-text">Novo valor (R$)</label>
-            <input
-              value={versionAmount}
-              onChange={(e) => setVersionAmount(e.target.value)}
-              placeholder="0,00"
-              className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
-            />
-          </div>
-          <MonthYearSelect
-            label="Vigência a partir de"
-            month={versionMonth}
-            year={versionYear}
-            onMonthChange={setVersionMonth}
-            onYearChange={setVersionYear}
-            required
-          />
-          <div className="flex justify-end gap-2 border-t border-border pt-4">
-            <Button variant="ghost" onClick={() => setModal(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleAddVersion} isLoading={fixas.addVersion.isPending}>
-              Criar nova versão
-            </Button>
-          </div>
-        </div>
+        <FixedRevenueVersionForm
+          onSave={handleAddVersion}
+          onClose={() => setModal(null)}
+          isLoading={fixas.addVersion.isPending}
+        />
       </Modal>
 
       {/* End fixed modal */}
