@@ -5,6 +5,7 @@ import { Input } from "@/shared/components/Input";
 import { Button } from "@/shared/components/Button";
 import { MonthYearSelect } from "./MonthYearSelect";
 import { compareCompetences, isEligible } from "@/shared/lib/competence";
+import { parseAmount } from "@/shared/lib/parseAmount";
 
 interface FixedRevenueFormProps {
   onSave: (data: {
@@ -40,7 +41,7 @@ export function FixedRevenueForm({ onSave, onClose, isLoading }: FixedRevenueFor
   function validate() {
     const e: Record<string, string> = {};
     if (!desc.trim() || desc.length > 255) e.desc = "Descrição obrigatória.";
-    const n = parseFloat(amount.replace(",", "."));
+    const n = parseAmount(amount);
     if (isNaN(n) || n <= 0) e.amount = "Valor inválido.";
     if (!isEligible({ year: startYear, month: startMonth })) {
       e.start = "Início não pode ser em competência passada.";
@@ -66,7 +67,7 @@ export function FixedRevenueForm({ onSave, onClose, isLoading }: FixedRevenueFor
     }
     onSave({
       description: desc.trim(),
-      amount: parseFloat(amount.replace(",", ".")),
+      amount: parseAmount(amount),
       modality,
       startYear,
       startMonth,
@@ -97,6 +98,7 @@ export function FixedRevenueForm({ onSave, onClose, isLoading }: FixedRevenueFor
         <select
           value={modality}
           onChange={(e) => setModality(e.target.value as "ALTERABLE" | "UNALTERABLE")}
+          aria-label="Modalidade"
           className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
         >
           <option value="ALTERABLE">Alterável – pode ser reajustada com histórico</option>

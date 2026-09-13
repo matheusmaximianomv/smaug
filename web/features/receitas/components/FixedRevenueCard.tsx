@@ -7,8 +7,8 @@ import type { FixedRevenue } from "../types";
 
 interface FixedRevenueCardProps {
   revenue: FixedRevenue;
-  onAddVersion: (id: string) => void;
-  onTerminate: (id: string) => void;
+  onAddVersion: (revenue: FixedRevenue) => void;
+  onTerminate: (revenue: FixedRevenue) => void;
   onViewHistory: (revenue: FixedRevenue) => void;
   onDelete: (id: string) => void;
   currentYear: number;
@@ -38,7 +38,8 @@ export function FixedRevenueCard({
       (revenue.endYear === currentYear && revenue.endMonth < currentMonth));
 
   return (
-    <div
+    <article
+      data-testid="fixed-revenue-card"
       className={`rounded-lg border border-border bg-surface p-4 hover:shadow-sm transition-shadow${isEnded ? " opacity-60" : ""}`}
     >
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -74,22 +75,22 @@ export function FixedRevenueCard({
       </div>
       <div className="flex gap-1.5 flex-wrap border-t border-border pt-2.5">
         {revenue.modality === "ALTERABLE" && !isEnded && (
-          <Button variant="ghost" size="sm" onClick={() => onAddVersion(revenue.id)}>
+          <Button variant="ghost" size="sm" onClick={() => onAddVersion(revenue)}>
             <PlusCircle size={12} className="mr-1" /> Nova versão
           </Button>
         )}
         {!isEnded && (
-          <Button variant="ghost" size="sm" onClick={() => onTerminate(revenue.id)}>
+          <Button variant="ghost" size="sm" onClick={() => onTerminate(revenue)}>
             <XCircle size={12} className="mr-1" /> Encerrar
           </Button>
         )}
         <Button variant="ghost" size="sm" onClick={() => onViewHistory(revenue)}>
           <History size={12} className="mr-1" /> Ver histórico
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => onDelete(revenue.id)}>
+        <Button variant="ghost" size="sm" aria-label="Excluir" onClick={() => onDelete(revenue.id)}>
           <Trash2 size={12} />
         </Button>
       </div>
-    </div>
+    </article>
   );
 }

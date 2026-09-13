@@ -6,6 +6,7 @@ import { Button } from "@/shared/components/Button";
 import { MonthYearSelect } from "./MonthYearSelect";
 import { isEligible } from "@/shared/lib/competence";
 import type { OneTimeRevenue } from "../types";
+import { parseAmount } from "@/shared/lib/parseAmount";
 
 interface OneTimeRevenueFormProps {
   initial?: OneTimeRevenue;
@@ -40,7 +41,7 @@ export function OneTimeRevenueForm({
   function validate() {
     const e: Record<string, string> = {};
     if (!desc.trim() || desc.length > 255) e.desc = "Descrição obrigatória (máx. 255 caracteres).";
-    const n = parseFloat(amount.replace(",", "."));
+    const n = parseAmount(amount);
     if (isNaN(n) || n <= 0) e.amount = "Valor inválido. Use número positivo.";
     // Só na criação: a API permite editar lançamentos já existentes em meses passados.
     if (!initial && !isEligible({ year, month })) {
@@ -58,7 +59,7 @@ export function OneTimeRevenueForm({
     }
     onSave({
       description: desc.trim(),
-      amount: parseFloat(amount.replace(",", ".")),
+      amount: parseAmount(amount),
       competenceYear: year,
       competenceMonth: month,
     });

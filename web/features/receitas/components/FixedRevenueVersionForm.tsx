@@ -5,6 +5,7 @@ import { Input } from "@/shared/components/Input";
 import { Button } from "@/shared/components/Button";
 import { MonthYearSelect } from "./MonthYearSelect";
 import { getCurrentCompetence, isEligible } from "@/shared/lib/competence";
+import { parseAmount } from "@/shared/lib/parseAmount";
 
 export interface FixedRevenueVersionPayload {
   description: string;
@@ -36,7 +37,7 @@ export function FixedRevenueVersionForm({
 
     const v: Record<string, string> = {};
     if (!desc.trim() || desc.length > 255) v.desc = "Descrição obrigatória (máx. 255 caracteres).";
-    const parsed = parseFloat(amount.replace(",", "."));
+    const parsed = parseAmount(amount);
     if (isNaN(parsed) || parsed <= 0) v.amount = "Valor inválido. Use número positivo.";
     if (!isEligible({ year, month })) v.effective = "A vigência não pode começar em mês passado.";
 
