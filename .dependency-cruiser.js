@@ -36,6 +36,14 @@ module.exports = {
       to: { path: "^server/src/(infrastructure|presentation)" },
     },
     {
+      name: "no-e2e-to-src",
+      severity: "error",
+      comment: "Os testes E2E sao caixa-preta: falam HTTP, nao importam codigo de server/ ou web/.",
+      from: { path: "^e2e/" },
+      to: { path: "^(server|web)/" },
+    },
+
+    {
       name: "no-circular-dependencies",
       comment: "Evita ciclos entre módulos",
       severity: "warn",

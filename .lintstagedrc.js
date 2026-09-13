@@ -3,5 +3,6 @@ module.exports = {
   // next lint não suporta caminhos individuais com parênteses no path (app)/(auth)
   // usar função faz o comando rodar sem passar os arquivos individualmente
   "web/**/*.{ts,tsx}": [() => "npm run --prefix web lint", "prettier --write"],
+  "e2e/**/*.ts": ["prettier --write"],
   "*.{json,md}": ["prettier --write"],
 };
