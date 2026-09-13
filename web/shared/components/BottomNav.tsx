@@ -21,7 +21,10 @@ export function BottomNav({ className }: BottomNavProps) {
   const pathname = usePathname();
 
   return (
-    <nav className={cn("flex border-t border-border bg-surface", className)}>
+    <nav
+      aria-label="Navegação inferior"
+      className={cn("flex border-t border-border bg-surface", className)}
+    >
       {NAV_ITEMS.map(({ href, label, Icon }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
         return (

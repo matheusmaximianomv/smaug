@@ -50,8 +50,8 @@ export function DataTable<T extends { id: string }>({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={row.id ?? i} className="hover:bg-bg border-b border-border last:border-0">
+          {rows.map((row) => (
+            <tr key={row.id} className="hover:bg-bg border-b border-border last:border-0">
               {columns.map((col) => (
                 <td
                   key={col.key}
