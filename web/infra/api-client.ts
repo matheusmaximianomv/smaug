@@ -1,4 +1,5 @@
 import axios, { AxiosError } from "axios";
+import { clearUserId, getUserId } from "./session";
 
 const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000",
@@ -9,11 +10,9 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const userId = localStorage.getItem("userId");
-    if (userId && config.headers) {
-      config.headers["X-User-Id"] = userId;
-    }
+  const userId = getUserId();
+  if (userId && config.headers) {
+    config.headers["X-User-Id"] = userId;
   }
   return config;
 });
@@ -21,9 +20,11 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
+    // Só 401 encerra a sessão. Falha de rede ou 5xx são transitórios e não devem
+    // derrubar o login — quem chamou trata o erro.
     if (error.response?.status === 401) {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("userId");
+      clearUserId();
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
         window.location.href = "/login";
       }
     }
