@@ -85,8 +85,8 @@ export const DespesasService = {
       effectiveYear: number;
       effectiveMonth: number;
     },
-  ): Promise<RecurringExpenseVersion> => {
-    const { data } = await apiClient.post(`/expenses/recurring/${id}/versions`, payload);
+  ): Promise<RecurringExpense> => {
+    const { data } = await apiClient.patch(`/expenses/recurring/${id}`, payload);
     return data;
   },
   terminateRecurring: async (

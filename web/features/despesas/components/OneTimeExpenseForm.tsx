@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Input } from "@/shared/components/Input";
 import { Button } from "@/shared/components/Button";
 import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect";
+import { isEligible } from "@/shared/lib/competence";
 import type { CategoryWithCount } from "@/features/categorias/types";
 import type { OneTimeExpense } from "../types";
 
@@ -48,6 +49,10 @@ export function OneTimeExpenseForm({
     const n = parseFloat(amount.replace(",", "."));
     if (isNaN(n) || n <= 0) v.amount = "Valor inválido.";
     if (!catId) v.cat = "Selecione uma categoria.";
+    // Só na criação: a API permite editar lançamentos já existentes em meses passados.
+    if (!initial && !isEligible({ year, month })) {
+      v.competence = "Não é permitido criar despesas em competências passadas.";
+    }
     if (Object.keys(v).length) {
       setErrors(v);
       return;
@@ -101,6 +106,7 @@ export function OneTimeExpenseForm({
         onMonthChange={setMonth}
         onYearChange={setYear}
         required
+        error={errors.competence}
       />
       <div className="flex justify-end gap-2 border-t border-border pt-4">
         <Button variant="ghost" type="button" onClick={onClose}>

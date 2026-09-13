@@ -2,6 +2,7 @@ import { Trash2, List } from "lucide-react";
 import { formatCurrency } from "@/shared/lib/formatCurrency";
 import { formatMonthYear } from "@/shared/lib/dateUtils";
 import { Button } from "@/shared/components/Button";
+import { TypeBadge } from "@/shared/components/TypeBadge";
 import type { InstallmentExpense } from "../types";
 
 interface InstallmentCardProps {
@@ -33,9 +34,7 @@ export function InstallmentCard({
         <div>
           <div className="text-[14.5px] font-semibold mb-1">{expense.description}</div>
           <div className="flex gap-1.5 flex-wrap items-center">
-            <span className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold bg-[#fff7ed] text-[#c2660a]">
-              Parcelada
-            </span>
+            <TypeBadge type="parcelada" />
             {expense.category && (
               <span className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold bg-[#f5f0ff] text-[#6841c7]">
                 {expense.category.name}

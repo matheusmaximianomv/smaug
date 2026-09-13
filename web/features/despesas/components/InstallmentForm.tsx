@@ -5,6 +5,7 @@ import { Input } from "@/shared/components/Input";
 import { Button } from "@/shared/components/Button";
 import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect";
 import { formatCurrency } from "@/shared/lib/formatCurrency";
+import { isEligible } from "@/shared/lib/competence";
 import type { CategoryWithCount } from "@/features/categorias/types";
 
 interface InstallmentFormProps {
@@ -52,6 +53,9 @@ export function InstallmentForm({ categories, onSave, onClose, isLoading }: Inst
     const c = parseInt(count);
     if (isNaN(c) || c < 1 || c > 72) v.count = "Entre 1 e 72 parcelas.";
     if (!catId) v.cat = "Selecione uma categoria.";
+    if (!isEligible({ year, month })) {
+      v.competence = "A primeira parcela não pode cair em competência passada.";
+    }
     if (Object.keys(v).length) {
       setErrors(v);
       return;
@@ -121,6 +125,7 @@ export function InstallmentForm({ categories, onSave, onClose, isLoading }: Inst
         onMonthChange={setMonth}
         onYearChange={setYear}
         required
+        error={errors.competence}
       />
       <div className="flex justify-end gap-2 border-t border-border pt-4">
         <Button variant="ghost" type="button" onClick={onClose}>

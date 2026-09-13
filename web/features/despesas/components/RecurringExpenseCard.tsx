@@ -2,6 +2,7 @@ import { Trash2, History, PlusCircle, XCircle } from "lucide-react";
 import { formatCurrency } from "@/shared/lib/formatCurrency";
 import { formatMonthYear } from "@/shared/lib/dateUtils";
 import { Button } from "@/shared/components/Button";
+import { TypeBadge } from "@/shared/components/TypeBadge";
 import type { RecurringExpense } from "../types";
 
 interface RecurringExpenseCardProps {
@@ -24,6 +25,7 @@ export function RecurringExpenseCard({
   currentMonth,
 }: RecurringExpenseCardProps) {
   const cv = expense.currentVersion;
+  const versionCount = (expense.versions ?? []).length;
   const isEnded =
     expense.endMonth != null &&
     (expense.endYear! < currentYear ||
@@ -37,9 +39,7 @@ export function RecurringExpenseCard({
         <div>
           <div className="text-[14.5px] font-semibold mb-1">{cv?.description ?? "—"}</div>
           <div className="flex gap-1.5 flex-wrap items-center">
-            <span className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold bg-[#f5f0ff] text-[#6841c7]">
-              Recorrente
-            </span>
+            <TypeBadge type="recorrente" />
             {cv?.category && (
               <span className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold bg-[#f5f0ff] text-[#6841c7]">
                 {cv.category.name}
@@ -63,7 +63,7 @@ export function RecurringExpenseCard({
         Vigência: {formatMonthYear(expense.startYear, expense.startMonth)} →{" "}
         {expense.endMonth ? formatMonthYear(expense.endYear!, expense.endMonth) : "em aberto"}
         <span className="ml-3 text-text-subtle">
-          {expense.versions.length} versão{expense.versions.length !== 1 ? "ões" : ""}
+          {versionCount} {versionCount === 1 ? "versão" : "versões"}
         </span>
       </div>
       <div className="flex gap-1.5 flex-wrap border-t border-border pt-2.5">

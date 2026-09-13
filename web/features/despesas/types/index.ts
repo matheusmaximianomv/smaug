@@ -55,7 +55,7 @@ export interface RecurringExpense {
   endYear: number | null;
   endMonth: number | null;
   currentVersion: RecurringExpenseVersion;
-  versions: RecurringExpenseVersion[];
+  versions?: RecurringExpenseVersion[];
   createdAt: string;
   updatedAt: string;
 }

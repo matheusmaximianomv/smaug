@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DespesasService } from "../services/DespesasService";
 import { toast } from "@/shared/hooks/useToast";
+import { getApiErrorMessage } from "@/infra/api-error";
 
 const QK = ["expenses", "installment"];
 
@@ -20,7 +21,10 @@ export function useInstallments() {
       qc.invalidateQueries({ queryKey: QK });
       toast.success("Parcelamento criado!");
     },
-    onError: () => toast.error("Erro ao criar parcelamento."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao criar parcelamento."), {
+        action: { label: "Tentar novamente", onClick: () => create.mutate(variables) },
+      }),
   });
 
   const remove = useMutation({
@@ -29,7 +33,10 @@ export function useInstallments() {
       qc.invalidateQueries({ queryKey: QK });
       toast.success("Parcelamento excluído!");
     },
-    onError: () => toast.error("Erro ao excluir parcelamento."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao excluir parcelamento."), {
+        action: { label: "Tentar novamente", onClick: () => remove.mutate(variables) },
+      }),
   });
 
   return { ...query, create, remove };

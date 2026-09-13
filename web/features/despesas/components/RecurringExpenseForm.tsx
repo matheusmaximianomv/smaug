@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Input } from "@/shared/components/Input";
 import { Button } from "@/shared/components/Button";
 import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect";
+import { compareCompetences, isEligible } from "@/shared/lib/competence";
 import type { CategoryWithCount } from "@/features/categorias/types";
 
 interface RecurringExpenseFormProps {
@@ -50,6 +51,18 @@ export function RecurringExpenseForm({
     const n = parseFloat(amount.replace(",", "."));
     if (isNaN(n) || n <= 0) v.amount = "Valor inválido.";
     if (!catId) v.cat = "Selecione uma categoria.";
+    if (!isEligible({ year: startYear, month: startMonth })) {
+      v.start = "Início não pode ser em competência passada.";
+    }
+    if (
+      hasEnd &&
+      compareCompetences(
+        { year: endYear, month: endMonth },
+        { year: startYear, month: startMonth },
+      ) < 0
+    ) {
+      v.end = "Término não pode ser anterior ao início.";
+    }
     if (Object.keys(v).length) {
       setErrors(v);
       return;
@@ -107,6 +120,7 @@ export function RecurringExpenseForm({
         onMonthChange={setStartMonth}
         onYearChange={setStartYear}
         required
+        error={errors.start}
       />
       <div>
         <label className="flex items-center gap-2 text-sm text-text">
@@ -126,6 +140,7 @@ export function RecurringExpenseForm({
           year={endYear}
           onMonthChange={setEndMonth}
           onYearChange={setEndYear}
+          error={errors.end}
         />
       )}
       <div className="flex justify-end gap-2 border-t border-border pt-4">

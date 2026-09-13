@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DespesasService } from "../services/DespesasService";
 import { toast } from "@/shared/hooks/useToast";
+import { getApiErrorMessage } from "@/infra/api-error";
 
 const QK = ["expenses", "recurring"];
 
@@ -20,7 +21,10 @@ export function useRecurringExpenses() {
       qc.invalidateQueries({ queryKey: QK });
       toast.success("Despesa recorrente criada!");
     },
-    onError: () => toast.error("Erro ao criar despesa recorrente."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao criar despesa recorrente."), {
+        action: { label: "Tentar novamente", onClick: () => create.mutate(variables) },
+      }),
   });
 
   const addVersion = useMutation({
@@ -39,7 +43,10 @@ export function useRecurringExpenses() {
       qc.invalidateQueries({ queryKey: QK });
       toast.success("Nova versão criada!");
     },
-    onError: () => toast.error("Erro ao criar versão."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao criar versão."), {
+        action: { label: "Tentar novamente", onClick: () => addVersion.mutate(variables) },
+      }),
   });
 
   const terminate = useMutation({
@@ -49,7 +56,10 @@ export function useRecurringExpenses() {
       qc.invalidateQueries({ queryKey: QK });
       toast.success("Despesa recorrente encerrada!");
     },
-    onError: () => toast.error("Erro ao encerrar despesa recorrente."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao encerrar despesa recorrente."), {
+        action: { label: "Tentar novamente", onClick: () => terminate.mutate(variables) },
+      }),
   });
 
   const remove = useMutation({
@@ -58,7 +68,10 @@ export function useRecurringExpenses() {
       qc.invalidateQueries({ queryKey: QK });
       toast.success("Despesa recorrente excluída!");
     },
-    onError: () => toast.error("Erro ao excluir despesa recorrente."),
+    onError: (error, variables) =>
+      toast.error(getApiErrorMessage(error, "Erro ao excluir despesa recorrente."), {
+        action: { label: "Tentar novamente", onClick: () => remove.mutate(variables) },
+      }),
   });
 
   return { ...query, create, addVersion, terminate, remove };
