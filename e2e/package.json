@@ -1,0 +1,25 @@
+{
+  "name": "smaug-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Testes end-to-end (Playwright) do Smaug",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "test": "node scripts/run-e2e.mjs",
+    "test:headed": "node scripts/run-e2e.mjs --headed",
+    "test:ui": "node scripts/run-e2e.mjs --ui",
+    "test:debug": "node scripts/run-e2e.mjs --debug",
+    "test:keep-db": "node scripts/run-e2e.mjs --keep-db",
+    "report": "playwright show-report playwright-report",
+    "install:browsers": "playwright install --with-deps chromium chromium-headless-shell",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.9.3"
+  }
+}

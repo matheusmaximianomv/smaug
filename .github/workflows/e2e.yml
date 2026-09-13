@@ -1,0 +1,73 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    name: Playwright (chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Os quatro lockfiles são independentes (raiz, server, web e e2e): o cache
+      # precisa invalidar quando qualquer um deles mudar.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            web/package-lock.json
+            e2e/package-lock.json
+
+      - name: Instalar dependências (raiz, server, web e e2e)
+        run: npm run install:all
+
+      # ATENÇÃO: não rode `prisma:generate` nem `prisma:prepare` aqui. O
+      # postinstall do @prisma/client já gera o client a partir do schema
+      # versionado (que está em `sqlite`), e `prisma:prepare` sem
+      # DATABASE_PROVIDER reescreveria o datasource para postgresql — o
+      # run-e2e.mjs detecta e falha, mas o certo é não chamar.
+
+      - name: Cache dos browsers do Playwright
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      # `--with-deps` também instala as bibliotecas de sistema do Chromium, que
+      # não vêm do cache — por isso roda mesmo com cache quente.
+      - name: Instalar o Chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium chromium-headless-shell
+
+      # A switch cria o SQLite exclusivo da execução, sobe API e web e descarta
+      # o banco no final. Com CI=true o front roda em modo `build`.
+      - name: Rodar a suíte E2E
+        run: npm run test:e2e
+        env:
+          CI: "true"
+
+      - name: Publicar o relatório
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
