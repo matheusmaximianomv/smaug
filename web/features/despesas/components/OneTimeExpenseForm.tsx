@@ -7,6 +7,7 @@ import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect"
 import { isEligible } from "@/shared/lib/competence";
 import type { CategoryWithCount } from "@/features/categorias/types";
 import type { OneTimeExpense } from "../types";
+import { parseAmount } from "@/shared/lib/parseAmount";
 
 interface OneTimeExpenseFormProps {
   initial?: OneTimeExpense;
@@ -46,7 +47,7 @@ export function OneTimeExpenseForm({
     e.preventDefault();
     const v: Record<string, string> = {};
     if (!desc.trim() || desc.length > 255) v.desc = "Descrição obrigatória (máx. 255 caracteres).";
-    const n = parseFloat(amount.replace(",", "."));
+    const n = parseAmount(amount);
     if (isNaN(n) || n <= 0) v.amount = "Valor inválido.";
     if (!catId) v.cat = "Selecione uma categoria.";
     // Só na criação: a API permite editar lançamentos já existentes em meses passados.
@@ -88,6 +89,7 @@ export function OneTimeExpenseForm({
         <select
           value={catId}
           onChange={(e) => setCatId(e.target.value)}
+          aria-label="Categoria"
           className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
         >
           <option value="">Selecione...</option>

@@ -29,7 +29,10 @@ export function InstallmentCard({
   const lastInst = expense.installments[expense.installments.length - 1];
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 hover:shadow-sm transition-shadow">
+    <article
+      data-testid="installment-card"
+      className="rounded-lg border border-border bg-surface p-4 hover:shadow-sm transition-shadow"
+    >
       <div className="flex items-start justify-between gap-3 mb-2">
         <div>
           <div className="text-[14.5px] font-semibold mb-1">{expense.description}</div>
@@ -69,10 +72,10 @@ export function InstallmentCard({
         <Button variant="ghost" size="sm" onClick={() => onViewInstallments(expense)}>
           <List size={12} className="mr-1" /> Ver parcelas
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => onDelete(expense.id)}>
+        <Button variant="ghost" size="sm" aria-label="Excluir" onClick={() => onDelete(expense.id)}>
           <Trash2 size={12} />
         </Button>
       </div>
-    </div>
+    </article>
   );
 }

@@ -7,6 +7,7 @@ import { Button } from "@/shared/components/Button";
 import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect";
 import { getCurrentCompetence, isEligible } from "@/shared/lib/competence";
 import type { CategoryWithCount } from "@/features/categorias/types";
+import { parseAmount } from "@/shared/lib/parseAmount";
 
 export interface RecurringExpenseVersionPayload {
   description: string;
@@ -42,7 +43,7 @@ export function RecurringExpenseVersionForm({
 
     const v: Record<string, string> = {};
     if (!desc.trim() || desc.length > 255) v.desc = "Descrição obrigatória (máx. 255 caracteres).";
-    const parsed = parseFloat(amount.replace(",", "."));
+    const parsed = parseAmount(amount);
     if (isNaN(parsed) || parsed <= 0) v.amount = "Valor inválido. Use número positivo.";
     if (!catId) v.cat = "Selecione uma categoria.";
     if (!isEligible({ year, month })) v.effective = "A vigência não pode começar em mês passado.";

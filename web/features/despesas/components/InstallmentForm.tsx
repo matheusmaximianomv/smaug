@@ -7,6 +7,7 @@ import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect"
 import { formatCurrency } from "@/shared/lib/formatCurrency";
 import { isEligible } from "@/shared/lib/competence";
 import type { CategoryWithCount } from "@/features/categorias/types";
+import { parseAmount } from "@/shared/lib/parseAmount";
 
 interface InstallmentFormProps {
   categories: CategoryWithCount[];
@@ -38,7 +39,7 @@ export function InstallmentForm({ categories, onSave, onClose, isLoading }: Inst
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const installmentAmt = useMemo(() => {
-    const t = Math.round(parseFloat(total.replace(",", ".")) * 100);
+    const t = Math.round(parseAmount(total) * 100);
     const c = parseInt(count);
     if (!t || !c || c < 1 || c > 72) return null;
     return Math.floor(t / c) / 100;
@@ -48,7 +49,7 @@ export function InstallmentForm({ categories, onSave, onClose, isLoading }: Inst
     e.preventDefault();
     const v: Record<string, string> = {};
     if (!desc.trim()) v.desc = "Descrição obrigatória.";
-    const t = parseFloat(total.replace(",", "."));
+    const t = parseAmount(total);
     if (isNaN(t) || t <= 0) v.total = "Valor total inválido.";
     const c = parseInt(count);
     if (isNaN(c) || c < 1 || c > 72) v.count = "Entre 1 e 72 parcelas.";
@@ -107,6 +108,7 @@ export function InstallmentForm({ categories, onSave, onClose, isLoading }: Inst
         <select
           value={catId}
           onChange={(e) => setCatId(e.target.value)}
+          aria-label="Categoria"
           className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
         >
           <option value="">Selecione...</option>

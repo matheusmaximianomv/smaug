@@ -6,6 +6,7 @@ import { Button } from "@/shared/components/Button";
 import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect";
 import { compareCompetences, isEligible } from "@/shared/lib/competence";
 import type { CategoryWithCount } from "@/features/categorias/types";
+import { parseAmount } from "@/shared/lib/parseAmount";
 
 interface RecurringExpenseFormProps {
   categories: CategoryWithCount[];
@@ -48,7 +49,7 @@ export function RecurringExpenseForm({
     e.preventDefault();
     const v: Record<string, string> = {};
     if (!desc.trim()) v.desc = "Descrição obrigatória.";
-    const n = parseFloat(amount.replace(",", "."));
+    const n = parseAmount(amount);
     if (isNaN(n) || n <= 0) v.amount = "Valor inválido.";
     if (!catId) v.cat = "Selecione uma categoria.";
     if (!isEligible({ year: startYear, month: startMonth })) {
@@ -101,6 +102,7 @@ export function RecurringExpenseForm({
           <select
             value={catId}
             onChange={(e) => setCatId(e.target.value)}
+            aria-label="Categoria"
             className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
           >
             <option value="">Selecione...</option>

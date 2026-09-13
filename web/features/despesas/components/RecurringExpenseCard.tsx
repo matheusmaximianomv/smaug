@@ -7,8 +7,8 @@ import type { RecurringExpense } from "../types";
 
 interface RecurringExpenseCardProps {
   expense: RecurringExpense;
-  onAddVersion: (id: string) => void;
-  onTerminate: (id: string) => void;
+  onAddVersion: (expense: RecurringExpense) => void;
+  onTerminate: (expense: RecurringExpense) => void;
   onViewHistory: (exp: RecurringExpense) => void;
   onDelete: (id: string) => void;
   currentYear: number;
@@ -32,7 +32,8 @@ export function RecurringExpenseCard({
       (expense.endYear === currentYear && expense.endMonth < currentMonth));
 
   return (
-    <div
+    <article
+      data-testid="recurring-expense-card"
       className={`rounded-lg border border-border bg-surface p-4 hover:shadow-sm transition-shadow${isEnded ? " opacity-60" : ""}`}
     >
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -68,22 +69,22 @@ export function RecurringExpenseCard({
       </div>
       <div className="flex gap-1.5 flex-wrap border-t border-border pt-2.5">
         {!isEnded && (
-          <Button variant="ghost" size="sm" onClick={() => onAddVersion(expense.id)}>
+          <Button variant="ghost" size="sm" onClick={() => onAddVersion(expense)}>
             <PlusCircle size={12} className="mr-1" /> Nova versão
           </Button>
         )}
         {!isEnded && (
-          <Button variant="ghost" size="sm" onClick={() => onTerminate(expense.id)}>
+          <Button variant="ghost" size="sm" onClick={() => onTerminate(expense)}>
             <XCircle size={12} className="mr-1" /> Encerrar
           </Button>
         )}
         <Button variant="ghost" size="sm" onClick={() => onViewHistory(expense)}>
           <History size={12} className="mr-1" /> Ver histórico
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => onDelete(expense.id)}>
+        <Button variant="ghost" size="sm" aria-label="Excluir" onClick={() => onDelete(expense.id)}>
           <Trash2 size={12} />
         </Button>
       </div>
-    </div>
+    </article>
   );
 }
