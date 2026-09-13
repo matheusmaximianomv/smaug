@@ -332,7 +332,15 @@ A user needs to access all functionality on mobile devices with an optimized int
 - **FR-073**: System MUST hide the sidebar and show a bottom navigation bar with 5 icons on mobile (≤768px)
 - **FR-074**: System MUST provide a hamburger menu on mobile to toggle the sidebar
 - **FR-075**: System MUST enable horizontal scrolling for tables on mobile devices
-- **FR-076**: System MUST use Shadcn/ui components as a base, customized to match the design
+- **FR-076**: System MUST build UI primitives on Radix UI wherever accessible behavior is required
+  — today `Dialog` (focus trap, focus restore, `aria-labelledby`) and `Tabs` (`role=tablist`/`tab`,
+  `aria-selected`, arrow-key navigation). Remaining primitives (Button, Input, Select, Toast) are
+  hand-rolled with Tailwind + CVA, styled to match the prototype.
+  > Amended 2026-09-12: the original wording required adopting Shadcn/ui wholesale. Shadcn is a
+  > generator over Radix + Tailwind + CVA — the stack already in use — so its value here was limited
+  > to the accessible behavior of Dialog and Tabs, which was measurably missing (focus escaped the
+  > open modal after two Tabs; the tab strips exposed no ARIA). Those two were migrated to Radix
+  > directly; a full migration was rejected as visual-regression risk without functional gain.
 - **FR-084**: System MUST format all monetary values as R$ 1.234,56 (Brazilian standard with currency symbol, thousand separator, and 2 decimal places)
 - **FR-085**: System MUST implement basic accessibility including Tab navigation, Enter/Escape for modals, and semantic HTML labels
 
