@@ -164,12 +164,17 @@ export default function ReceitasPage() {
                 revenue={f}
                 currentYear={now.year}
                 currentMonth={now.month}
-                onAddVersion={(id) => {
-                  setSelectedFixed(fixas.data.find((x) => x.id === id) ?? null);
+                onAddVersion={(rev) => {
+                  setSelectedFixed(rev);
                   setModal("add-version");
                 }}
-                onTerminate={(id) => {
-                  setSelectedFixed(fixas.data.find((x) => x.id === id) ?? null);
+                onTerminate={(rev) => {
+                  setSelectedFixed(rev);
+                  // endMonth/endYear são estado da PÁGINA e sobrevivem ao fechamento
+                  // do modal: sem este reset, um mês escolhido e descartado
+                  // reaparecia na próxima receita que o usuário fosse encerrar.
+                  setEndMonth(now.month);
+                  setEndYear(now.year);
                   setModal("end-fixa");
                 }}
                 onViewHistory={(rev) => {

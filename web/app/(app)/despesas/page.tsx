@@ -216,12 +216,17 @@ export default function DespesasPage() {
                 expense={r}
                 currentYear={now.year}
                 currentMonth={now.month}
-                onAddVersion={(id) => {
-                  setSelectedRecurring(recurring.data!.find((x) => x.id === id) ?? null);
+                onAddVersion={(exp) => {
+                  setSelectedRecurring(exp);
                   setModal("add-rec-version");
                 }}
-                onTerminate={(id) => {
-                  setSelectedRecurring(recurring.data!.find((x) => x.id === id) ?? null);
+                onTerminate={(exp) => {
+                  setSelectedRecurring(exp);
+                  // endMonth/endYear são estado da PÁGINA e sobrevivem ao fechamento
+                  // do modal: sem este reset, um mês escolhido e descartado
+                  // reaparecia na próxima despesa que o usuário fosse encerrar.
+                  setEndMonth(now.month);
+                  setEndYear(now.year);
                   setModal("end-recorrente");
                 }}
                 onViewHistory={(exp) => {
