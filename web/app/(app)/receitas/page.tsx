@@ -12,7 +12,7 @@ import {
   FixedRevenueVersionForm,
   type FixedRevenueVersionPayload,
 } from "@/features/receitas/components/FixedRevenueVersionForm";
-import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect";
+import { MonthYearSelect } from "@/shared/components/MonthYearSelect";
 import { DataTable } from "@/shared/components/DataTable";
 import { Tabs } from "@/shared/components/Tabs";
 import { Modal } from "@/shared/components/Modal";

@@ -68,11 +68,26 @@ presentation/    controllers, routes, middlewares (validation, auth, error, requ
 
 **Persistence.** Each aggregate has a port in `domain/ports/` and a `Prisma*Repository` in `infrastructure/database/repositories/`. A separate generic `RepositoryFactory` (`database.provider.ts`) switches on `DATABASE_PROVIDER`: `memory` yields `InMemoryRepository`, `sqlite`/`postgresql` yield a reflective `PrismaRepository`. Unit tests use in-memory fakes; no DB required.
 
-**HTTP contract.** Routes are mounted at the root (no `/api` prefix): `/health`, `/users`, `/revenues/one-time`, `/revenues/fixed`, `/revenues` (queries), `/expenses/categories`, `/expenses/one-time`, `/expenses/installment`, `/expenses/recurring`, `/expenses` (queries). Mount order matters — the specific prefixes are registered before the `/revenues` and `/expenses` catch-alls. `/health` returns **503 with `status: "degraded"`** when the database is unreachable, not just 200.
+**HTTP contract.** Routes are mounted at the root (no `/api` prefix): `/health`, `/users`, `/revenues/one-time`, `/revenues/fixed`, `/revenues` (queries), `/expenses/categories`, `/expenses/one-time`, `/expenses/installment`, `/expenses/recurring`, `/expenses` (queries), `/data` (CSV export/import). Mount order matters — the specific prefixes are registered before the `/revenues` and `/expenses` catch-alls. `/health` returns **503 with `status: "degraded"`** when the database is unreachable, not just 200.
 
 **Auth is header-based, not token-based.** There are no passwords or JWTs. `extractUser` (`presentation/middlewares/extract-user.middleware.ts`) reads the `X-User-Id` header, requires a UUID, and 401s / 404s otherwise. It is applied per-route-group in `routes/index.ts`; `/users` and `/health` are open.
 
 **Validation & errors.** Zod schemas live in `application/dtos/*.dto.ts` (alongside the `XResponseDto` interfaces), are imported by the route files, and are applied via `validateRequest` / `validateQuery`, which emit `{error: "VALIDATION_ERROR", message, details}` with 400. The terminal `errorHandlerMiddleware` logs via the container's `Logger` and returns a bare 500 — surface intended client-facing failures explicitly in the controller/service instead of throwing.
+
+**CSV export/import (`/data`).** The whole engine lives in the server; the web only triggers a
+download and uploads a file. `application/csv/` holds the pure serializer/parser (BOM, `;`, CRLF,
+comma decimal, quote escaping); `DataExportService` walks the competence range reusing
+`RevenueQueryService`/`ExpenseQueryService` (so version resolution and category joins are not
+duplicated) and sorts deterministically — competence, nature, category, description, then amount,
+series and installment number as tiebreakers, so twin rows can't reorder between exports.
+`ImportEntriesUseCase` builds every entity in memory and hands the batch to `DataImportRepository`,
+which persists it in a single `$transaction`: import never deduplicates, so a half-written batch
+could not be retried safely. Import is always additive — the file's `serie_id` only groups rows
+with each other and is then discarded. It is also the one place allowed to bypass the
+past-competence guard (via `RecurringExpense.rehydrate` / `RecurringExpenseVersion.rehydrate`),
+because migrating history is its purpose. The `observacao` column exists in the format but has no
+field in the domain: it is exported empty and ignored on import. Import sends the CSV as a raw
+`text/csv` body (`express.text`), not multipart.
 
 **Env** (`infrastructure/config/env.ts`) is Zod-parsed at import time and calls `process.exit(1)` on failure: `DATABASE_PROVIDER` (`postgresql|sqlite|memory`), `DATABASE_URL`, `NODE_ENV` — all three required, no default — plus `PORT` (3000), `LOG_LEVEL` (`info`), `CORS_ORIGIN` (`http://localhost:3001`).
 
@@ -155,7 +170,7 @@ This repo uses Spec Kit. Feature work lives in `specs/###-feature-name/` (`spec.
 
 `.specify/memory/constitution.md` is the normative document — it wins over ad-hoc practice. Beyond the layering rules already described, it mandates: no framework types in the domain, DI everywhere, YAGNI over speculative abstraction, no dead or commented-out code, Server Components by default with `"use client"` only for interactivity/state/effects/browser APIs, and local state preferred over global.
 
-`docs/prototipo/` is prototype material, **not production code** — it runs on React UMD and persists to `localStorage`. Treat it as a visual reference only; see `docs/prototipo/v2/README.md`. Note that v2 specifies a feature that is **not implemented and has no `specs/006-*` folder yet**: the "Área de Dados" (CSV export/import), whose wire format is frozen in `docs/prototipo/v2/ESPECIFICACAO-CSV.md`.
+`docs/prototipo/` is prototype material, **not production code** — it runs on React UMD and persists to `localStorage`. Treat it as a visual reference only; see `docs/prototipo/v2/README.md`. The "Área de Dados" (CSV export/import) that v2 specifies **is implemented** (branch `006-importar-exportar-dados`, no `specs/006-*` folder), and its wire format stays frozen in `docs/prototipo/v2/ESPECIFICACAO-CSV.md` — that file is the contract, not the prototype's JS.
 
 CI: `.github/workflows/ci.yml` runs lint, typecheck, `validate:deps` and the Vitest suites; `.github/workflows/e2e.yml` runs Playwright on chromium. Neither may call `prisma:generate`/`prisma:prepare` — without `DATABASE_PROVIDER` that rewrites the tracked `schema.prisma` to postgresql and the E2E wrapper fails on purpose.
 

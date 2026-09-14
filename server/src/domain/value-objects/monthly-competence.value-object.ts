@@ -2,6 +2,7 @@ const MIN_MONTH = 1;
 const MAX_MONTH = 12;
 const MIN_YEAR = 2000;
 const MONTH_PAD_LENGTH = 2;
+const MONTHS_IN_YEAR = 12;
 
 export class MonthlyCompetence {
   public readonly month: number;
@@ -20,6 +21,30 @@ export class MonthlyCompetence {
       throw new Error("Year must be an integer >= 2000");
     }
     return new MonthlyCompetence(month, year);
+  }
+
+  /** Desloca a competência em `offset` meses; offset negativo anda para trás. */
+  public static addMonths(competence: MonthlyCompetence, offset: number): MonthlyCompetence {
+    const totalMonths = competence.year * MONTHS_IN_YEAR + (competence.month - 1) + offset;
+    const year = Math.floor(totalMonths / MONTHS_IN_YEAR);
+    const month = (totalMonths % MONTHS_IN_YEAR) + 1;
+    return MonthlyCompetence.create(month, year);
+  }
+
+  /**
+   * Competências de `start` até `end`, inclusive nas duas pontas.
+   * Intervalo invertido devolve lista vazia em vez de lançar: quem chama decide se isso é erro.
+   */
+  public static range(start: MonthlyCompetence, end: MonthlyCompetence): MonthlyCompetence[] {
+    const months: MonthlyCompetence[] = [];
+    let current = start;
+
+    while (current.isBeforeOrEqual(end)) {
+      months.push(current);
+      current = MonthlyCompetence.addMonths(current, 1);
+    }
+
+    return months;
   }
 
   public isPastMonth(referenceDate: Date = new Date()): boolean {

@@ -11,6 +11,7 @@ import {
   revenueQueryController,
   expenseQueryController,
   expenseCategoryController,
+  dataController,
 } from "@src/infrastructure/config/container";
 import { createUserRoutes } from "@src/presentation/routes/user.routes";
 import { createOneTimeRevenueRoutes } from "@src/presentation/routes/one-time-revenue.routes";
@@ -21,6 +22,7 @@ import { createFixedRevenueRoutes } from "@src/presentation/routes/fixed-revenue
 import { createRevenueQueryRoutes } from "@src/presentation/routes/revenue-query.routes";
 import { createExpenseCategoryRoutes } from "@src/presentation/routes/expense-category.routes";
 import { createExpenseQueryRoutes } from "@src/presentation/routes/expense-query.routes";
+import { createDataRoutes } from "@src/presentation/routes/data.routes";
 import { extractUser } from "@src/presentation/middlewares/extract-user.middleware";
 
 const router = Router();
@@ -47,9 +49,26 @@ router.use(
   extractUser(userRepository),
   createRecurringExpenseRoutes(recurringExpenseController),
 );
-router.use("/revenues/one-time", extractUser(userRepository), createOneTimeRevenueRoutes(oneTimeRevenueController));
-router.use("/revenues/fixed", extractUser(userRepository), createFixedRevenueRoutes(fixedRevenueController));
-router.use("/revenues", extractUser(userRepository), createRevenueQueryRoutes(revenueQueryController));
-router.use("/expenses", extractUser(userRepository), createExpenseQueryRoutes(expenseQueryController));
+router.use(
+  "/revenues/one-time",
+  extractUser(userRepository),
+  createOneTimeRevenueRoutes(oneTimeRevenueController),
+);
+router.use(
+  "/revenues/fixed",
+  extractUser(userRepository),
+  createFixedRevenueRoutes(fixedRevenueController),
+);
+router.use("/data", extractUser(userRepository), createDataRoutes(dataController));
+router.use(
+  "/revenues",
+  extractUser(userRepository),
+  createRevenueQueryRoutes(revenueQueryController),
+);
+router.use(
+  "/expenses",
+  extractUser(userRepository),
+  createExpenseQueryRoutes(expenseQueryController),
+);
 
 export default router;

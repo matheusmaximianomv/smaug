@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { freezeDateOnly, unfreezeTime } from "../../../tests/time";
+import { freezeDateOnly, unfreezeTime } from "../../tests/time";
 import { MonthYearSelect } from "./MonthYearSelect";
 
 /** Só o Date é falseado: o user-event continua usando timers reais. */

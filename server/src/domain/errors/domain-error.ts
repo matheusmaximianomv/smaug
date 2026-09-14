@@ -163,3 +163,48 @@ export class EndDateBeforeStartError extends DomainError {
     this.name = "EndDateBeforeStartError";
   }
 }
+
+export class ExportPeriodInvalidError extends DomainError {
+  public readonly code = "EXPORT_PERIOD_INVALID";
+
+  public constructor() {
+    super("Export end competence must be on or after the start competence");
+    this.name = "ExportPeriodInvalidError";
+  }
+}
+
+export class ExportPeriodTooLongError extends DomainError {
+  public readonly code = "EXPORT_PERIOD_TOO_LONG";
+
+  public constructor() {
+    super("Export period must not exceed 12 months");
+    this.name = "ExportPeriodTooLongError";
+  }
+}
+
+export class ImportEmptyFileError extends DomainError {
+  public readonly code = "IMPORT_EMPTY_FILE";
+
+  public constructor() {
+    super("Import file is empty");
+    this.name = "ImportEmptyFileError";
+  }
+}
+
+export class ImportMissingColumnsError extends DomainError {
+  public readonly code = "IMPORT_MISSING_COLUMNS";
+
+  public constructor(missing: string[]) {
+    super(`Import file is missing required columns: ${missing.join(", ")}`);
+    this.name = "ImportMissingColumnsError";
+  }
+}
+
+export class ImportNoValidRowsError extends DomainError {
+  public readonly code = "IMPORT_NO_VALID_ROWS";
+
+  public constructor() {
+    super("Import file has no valid entries");
+    this.name = "ImportNoValidRowsError";
+  }
+}

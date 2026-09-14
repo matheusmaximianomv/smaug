@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { Input } from "@/shared/components/Input";
 import { Button } from "@/shared/components/Button";
-import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect";
+import { MonthYearSelect } from "@/shared/components/MonthYearSelect";
 import { formatCurrency } from "@/shared/lib/formatCurrency";
 import { isEligible } from "@/shared/lib/competence";
 import type { CategoryWithCount } from "@/features/categorias/types";

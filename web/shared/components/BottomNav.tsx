@@ -2,16 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, TrendingUp, TrendingDown, Tag, Clock } from "lucide-react";
 import { cn } from "../lib/utils";
-
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
-  { href: "/receitas", label: "Receitas", Icon: TrendingUp },
-  { href: "/despesas", label: "Despesas", Icon: TrendingDown },
-  { href: "/categorias", label: "Categorias", Icon: Tag },
-  { href: "/historico", label: "Histórico", Icon: Clock },
-];
+import { NAV_ITEMS, isNavItemActive } from "./nav-items";
 
 interface BottomNavProps {
   className?: string;
@@ -26,7 +18,7 @@ export function BottomNav({ className }: BottomNavProps) {
       className={cn("flex border-t border-border bg-surface", className)}
     >
       {NAV_ITEMS.map(({ href, label, Icon }) => {
-        const active = pathname === href || pathname.startsWith(href + "/");
+        const active = isNavItemActive(pathname, href);
         return (
           <Link
             key={href}
