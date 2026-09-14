@@ -13,6 +13,7 @@ export interface RecordedRequest {
   search: URLSearchParams;
   /** Corpo da requisição, resolvido sob demanda: `JSON.parse(await r.text)`. */
   text: Promise<string>;
+  headers: Headers;
 }
 
 /**
@@ -36,6 +37,7 @@ export function recordRequests(): RecordedRequest[] {
       path: url.pathname,
       search: url.searchParams,
       text: request.clone().text(),
+      headers: request.headers,
     });
   });
 

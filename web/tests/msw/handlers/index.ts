@@ -2,6 +2,7 @@ import { userHandlers } from "./users";
 import { categoryHandlers } from "./categories";
 import { revenueHandlers } from "./revenues";
 import { expenseHandlers } from "./expenses";
+import { dataHandlers } from "./data";
 
 /**
  * Ordem importa: `/revenues` e `/expenses` (consultas consolidadas) são
@@ -13,4 +14,5 @@ export const handlers = [
   ...categoryHandlers,
   ...revenueHandlers,
   ...expenseHandlers,
+  ...dataHandlers,
 ];

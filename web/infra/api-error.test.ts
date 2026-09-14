@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getApiErrorMessage, isInvalidSessionError } from "./api-error";
+import { getApiErrorMessage, getImportRowMessage, isInvalidSessionError } from "./api-error";
 
 /**
  * Espelho do mapa privado `MESSAGES` de `api-error.ts`. Duplicado de propósito:
@@ -189,5 +189,81 @@ describe("getApiErrorMessage", () => {
     expect(getApiErrorMessage(error, FALLBACK)).toBe(
       "A requisição demorou demais. Verifique sua conexão e tente novamente.",
     );
+  });
+});
+
+describe("getApiErrorMessage: códigos da área de dados", () => {
+  const withCode = (code: string) => ({ response: { data: { error: code } } });
+
+  it.each([
+    ["EXPORT_PERIOD_INVALID", "O mês final é anterior ao inicial."],
+    ["EXPORT_PERIOD_TOO_LONG", "O período selecionado passa de 12 meses."],
+    ["IMPORT_EMPTY_FILE", "O arquivo está vazio."],
+    ["IMPORT_NO_VALID_ROWS", "O arquivo não contém nenhum lançamento válido."],
+  ])("traduz %s", (code, expected) => {
+    expect(getApiErrorMessage(withCode(code), "fallback")).toBe(expected);
+  });
+
+  it("orienta sobre o separador quando faltam colunas", () => {
+    expect(getApiErrorMessage(withCode("IMPORT_MISSING_COLUMNS"), "fallback")).toContain(
+      "ponto e vírgula",
+    );
+  });
+});
+
+describe("getImportRowMessage", () => {
+  it.each([
+    ["INVALID_COMPETENCE", "abril", 'Competência "abril" inválida — esperado AAAA-MM'],
+    ["MONTH_OUT_OF_RANGE", "13", "Mês 13 fora de 1–12"],
+    ["YEAR_OUT_OF_RANGE", "1999", "Ano 1999 fora do intervalo aceito — mínimo 2000"],
+    ["INVALID_NATURE", "entrada", 'Natureza "entrada" inválida — use receita ou despesa'],
+    ["INVALID_TYPE", "mensal", 'Tipo "mensal" inválido'],
+    ["REVENUE_TYPE_NOT_ALLOWED", "parcelada", "Receita não pode ser parcelada — use fixa"],
+    ["INVALID_AMOUNT", "abc", 'Valor "abc" inválido'],
+    ["INVALID_INSTALLMENT", "5/3", 'Parcela "5/3" inválida'],
+    ["DESCRIPTION_TOO_LONG", "300", "Descrição com 300 caracteres — o limite é 255"],
+  ])("descreve %s", (code, value, expected) => {
+    expect(getImportRowMessage(code, value)).toBe(expected);
+  });
+
+  it.each([
+    ["EXPENSE_TYPE_NOT_ALLOWED", "Despesa fixa não existe — use recorrente"],
+    ["EMPTY_DESCRIPTION", "Descrição vazia"],
+    ["MISSING_CATEGORY", "Categoria obrigatória em despesas"],
+  ])("descreve %s sem precisar de valor", (code, expected) => {
+    expect(getImportRowMessage(code)).toBe(expected);
+  });
+
+  it("cai numa mensagem genérica para um código desconhecido", () => {
+    expect(getImportRowMessage("ALGO_NOVO")).toBe("Linha inválida.");
+  });
+});
+
+describe("getApiErrorMessage: corpo em texto", () => {
+  it("lê o código quando o corpo veio como string JSON", () => {
+    const error = { response: { data: '{"error":"EXPORT_PERIOD_TOO_LONG"}' } };
+
+    expect(getApiErrorMessage(error, "fallback")).toBe("O período selecionado passa de 12 meses.");
+  });
+
+  it("cai no fallback quando a string não é JSON", () => {
+    const error = { response: { data: "falha interna" } };
+
+    expect(getApiErrorMessage(error, "fallback")).toBe("fallback");
+  });
+});
+
+describe("getApiErrorMessage: corpo em bytes", () => {
+  it("lê o código quando o corpo veio como ArrayBuffer", () => {
+    const bytes = new TextEncoder().encode('{"error":"EXPORT_PERIOD_INVALID"}');
+    const error = { response: { data: bytes.buffer } };
+
+    expect(getApiErrorMessage(error, "fallback")).toBe("O mês final é anterior ao inicial.");
+  });
+
+  it("lê o código quando o corpo veio como Uint8Array", () => {
+    const error = { response: { data: new TextEncoder().encode('{"error":"IMPORT_EMPTY_FILE"}') } };
+
+    expect(getApiErrorMessage(error, "fallback")).toBe("O arquivo está vazio.");
   });
 });

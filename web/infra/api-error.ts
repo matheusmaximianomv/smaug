@@ -44,7 +44,39 @@ const MESSAGES: Record<string, string> = {
   INSTALLMENT_HAS_PAST_COMPETENCE:
     "Este parcelamento já possui parcelas em meses passados e não pode ser excluído.",
   NO_FUTURE_INSTALLMENTS: "Não há parcelas futuras para encerrar.",
+
+  EXPORT_PERIOD_INVALID: "O mês final é anterior ao inicial.",
+  EXPORT_PERIOD_TOO_LONG: "O período selecionado passa de 12 meses.",
+  IMPORT_EMPTY_FILE: "O arquivo está vazio.",
+  IMPORT_MISSING_COLUMNS:
+    "O arquivo não tem as colunas obrigatórias. Verifique se o separador é ponto e vírgula.",
+  IMPORT_NO_VALID_ROWS: "O arquivo não contém nenhum lançamento válido.",
 };
+
+/**
+ * Mensagens das linhas recusadas na importação. Ficam aqui, e não na feature, pelo mesmo motivo
+ * da tabela acima: o servidor devolve código, a cópia em pt-BR é responsabilidade do web.
+ */
+const IMPORT_ROW_MESSAGES: Record<string, (value?: string) => string> = {
+  INVALID_COMPETENCE: (value) => `Competência "${value}" inválida — esperado AAAA-MM`,
+  MONTH_OUT_OF_RANGE: (value) => `Mês ${value} fora de 1–12`,
+  YEAR_OUT_OF_RANGE: (value) => `Ano ${value} fora do intervalo aceito — mínimo 2000`,
+  INVALID_NATURE: (value) => `Natureza "${value}" inválida — use receita ou despesa`,
+  INVALID_TYPE: (value) => `Tipo "${value}" inválido`,
+  REVENUE_TYPE_NOT_ALLOWED: (value) => `Receita não pode ser ${value} — use fixa`,
+  EXPENSE_TYPE_NOT_ALLOWED: () => "Despesa fixa não existe — use recorrente",
+  EMPTY_DESCRIPTION: () => "Descrição vazia",
+  DESCRIPTION_TOO_LONG: (value) => `Descrição com ${value} caracteres — o limite é 255`,
+  INVALID_AMOUNT: (value) => `Valor "${value}" inválido`,
+  MISSING_CATEGORY: () => "Categoria obrigatória em despesas",
+  INVALID_INSTALLMENT: (value) => `Parcela "${value}" inválida`,
+};
+
+/** Mensagem de uma linha recusada na importação. */
+export function getImportRowMessage(code: string, value?: string): string {
+  const build = IMPORT_ROW_MESSAGES[code];
+  return build ? build(value) : "Linha inválida.";
+}
 
 /**
  * Distingue "esta sessão não vale mais" de "a chamada falhou agora".
@@ -57,12 +89,36 @@ export function isInvalidSessionError(error: unknown): boolean {
 }
 
 /**
+ * O corpo chega como objeto na maioria das chamadas, mas não quando a requisição pediu um
+ * `responseType` que impede o axios de desserializar — o download do CSV usa `arraybuffer` para
+ * preservar o BOM, e aí o corpo do erro vem como bytes. Sem isto, um erro de negócio daquela rota
+ * cairia na mensagem genérica em vez da cópia em pt-BR.
+ */
+function parseErrorBody(data: unknown): ApiErrorBody | undefined {
+  // `instanceof ArrayBuffer` falha entre realms (jsdom cria os seus próprios globais), então a
+  // checagem é pela tag interna.
+  const isBuffer =
+    Object.prototype.toString.call(data) === "[object ArrayBuffer]" || ArrayBuffer.isView(data);
+  if (isBuffer) {
+    return parseErrorBody(new TextDecoder().decode(data as ArrayBuffer));
+  }
+  if (typeof data !== "string") {
+    return data as ApiErrorBody | undefined;
+  }
+  try {
+    return JSON.parse(data) as ApiErrorBody;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Converte um erro de requisição na mensagem que o usuário deve ver.
  * Prioriza o código de negócio devolvido pela API; cai no detalhe de validação
  * e, por último, em uma mensagem genérica.
  */
 export function getApiErrorMessage(error: unknown, fallback: string): string {
-  const body = (error as AxiosError<ApiErrorBody>)?.response?.data;
+  const body = parseErrorBody((error as AxiosError<ApiErrorBody>)?.response?.data);
 
   if (body?.error) {
     if (body.error === "VALIDATION_ERROR" && body.details) {
