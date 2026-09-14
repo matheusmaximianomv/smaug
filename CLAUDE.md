@@ -64,7 +64,7 @@ presentation/    controllers, routes, middlewares (validation, auth, error, requ
 
 **Domain model.** Entities: `User`, `OneTimeRevenue`, `FixedRevenue` (+ `FixedRevenueVersion`), `ExpenseCategory`, `OneTimeExpense`, `InstallmentExpense` (+ `Installment`), `RecurringExpense` (+ `RecurringExpenseVersion`). The pivot concept is `MonthlyCompetence` (`monthly-competence.value-object.ts`) — an immutable `{month, year}` pair built via `MonthlyCompetence.create()` with comparison helpers (`isPastMonth`, `isBefore`, …). Recurring/fixed items are _versioned_: editing them appends a version row rather than mutating history, so month-scoped queries resolve the version in effect for a given competence.
 
-**DI (`infrastructure/config/container.ts`).** tsyringe with `reflect-metadata`. The container file eagerly wires the whole graph (repository → use cases → service → controller) and both registers instances _and_ exports them as named consts. `presentation/routes/index.ts` imports those consts directly. When adding an entity, extend this file end to end — never `new` a service in a route or controller.
+**DI (`infrastructure/config/container.ts`).** tsyringe + `reflect-metadata` are dependencies, but **there is not a single `@injectable()`/`@inject()` in `server/src`** — the graph is wired by hand with `new`, in dependency order, inside this one file, which both registers instances (string tokens equal to the type name) _and_ exports them as named consts. `presentation/routes/index.ts` imports those consts directly. The container is resolved at runtime only for the `"Logger"` token. When adding an entity, extend this file end to end — never `new` a service in a route or controller.
 
 **Persistence.** Each aggregate has a port in `domain/ports/` and a `Prisma*Repository` in `infrastructure/database/repositories/`. A separate generic `RepositoryFactory` (`database.provider.ts`) switches on `DATABASE_PROVIDER`: `memory` yields `InMemoryRepository`, `sqlite`/`postgresql` yield a reflective `PrismaRepository`. Unit tests use in-memory fakes; no DB required.
 
@@ -72,7 +72,7 @@ presentation/    controllers, routes, middlewares (validation, auth, error, requ
 
 **Auth is header-based, not token-based.** There are no passwords or JWTs. `extractUser` (`presentation/middlewares/extract-user.middleware.ts`) reads the `X-User-Id` header, requires a UUID, and 401s / 404s otherwise. It is applied per-route-group in `routes/index.ts`; `/users` and `/health` are open.
 
-**Validation & errors.** Zod schemas live beside the routes and are applied via `validateRequest` / `validateQuery`, which emit `{error: "VALIDATION_ERROR", message, details}` with 400. The terminal `errorHandlerMiddleware` logs via the container's `Logger` and returns a bare 500 — surface intended client-facing failures explicitly in the controller/service instead of throwing.
+**Validation & errors.** Zod schemas live in `application/dtos/*.dto.ts` (alongside the `XResponseDto` interfaces), are imported by the route files, and are applied via `validateRequest` / `validateQuery`, which emit `{error: "VALIDATION_ERROR", message, details}` with 400. The terminal `errorHandlerMiddleware` logs via the container's `Logger` and returns a bare 500 — surface intended client-facing failures explicitly in the controller/service instead of throwing.
 
 **Env** (`infrastructure/config/env.ts`) is Zod-parsed at import time and calls `process.exit(1)` on failure: `DATABASE_PROVIDER` (`postgresql|sqlite|memory`), `DATABASE_URL`, `NODE_ENV` — all three required, no default — plus `PORT` (3000), `LOG_LEVEL` (`info`), `CORS_ORIGIN` (`http://localhost:3001`).
 
@@ -91,7 +91,7 @@ middleware.ts
 
 **Layering is normative** (see the constitution below): `UI → hooks → services → infra`, one direction only. Components stay presentational; hooks hold business logic and state; services only talk to the outside world. Components must not call `apiClient` directly.
 
-**Cross-feature imports are forbidden.** Share via `@/shared` or `@/infra` only. Aliases: `@/` → `web/`, plus `@/features`, `@/shared`, `@/infra` (declared in both `tsconfig.json` and `vitest.config.ts`).
+**Cross-feature imports are forbidden, with one carve-out.** Share via `@/shared` or `@/infra` only. The exception the code actually makes is for **types** of a genuinely related domain (`despesas` importing `Category` from `@/features/categorias/types`; `historico` aggregating both) — a component, hook or service from another feature is never acceptable, and the one that exists (`MonthYearSelect` living in `receitas` but used by `despesas`) is debt: promote it to `shared/` instead of adding a second import. Aliases: `@/` → `web/`, plus `@/features`, `@/shared`, `@/infra` (declared in both `tsconfig.json` and `vitest.config.ts`).
 
 **Next.js APIs are wrapped.** Business hooks must not call `useRouter`/`useSearchParams` from `next/navigation` directly — go through `infra/router-adapter.ts`. Likewise the session goes through `infra/session.ts` (`getUserId`/`setUserId`/`clearUserId`), where **the `userId` cookie is the single source of truth** — `middleware.ts` reads that same cookie server-side to gate `(app)` routes and bounce authenticated users away from `(auth)`. There is deliberately no `localStorage` copy: keeping two stores let them diverge, and a present cookie with empty `localStorage` put the app in an infinite `/login` ↔ `/dashboard` loop.
 
@@ -101,7 +101,7 @@ middleware.ts
 
 **`infra/api-error.ts`** maps API business codes to pt-BR copy — a ~35-entry table (`VALIDATION_ERROR`, `PAST_COMPETENCE`, `INSTALLMENT_FINANCIAL_IMMUTABLE`, …) plus offline and `ECONNABORTED` branches. Add the code here rather than hard-coding a message in a component.
 
-**Naming conventions:** hooks `useX`, services `XService` (exported as a plain object of async functions), types under `features/<f>/types`. Forms use React Hook Form + `@hookform/resolvers` with Zod schemas in `types/schemas.ts` — though only `auth` and `categorias` have one today; the other four features carry just `types/index.ts`. Icons come from `lucide-react`; UI primitives are hand-rolled with Tailwind + `class-variance-authority`/`tailwind-merge` — there is no component library dependency.
+**Naming conventions:** hooks `useX`, services `XService` (exported as a plain object of async functions), types under `features/<f>/types`. Forms use React Hook Form + `@hookform/resolvers` with Zod schemas in `types/schemas.ts` — though only `auth` and `categorias` have one today; the other four features carry just `types/index.ts`. Icons come from `lucide-react`. UI primitives are hand-rolled with Tailwind + `tailwind-merge`/`clsx` behind `cn()`; variants are a `clsx` object or a module-level `Record<Union, string>` — **`class-variance-authority` is a dependency but is imported by no file, so do not introduce `cva`**. The only third-party UI is Radix: `@radix-ui/react-dialog` behind `Modal` and `@radix-ui/react-tabs` behind `Tabs`.
 
 ## Testing
 
@@ -127,6 +127,7 @@ middleware.ts
 | `session.ts`       | `loginAs`, `logout` (real cookie)                                                          |
 | `time.ts`          | `NOW`, `NOW_COMPETENCE`, `freezeTime`                                                      |
 | `mocked.ts`        | `Mocked<T>`, `mockService`                                                                 |
+| `requests.ts`      | `recordRequests`, `signatures`, `bodyOf` — the vocabulary of service tests                 |
 | `harness.test.tsx` | tests of the harness itself — if these break, start here, not in a feature test            |
 
 **Verified pitfalls.** These cost real debugging time; don't rediscover them:
@@ -139,6 +140,14 @@ middleware.ts
 | `infra/query-client.ts` is a singleton with `retry: 3`        | Always `createTestQueryClient()`; never `app/providers.tsx`                                                              |
 | `NEXT_PUBLIC_API_URL` is read at module-evaluation time       | Pinned in `test.env` in `vitest.config.ts`; `vi.stubEnv` inside a test arrives too late                                  |
 | Installing deps in `web/`                                     | **Always** `--legacy-peer-deps` (React 19 RC). Already pinned in `web/.npmrc`                                            |
+
+## Skills (`.claude/skills/`)
+
+`CLAUDE.md` describes what exists; `.claude/skills/` is the **prescriptive** counterpart — one skill
+per element type (entity, use case, repository, service/DTO, controller/route, DI, hook, component,
+shared UI, infra, and the three test layers), each with the canonical anatomy copied from a real
+file, a creation checklist and the known inconsistencies. Start from `smaug-padroes-gerais`, which
+indexes the rest. They are written in pt-BR, matching the project's docs convention.
 
 ## Workflow
 
