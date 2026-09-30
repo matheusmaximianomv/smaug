@@ -1,10 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import DadosPage from "@/app/(app)/dados/page";
 import { renderWithProviders } from "@/tests/render";
-import { mockApiError, server, url } from "@/tests/msw";
+import { mockApiError, mockNetworkError, server, url } from "@/tests/msw";
 import { freezeDateOnly, unfreezeTime } from "@/tests/time";
 import { recordRequests, signatures } from "@/tests/requests";
 import { spyOnToast } from "@/tests/toast";
@@ -65,8 +65,12 @@ describe("página Dados", () => {
 });
 
 describe("página Dados: erros da exportação", () => {
+  // Congelado no describe inteiro: solto dentro do `it`, uma asserção que falhasse deixaria o
+  // relógio falso para os testes seguintes do arquivo.
+  beforeEach(() => freezeDateOnly());
+  afterEach(() => unfreezeTime());
+
   it("mostra a mensagem de período longo recusado pela API", async () => {
-    freezeDateOnly();
     mockApiError("get", "/data/export", 400, { error: "EXPORT_PERIOD_TOO_LONG" });
     renderPage({ withToasts: true });
     await waitFor(() => expect(screen.getByText("Prévia")).toBeInTheDocument());
@@ -74,7 +78,6 @@ describe("página Dados: erros da exportação", () => {
     await userEvent.click(screen.getByRole("button", { name: /Baixar CSV/ }));
 
     expect(await screen.findByText("O período selecionado passa de 12 meses.")).toBeInTheDocument();
-    unfreezeTime();
   });
 
   it("oferece tentar novamente quando a exportação falha", async () => {
@@ -92,7 +95,6 @@ describe("página Dados: erros da exportação", () => {
   });
 
   it("mostra a mensagem de falha de rede", async () => {
-    const { mockNetworkError } = await import("@/tests/msw");
     mockNetworkError("get", "/data/export");
     renderPage({ withToasts: true });
     await waitFor(() => expect(screen.getByText("Prévia")).toBeInTheDocument());
@@ -182,18 +184,34 @@ describe("página Dados: erros da importação", () => {
   });
 });
 
-describe("página Dados: fluxo completo de importação", () => {
-  it("vai do arquivo ao resumo de criação", async () => {
-    renderPage({ withToasts: true });
+/**
+ * Só a troca de tela entre as três etapas, que é comportamento de UI. O caminho feliz de ponta a
+ * ponta — arquivo entra, registros nascem no banco — é do E2E (`e2e/tests/dados/importar.spec.ts`),
+ * e repeti-lo aqui seria prova duplicada de algo que o MSW não consegue provar de verdade.
+ */
+describe("página Dados: etapas da importação", () => {
+  it("troca a área de soltar pela conferência quando o arquivo é lido", async () => {
+    renderPage();
     await goToImport();
 
     await uploadCsv();
+
     expect(await screen.findByText("lancamentos.csv")).toBeInTheDocument();
     expect(screen.getByText("Vai entrar")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Arraste um arquivo CSV ou clique para escolher"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("troca a conferência pelo resumo quando a importação conclui", async () => {
+    renderPage();
+    await goToImport();
+    await uploadCsv();
+    await screen.findByText("Vai entrar");
 
     await userEvent.click(screen.getByRole("button", { name: /Importar 2 lançamentos/ }));
 
     expect(await screen.findByRole("heading", { name: "2 registros criados" })).toBeInTheDocument();
-    expect(screen.getByText("2 registros criados com sucesso!")).toBeInTheDocument();
+    expect(screen.queryByText("Vai entrar")).not.toBeInTheDocument();
   });
 });
