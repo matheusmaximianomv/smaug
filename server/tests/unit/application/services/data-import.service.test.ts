@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { DataImportService } from "@src/application/services/data-import.service";
-import { ImportEntriesUseCase } from "@src/domain/use-cases/data-import/import-entries.use-case";
+import {
+  ImportEntriesUseCase,
+  ImportEntryInput,
+} from "@src/domain/use-cases/data-import/import-entries.use-case";
 import {
   ImportEmptyFileError,
   ImportMissingColumnsError,
@@ -18,6 +21,15 @@ describe("DataImportService", () => {
   const useCase = { execute: vi.fn() } as unknown as ImportEntriesUseCase;
   const service = new DataImportService(useCase);
 
+  /**
+   * As linhas já lidas só saem do service por dentro do use case — `parse` é detalhe interno.
+   * Ler o argumento do dublê prova o que de fato atravessa a fronteira.
+   */
+  async function entriesOf(content: string): Promise<ImportEntryInput[]> {
+    await service.import("user-1", content);
+    return vi.mocked(useCase.execute).mock.calls[0]![0].entries;
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useCase.execute).mockResolvedValue({
@@ -31,172 +43,194 @@ describe("DataImportService", () => {
   });
 
   describe("file level failures", () => {
-    it("should reject an empty file", () => {
-      expect(() => service.parse("")).toThrow(ImportEmptyFileError);
+    it("should reject an empty file", async () => {
+      await expect(service.preview("")).rejects.toThrow(ImportEmptyFileError);
     });
 
-    it("should reject a file that is missing a required column", () => {
-      expect(() => service.parse("competencia;natureza;descricao;tipo")).toThrow(
+    it("should reject a file that is missing a required column", async () => {
+      await expect(service.preview("competencia;natureza;descricao;tipo")).rejects.toThrow(
         ImportMissingColumnsError,
       );
     });
 
-    it("should name every missing column in the message", () => {
-      expect(() => service.parse("competencia;natureza")).toThrow(/descricao, valor, tipo/);
+    it("should name every missing column in the message", async () => {
+      await expect(service.preview("competencia;natureza")).rejects.toThrow(
+        /descricao, valor, tipo/,
+      );
     });
 
-    it("should accept a header whose columns are in a different order", () => {
-      const { entries } = service.parse(
+    it("should accept a header whose columns are in a different order", async () => {
+      const preview = await service.preview(
         "tipo;valor;descricao;natureza;competencia\r\navulsa;500,00;Bônus;receita;2026-04",
       );
-      expect(entries).toHaveLength(1);
+      expect(preview.validRows).toBe(1);
     });
 
-    it("should accept a header with different casing and spacing", () => {
-      const { entries } = service.parse(
+    it("should accept a header with different casing and spacing", async () => {
+      const preview = await service.preview(
         " Competencia ;NATUREZA;descricao;valor;tipo\r\n2026-04;receita;Bônus;500,00;avulsa",
       );
-      expect(entries).toHaveLength(1);
+      expect(preview.validRows).toBe(1);
     });
 
-    it("should read a header-only file as zero entries", () => {
-      expect(service.parse(csv())).toEqual({ entries: [], errors: [] });
+    it("should read a header-only file as zero entries", async () => {
+      const preview = await service.preview(csv());
+
+      expect(preview.validRows).toBe(0);
+      expect(preview.errors).toEqual([]);
     });
 
-    it("should treat a row shorter than the header as having empty trailing fields", () => {
-      const { entries, errors } = service.parse(csv("2026-04;receita;;Bônus;500,00;avulsa"));
+    it("should treat a row shorter than the header as having empty trailing fields", async () => {
+      const preview = await service.preview(csv("2026-04;receita;;Bônus;500,00;avulsa"));
+      expect(preview.errors).toHaveLength(0);
 
-      expect(errors).toHaveLength(0);
+      const entries = await entriesOf(csv("2026-04;receita;;Bônus;500,00;avulsa"));
       expect(entries[0]!.seriesId).toBe("");
     });
   });
 
   describe("row level failures", () => {
-    const firstError = (row: string) => service.parse(csv(row)).errors[0];
+    const firstError = async (row: string) => (await service.preview(csv(row))).errors[0];
 
-    it("should reject a malformed competence", () => {
-      expect(firstError("abril/26;receita;;Bônus;500,00;avulsa;;;;")).toEqual({
+    it("should reject a malformed competence", async () => {
+      expect(await firstError("abril/26;receita;;Bônus;500,00;avulsa;;;;")).toEqual({
         line: 2,
         code: "INVALID_COMPETENCE",
         value: "abril/26",
       });
     });
 
-    it("should reject a month outside 1-12", () => {
-      expect(firstError("2026-13;receita;;Bônus;500,00;avulsa;;;;")).toEqual({
+    it("should reject a month outside 1-12", async () => {
+      expect(await firstError("2026-13;receita;;Bônus;500,00;avulsa;;;;")).toEqual({
         line: 2,
         code: "MONTH_OUT_OF_RANGE",
         value: "13",
       });
     });
 
-    it("should reject a year the domain cannot represent", () => {
-      expect(firstError("1999-04;receita;;Bônus;500,00;avulsa;;;;")).toEqual({
+    it("should reject a year the domain cannot represent", async () => {
+      expect(await firstError("1999-04;receita;;Bônus;500,00;avulsa;;;;")).toEqual({
         line: 2,
         code: "YEAR_OUT_OF_RANGE",
         value: "1999",
       });
     });
 
-    it("should reject an unknown nature", () => {
-      expect(firstError("2026-04;entrada;;Bônus;500,00;avulsa;;;;")?.code).toBe("INVALID_NATURE");
+    it("should reject an unknown nature", async () => {
+      expect((await firstError("2026-04;entrada;;Bônus;500,00;avulsa;;;;"))?.code).toBe(
+        "INVALID_NATURE",
+      );
     });
 
-    it("should reject an unknown type", () => {
-      expect(firstError("2026-04;receita;;Bônus;500,00;mensal;;;;")?.code).toBe("INVALID_TYPE");
+    it("should reject an unknown type", async () => {
+      expect((await firstError("2026-04;receita;;Bônus;500,00;mensal;;;;"))?.code).toBe(
+        "INVALID_TYPE",
+      );
     });
 
-    it("should reject an installment revenue", () => {
-      expect(firstError("2026-04;receita;;Bônus;500,00;parcelada;1;2;s1;")?.code).toBe(
+    it("should reject an installment revenue", async () => {
+      expect((await firstError("2026-04;receita;;Bônus;500,00;parcelada;1;2;s1;"))?.code).toBe(
         "REVENUE_TYPE_NOT_ALLOWED",
       );
     });
 
-    it("should reject a recurring revenue", () => {
-      expect(firstError("2026-04;receita;;Bônus;500,00;recorrente;;;s1;")?.code).toBe(
+    it("should reject a recurring revenue", async () => {
+      expect((await firstError("2026-04;receita;;Bônus;500,00;recorrente;;;s1;"))?.code).toBe(
         "REVENUE_TYPE_NOT_ALLOWED",
       );
     });
 
-    it("should reject a fixed expense", () => {
-      expect(firstError("2026-04;despesa;Moradia;Aluguel;500,00;fixa;;;s1;")?.code).toBe(
+    it("should reject a fixed expense", async () => {
+      expect((await firstError("2026-04;despesa;Moradia;Aluguel;500,00;fixa;;;s1;"))?.code).toBe(
         "EXPENSE_TYPE_NOT_ALLOWED",
       );
     });
 
-    it("should reject an empty description", () => {
-      expect(firstError("2026-04;receita;;;500,00;avulsa;;;;")?.code).toBe("EMPTY_DESCRIPTION");
+    it("should reject an empty description", async () => {
+      expect((await firstError("2026-04;receita;;;500,00;avulsa;;;;"))?.code).toBe(
+        "EMPTY_DESCRIPTION",
+      );
     });
 
-    it("should reject a description longer than the domain allows", () => {
+    it("should reject a description longer than the domain allows", async () => {
       const long = "x".repeat(256);
-      expect(firstError(`2026-04;receita;;${long};500,00;avulsa;;;;`)?.code).toBe(
+      expect((await firstError(`2026-04;receita;;${long};500,00;avulsa;;;;`))?.code).toBe(
         "DESCRIPTION_TOO_LONG",
       );
     });
 
-    it("should reject a non-numeric amount", () => {
-      expect(firstError("2026-04;receita;;Bônus;abc;avulsa;;;;")?.code).toBe("INVALID_AMOUNT");
+    it("should reject a non-numeric amount", async () => {
+      expect((await firstError("2026-04;receita;;Bônus;abc;avulsa;;;;"))?.code).toBe(
+        "INVALID_AMOUNT",
+      );
     });
 
-    it("should reject a zero amount", () => {
-      expect(firstError("2026-04;receita;;Bônus;0,00;avulsa;;;;")?.code).toBe("INVALID_AMOUNT");
+    it("should reject a zero amount", async () => {
+      expect((await firstError("2026-04;receita;;Bônus;0,00;avulsa;;;;"))?.code).toBe(
+        "INVALID_AMOUNT",
+      );
     });
 
-    it("should reject a negative amount", () => {
-      expect(firstError("2026-04;receita;;Bônus;-10,00;avulsa;;;;")?.code).toBe("INVALID_AMOUNT");
+    it("should reject a negative amount", async () => {
+      expect((await firstError("2026-04;receita;;Bônus;-10,00;avulsa;;;;"))?.code).toBe(
+        "INVALID_AMOUNT",
+      );
     });
 
-    it("should reject an empty amount", () => {
-      expect(firstError("2026-04;receita;;Bônus;;avulsa;;;;")?.code).toBe("INVALID_AMOUNT");
+    it("should reject an empty amount", async () => {
+      expect((await firstError("2026-04;receita;;Bônus;;avulsa;;;;"))?.code).toBe("INVALID_AMOUNT");
     });
 
-    it("should reject an amount with more than two decimal places instead of rounding money", () => {
-      expect(firstError("2026-04;receita;;Bônus;10,555;avulsa;;;;")?.code).toBe("INVALID_AMOUNT");
+    it("should reject an amount with more than two decimal places instead of rounding money", async () => {
+      expect((await firstError("2026-04;receita;;Bônus;10,555;avulsa;;;;"))?.code).toBe(
+        "INVALID_AMOUNT",
+      );
     });
 
-    it("should reject an expense without a category", () => {
-      expect(firstError("2026-04;despesa;;Mercado;50,00;avulsa;;;;")?.code).toBe(
+    it("should reject an expense without a category", async () => {
+      expect((await firstError("2026-04;despesa;;Mercado;50,00;avulsa;;;;"))?.code).toBe(
         "MISSING_CATEGORY",
       );
     });
 
-    it("should reject an installment number above the total", () => {
-      expect(firstError("2026-04;despesa;Casa;TV;50,00;parcelada;5;3;s1;")?.code).toBe(
+    it("should reject an installment number above the total", async () => {
+      expect((await firstError("2026-04;despesa;Casa;TV;50,00;parcelada;5;3;s1;"))?.code).toBe(
         "INVALID_INSTALLMENT",
       );
     });
 
-    it("should reject a missing installment number", () => {
-      expect(firstError("2026-04;despesa;Casa;TV;50,00;parcelada;;12;s1;")?.code).toBe(
+    it("should reject a missing installment number", async () => {
+      expect((await firstError("2026-04;despesa;Casa;TV;50,00;parcelada;;12;s1;"))?.code).toBe(
         "INVALID_INSTALLMENT",
       );
     });
 
-    it("should reject an installment total the domain cannot store", () => {
-      expect(firstError("2026-04;despesa;Casa;TV;50,00;parcelada;1;73;s1;")?.code).toBe(
+    it("should reject an installment total the domain cannot store", async () => {
+      expect((await firstError("2026-04;despesa;Casa;TV;50,00;parcelada;1;73;s1;"))?.code).toBe(
         "INVALID_INSTALLMENT",
       );
     });
 
-    it("should report the installment pair as it appeared in the file", () => {
-      expect(firstError("2026-04;despesa;Casa;TV;50,00;parcelada;5;3;s1;")?.value).toBe("5/3");
+    it("should report the installment pair as it appeared in the file", async () => {
+      expect((await firstError("2026-04;despesa;Casa;TV;50,00;parcelada;5;3;s1;"))?.value).toBe(
+        "5/3",
+      );
     });
 
-    it("should report the line number as seen in a spreadsheet", () => {
-      const { errors } = service.parse(
+    it("should report the line number as seen in a spreadsheet", async () => {
+      const preview = await service.preview(
         csv("2026-04;receita;;Bônus;500,00;avulsa;;;;", "bad;receita;;X;1,00;avulsa;;;;"),
       );
-      expect(errors[0]!.line).toBe(3);
+      expect(preview.errors[0]!.line).toBe(3);
     });
 
-    it("should produce at most one error per bad row", () => {
-      const { errors } = service.parse(csv("bad;entrada;;;abc;mensal;;;;"));
-      expect(errors).toHaveLength(1);
+    it("should produce at most one error per bad row", async () => {
+      const preview = await service.preview(csv("bad;entrada;;;abc;mensal;;;;"));
+      expect(preview.errors).toHaveLength(1);
     });
 
-    it("should skip the bad rows and keep the good ones", () => {
-      const { entries, errors } = service.parse(
+    it("should skip the bad rows and keep the good ones", async () => {
+      const preview = await service.preview(
         csv(
           "2026-04;receita;;Bônus;500,00;avulsa;;;;",
           "bad;receita;;X;1,00;avulsa;;;;",
@@ -204,29 +238,29 @@ describe("DataImportService", () => {
         ),
       );
 
-      expect(entries).toHaveLength(2);
-      expect(errors).toHaveLength(1);
+      expect(preview.validRows).toBe(2);
+      expect(preview.errors).toHaveLength(1);
     });
   });
 
   describe("row parsing", () => {
-    it("should read a pt-BR amount with a thousand separator", () => {
-      const { entries } = service.parse(csv("2026-04;receita;;Salário;9.200,50;avulsa;;;;"));
+    it("should read a pt-BR amount with a thousand separator", async () => {
+      const entries = await entriesOf(csv("2026-04;receita;;Salário;9.200,50;avulsa;;;;"));
       expect(entries[0]!.amount).toBe(9200.5);
     });
 
-    it("should read an amount without decimals", () => {
-      const { entries } = service.parse(csv("2026-04;receita;;Salário;9200;avulsa;;;;"));
+    it("should read an amount without decimals", async () => {
+      const entries = await entriesOf(csv("2026-04;receita;;Salário;9200;avulsa;;;;"));
       expect(entries[0]!.amount).toBe(9200);
     });
 
-    it("should accept a single-digit month", () => {
-      const { entries } = service.parse(csv("2026-4;receita;;Salário;9200,00;avulsa;;;;"));
+    it("should accept a single-digit month", async () => {
+      const entries = await entriesOf(csv("2026-4;receita;;Salário;9200,00;avulsa;;;;"));
       expect(entries[0]!.competenceMonth).toBe(4);
     });
 
-    it("should translate the type label into the domain vocabulary", () => {
-      const { entries } = service.parse(
+    it("should translate the type label into the domain vocabulary", async () => {
+      const entries = await entriesOf(
         csv(
           "2026-04;receita;;Salário;9200,00;fixa;;;fix-1;",
           "2026-04;despesa;Casa;TV;50,00;parcelada;1;3;ser-1;",
@@ -243,38 +277,38 @@ describe("DataImportService", () => {
       ]);
     });
 
-    it("should translate the nature label into the domain vocabulary", () => {
-      const { entries } = service.parse(csv("2026-04;RECEITA;;Salário;9200,00;avulsa;;;;"));
+    it("should translate the nature label into the domain vocabulary", async () => {
+      const entries = await entriesOf(csv("2026-04;RECEITA;;Salário;9200,00;avulsa;;;;"));
       expect(entries[0]!.nature).toBe("REVENUE");
     });
 
-    it("should keep the series id for grouping", () => {
-      const { entries } = service.parse(csv("2026-04;receita;;Salário;9200,00;fixa;;;fix-0001;"));
+    it("should keep the series id for grouping", async () => {
+      const entries = await entriesOf(csv("2026-04;receita;;Salário;9200,00;fixa;;;fix-0001;"));
       expect(entries[0]!.seriesId).toBe("fix-0001");
     });
 
-    it("should trim the description", () => {
-      const { entries } = service.parse(csv("2026-04;receita;;  Salário  ;9200,00;avulsa;;;;"));
+    it("should trim the description", async () => {
+      const entries = await entriesOf(csv("2026-04;receita;;  Salário  ;9200,00;avulsa;;;;"));
       expect(entries[0]!.description).toBe("Salário");
     });
 
-    it("should ignore the observation column, which has no field in the domain", () => {
-      const { entries } = service.parse(
+    it("should ignore the observation column, which has no field in the domain", async () => {
+      const entries = await entriesOf(
         csv("2026-04;receita;;Salário;9200,00;avulsa;;;;qualquer nota"),
       );
       expect(entries[0]).not.toHaveProperty("observation");
     });
 
-    it("should leave installment fields null for non-installment rows", () => {
-      const { entries } = service.parse(csv("2026-04;receita;;Salário;9200,00;avulsa;;;;"));
+    it("should leave installment fields null for non-installment rows", async () => {
+      const entries = await entriesOf(csv("2026-04;receita;;Salário;9200,00;avulsa;;;;"));
       expect(entries[0]!.installmentNumber).toBeNull();
       expect(entries[0]!.installmentCount).toBeNull();
     });
   });
 
   describe("preview", () => {
-    it("should count the valid rows", () => {
-      const preview = service.preview(
+    it("should count the valid rows", async () => {
+      const preview = await service.preview(
         csv(
           "2026-04;receita;;Bônus;500,00;avulsa;;;;",
           "2026-05;receita;;Prêmio;300,00;avulsa;;;;",
@@ -283,14 +317,14 @@ describe("DataImportService", () => {
       expect(preview.validRows).toBe(2);
     });
 
-    it("should return the errors alongside the counts", () => {
-      const preview = service.preview(csv("bad;receita;;X;1,00;avulsa;;;;"));
+    it("should return the errors alongside the counts", async () => {
+      const preview = await service.preview(csv("bad;receita;;X;1,00;avulsa;;;;"));
       expect(preview.errors).toHaveLength(1);
       expect(preview.validRows).toBe(0);
     });
 
-    it("should break the counts down by type", () => {
-      const preview = service.preview(
+    it("should break the counts down by type", async () => {
+      const preview = await service.preview(
         csv(
           "2026-04;receita;;Salário;9200,00;fixa;;;fix-1;",
           "2026-04;despesa;Casa;TV;50,00;parcelada;1;3;ser-1;",
@@ -308,8 +342,8 @@ describe("DataImportService", () => {
       });
     });
 
-    it("should count grouped series once", () => {
-      const preview = service.preview(
+    it("should count grouped series once", async () => {
+      const preview = await service.preview(
         csv(
           "2026-04;despesa;Casa;TV;50,00;parcelada;1;3;ser-1;",
           "2026-05;despesa;Casa;TV;50,00;parcelada;2;3;ser-1;",
@@ -321,8 +355,8 @@ describe("DataImportService", () => {
       expect(preview.counts.installment).toBe(3);
     });
 
-    it("should group a series that has no series id by its description", () => {
-      const preview = service.preview(
+    it("should group a series that has no series id by its description", async () => {
+      const preview = await service.preview(
         csv(
           "2026-04;receita;;Salário;9200,00;fixa;;;;",
           "2026-05;receita;;Salário;9200,00;fixa;;;;",
@@ -333,8 +367,8 @@ describe("DataImportService", () => {
       expect(preview.counts.fixed).toBe(2);
     });
 
-    it("should not write anything", () => {
-      service.preview(csv("2026-04;receita;;Bônus;500,00;avulsa;;;;"));
+    it("should not write anything", async () => {
+      await service.preview(csv("2026-04;receita;;Bônus;500,00;avulsa;;;;"));
       expect(useCase.execute).not.toHaveBeenCalled();
     });
   });

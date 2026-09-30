@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { DataExportService } from "@src/application/services/data-export.service";
 import { DataImportService } from "@src/application/services/data-import.service";
-import { dataExportQuerySchema } from "@src/application/dtos/data-export.dto";
+import { DataExportQueryDto } from "@src/application/dtos/data-export.dto";
 import {
   ExportPeriodInvalidError,
   ExportPeriodTooLongError,
@@ -18,33 +18,61 @@ export class DataController {
 
   public async exportSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const query = dataExportQuerySchema.parse(req.query);
-      const summary = await this.exportService.getSummary(req.userId!, query);
+      const summary = await this.exportService.getSummary(
+        req.userId!,
+        DataController.readQuery(req),
+      );
       res.status(200).json(summary);
     } catch (error) {
-      DataController.handle(error, res, next);
+      if (error instanceof ExportPeriodInvalidError) {
+        res.status(400).json({ error: error.code, message: error.message });
+        return;
+      }
+      if (error instanceof ExportPeriodTooLongError) {
+        res.status(400).json({ error: error.code, message: error.message });
+        return;
+      }
+      next(error);
     }
   }
 
   public async exportCsv(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const query = dataExportQuerySchema.parse(req.query);
-      const { filename, content } = await this.exportService.exportCsv(req.userId!, query);
+      const { filename, content } = await this.exportService.exportCsv(
+        req.userId!,
+        DataController.readQuery(req),
+      );
 
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.status(200).send(content);
     } catch (error) {
-      DataController.handle(error, res, next);
+      if (error instanceof ExportPeriodInvalidError) {
+        res.status(400).json({ error: error.code, message: error.message });
+        return;
+      }
+      if (error instanceof ExportPeriodTooLongError) {
+        res.status(400).json({ error: error.code, message: error.message });
+        return;
+      }
+      next(error);
     }
   }
 
   public async importPreview(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const preview = this.importService.preview(DataController.readBody(req));
+      const preview = await this.importService.preview(DataController.readBody(req));
       res.status(200).json(preview);
     } catch (error) {
-      DataController.handle(error, res, next);
+      if (error instanceof ImportEmptyFileError) {
+        res.status(400).json({ error: error.code, message: error.message });
+        return;
+      }
+      if (error instanceof ImportMissingColumnsError) {
+        res.status(400).json({ error: error.code, message: error.message });
+        return;
+      }
+      next(error);
     }
   }
 
@@ -53,28 +81,29 @@ export class DataController {
       const result = await this.importService.import(req.userId!, DataController.readBody(req));
       res.status(201).json(result);
     } catch (error) {
-      DataController.handle(error, res, next);
+      if (error instanceof ImportEmptyFileError) {
+        res.status(400).json({ error: error.code, message: error.message });
+        return;
+      }
+      if (error instanceof ImportMissingColumnsError) {
+        res.status(400).json({ error: error.code, message: error.message });
+        return;
+      }
+      if (error instanceof ImportNoValidRowsError) {
+        res.status(422).json({ error: error.code, message: error.message });
+        return;
+      }
+      next(error);
     }
+  }
+
+  /** O `validateQuery` da rota já coagiu e validou a query; reparsear aqui duplicaria a regra. */
+  private static readQuery(req: Request): DataExportQueryDto {
+    return (req as Request & { validatedQuery: DataExportQueryDto }).validatedQuery;
   }
 
   /** `express.text` entrega string; qualquer outro content-type chega como objeto vazio. */
   private static readBody(req: Request): string {
     return typeof req.body === "string" ? req.body : "";
-  }
-
-  private static handle(error: unknown, res: Response, next: NextFunction): void {
-    if (error instanceof ExportPeriodInvalidError || error instanceof ExportPeriodTooLongError) {
-      res.status(400).json({ error: error.code, message: error.message });
-      return;
-    }
-    if (error instanceof ImportEmptyFileError || error instanceof ImportMissingColumnsError) {
-      res.status(400).json({ error: error.code, message: error.message });
-      return;
-    }
-    if (error instanceof ImportNoValidRowsError) {
-      res.status(422).json({ error: error.code, message: error.message });
-      return;
-    }
-    next(error);
   }
 }

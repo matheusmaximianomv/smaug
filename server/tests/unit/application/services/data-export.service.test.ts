@@ -20,6 +20,8 @@ import {
 const USER_ID = "user-1";
 const BOM = "﻿";
 const TIMESTAMP = new Date("2026-04-01T00:00:00.000Z");
+/** "Hoje" de referência das asserções; entra pelo parâmetro, sem precisar falsear o relógio. */
+const REFERENCE_DATE = new Date("2026-07-15T00:00:00.000Z");
 const ISO = TIMESTAMP.toISOString();
 
 function emptyRevenues(year: number, month: number): ConsolidatedRevenueResponseDto {
@@ -503,11 +505,9 @@ describe("DataExportService", () => {
         }),
       ]);
 
-      const summary = await service.getSummary(USER_ID, fullQuery);
+      const summary = await service.getSummary(USER_ID, fullQuery, REFERENCE_DATE);
       expect(summary.periodStart).toBe("2026-01");
-      expect(summary.periodEnd).toBe(
-        `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`,
-      );
+      expect(summary.periodEnd).toBe("2026-07");
     });
 
     it("should not shrink the end when a closed entry already goes further", async () => {
