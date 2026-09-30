@@ -2,17 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, TrendingUp, TrendingDown, Tag, Clock, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { cn } from "../lib/utils";
+import { NAV_ITEMS, isNavItemActive } from "./nav-items";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
-  { href: "/receitas", label: "Receitas", Icon: TrendingUp },
-  { href: "/despesas", label: "Despesas", Icon: TrendingDown },
-  { href: "/categorias", label: "Categorias", Icon: Tag },
-  { href: "/historico", label: "Histórico", Icon: Clock },
-];
 
 interface SidebarProps {
   className?: string;
@@ -50,7 +43,7 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Nav */}
       <nav aria-label="Navegação principal" className="flex-1 overflow-y-auto p-2.5">
         {NAV_ITEMS.map(({ href, label, Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
+          const active = isNavItemActive(pathname, href);
           return (
             <Link
               key={href}

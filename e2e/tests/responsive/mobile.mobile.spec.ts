@@ -14,7 +14,7 @@ test.describe("layout no celular", () => {
 
     const bottomNav = page.getByRole("navigation", { name: "Navegação inferior" });
     await expect(bottomNav).toBeVisible();
-    await expect(bottomNav.getByRole("link")).toHaveCount(5);
+    await expect(bottomNav.getByRole("link")).toHaveCount(6);
   });
 
   test("a barra superior abre a sidebar em overlay e o overlay fecha", async ({ page }) => {

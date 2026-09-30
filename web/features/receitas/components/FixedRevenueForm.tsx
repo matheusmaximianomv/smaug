@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Input } from "@/shared/components/Input";
 import { Button } from "@/shared/components/Button";
-import { MonthYearSelect } from "./MonthYearSelect";
+import { MonthYearSelect } from "@/shared/components/MonthYearSelect";
 import { compareCompetences, isEligible } from "@/shared/lib/competence";
 import { parseAmount } from "@/shared/lib/parseAmount";
 

@@ -37,16 +37,17 @@ describe("BottomNav", () => {
     ["Despesas", "/despesas"],
     ["Categorias", "/categorias"],
     ["Histórico", "/historico"],
+    ["Dados", "/dados"],
   ])('o link "%s" aponta para %s', (label, href) => {
     renderBottomNav();
 
     expect(within(NAV()).getByRole("link", { name: label })).toHaveAttribute("href", href);
   });
 
-  it("tem exatamente 5 links", () => {
+  it("tem exatamente 6 links", () => {
     renderBottomNav();
 
-    expect(within(NAV()).getAllByRole("link")).toHaveLength(5);
+    expect(within(NAV()).getAllByRole("link")).toHaveLength(6);
   });
 
   it("destaca o link ativo por igualdade de pathname", () => {

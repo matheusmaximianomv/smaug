@@ -113,6 +113,36 @@ const cases: ErrorCase[] = [
     "END_DATE_BEFORE_START",
     "End date must be on or after the start date",
   ],
+  [
+    "ExportPeriodInvalidError",
+    new errors.ExportPeriodInvalidError(),
+    "EXPORT_PERIOD_INVALID",
+    "Export end competence must be on or after the start competence",
+  ],
+  [
+    "ExportPeriodTooLongError",
+    new errors.ExportPeriodTooLongError(),
+    "EXPORT_PERIOD_TOO_LONG",
+    "Export period must not exceed 12 months",
+  ],
+  [
+    "ImportEmptyFileError",
+    new errors.ImportEmptyFileError(),
+    "IMPORT_EMPTY_FILE",
+    "Import file is empty",
+  ],
+  [
+    "ImportMissingColumnsError",
+    new errors.ImportMissingColumnsError(["competencia", "valor"]),
+    "IMPORT_MISSING_COLUMNS",
+    "Import file is missing required columns: competencia, valor",
+  ],
+  [
+    "ImportNoValidRowsError",
+    new errors.ImportNoValidRowsError(),
+    "IMPORT_NO_VALID_ROWS",
+    "Import file has no valid entries",
+  ],
 ];
 
 describe("domain errors", () => {

@@ -143,10 +143,15 @@ export class OneTimeRevenue {
    correspondente em `application/dtos/` — os testes assertam a string.
 7. **Mutação devolve nova instância.** Nomes usados: `update`, `updateDetails`, `terminate`,
    `clearTermination`. Copie todos os campos e troque `updatedAt: new Date()`. Nunca mutar `this`.
-8. **`static rehydrate(props)` só quando `create()` valida regra temporal.** Hoje existe apenas em
-   `RecurringExpense` e `RecurringExpenseVersion`, porque o `create()` delas rejeita competência
-   passada e o repositório precisa reconstruir linhas antigas. Em todos os outros agregados o
-   repositório chama `Entity.create({ ...record })`.
+8. **`static rehydrate(props)` só quando `create()` valida regra temporal, e só para o
+   repositório.** Hoje existe apenas em `RecurringExpense` e `RecurringExpenseVersion`, porque o
+   `create()` delas rejeita competência passada e o repositório precisa reconstruir linhas antigas.
+   Em todos os outros agregados o repositório chama `Entity.create({ ...record })`.
+   **`rehydrate` não é atalho para criar registro novo**: ele pula _todas_ as invariantes, não só a
+   temporal. Quando um caso de uso precisa nascer uma entidade em competência passada — hoje só a
+   importação de histórico — a entidade expõe `static createForImport(props)`, que dispensa
+   exclusivamente a trava de tempo e mantém o resto da validação. As três fábricas compartilham um
+   `private static build(props)`.
 9. **Sem `toJSON` / `toPrimitives`.** Serialização é responsabilidade do service (`toResponseDto`).
 10. **Nada de framework**: nem Prisma, nem Express, nem Zod, nem tsyringe dentro de `domain/`.
 11. Tipo de persistência, quando precisa ser exportado para o repositório, é um alias explícito:
@@ -206,7 +211,8 @@ Regras do VO:
 - [ ] `static create()` normaliza → valida → `randomUUID()` / `new Date()`.
 - [ ] Um `private static validateX()` por regra, com mensagem igual à do Zod.
 - [ ] Métodos de mutação devolvendo nova instância com `updatedAt: new Date()`.
-- [ ] `static rehydrate()` **apenas** se `create()` validar regra de tempo.
+- [ ] `static rehydrate()` **apenas** se `create()` validar regra de tempo, e só para o repositório.
+- [ ] `static createForImport()` se algum caso de uso precisar nascer a entidade no passado.
 - [ ] `getXCompetence()` se a entidade tiver competência.
 - [ ] Teste unitário em `server/tests/unit/domain/entities/x.entity.test.ts` (skill `server-testes`).
 

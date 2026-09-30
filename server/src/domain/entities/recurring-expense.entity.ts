@@ -13,8 +13,9 @@ export interface RecurringExpenseProps {
   updatedAt?: Date;
 }
 
-export interface RecurringExpensePersistenceProps
-  extends Required<Omit<RecurringExpenseProps, "endMonth" | "endYear">> {
+export interface RecurringExpensePersistenceProps extends Required<
+  Omit<RecurringExpenseProps, "endMonth" | "endYear">
+> {
   endMonth: number | null;
   endYear: number | null;
 }
@@ -47,6 +48,26 @@ export class RecurringExpense {
       throw new PastCompetenceError();
     }
 
+    return RecurringExpense.build(props);
+  }
+
+  /**
+   * Nasce uma recorrente que começou no passado — é o caminho da importação de histórico, que existe
+   * justamente para trazer o passado. A única regra dispensada é a trava de competência: a faixa de
+   * mês/ano e o fim-antes-do-início continuam sendo validados aqui, e não na confiança de quem
+   * chama. Usar `rehydrate` no lugar disto abriria mão de todas elas de uma vez.
+   */
+  public static createForImport(props: RecurringExpenseProps): RecurringExpense {
+    return RecurringExpense.build(props);
+  }
+
+  public static rehydrate(props: RecurringExpensePersistenceProps): RecurringExpense {
+    return new RecurringExpense(props);
+  }
+
+  private static build(props: RecurringExpenseProps): RecurringExpense {
+    const start = MonthlyCompetence.create(props.startMonth, props.startYear);
+
     let endMonth: number | null = null;
     let endYear: number | null = null;
 
@@ -70,10 +91,6 @@ export class RecurringExpense {
       createdAt: props.createdAt ?? now,
       updatedAt: props.updatedAt ?? now,
     });
-  }
-
-  public static rehydrate(props: RecurringExpensePersistenceProps): RecurringExpense {
-    return new RecurringExpense(props);
   }
 
   public terminate(endMonth: number, endYear: number): RecurringExpense {

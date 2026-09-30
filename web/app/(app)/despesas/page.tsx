@@ -16,7 +16,7 @@ import {
   RecurringExpenseVersionForm,
   type RecurringExpenseVersionPayload,
 } from "@/features/despesas/components/RecurringExpenseVersionForm";
-import { MonthYearSelect } from "@/features/receitas/components/MonthYearSelect";
+import { MonthYearSelect } from "@/shared/components/MonthYearSelect";
 import { DataTable } from "@/shared/components/DataTable";
 import { Tabs } from "@/shared/components/Tabs";
 import { Modal } from "@/shared/components/Modal";

@@ -5,6 +5,7 @@ export type ResponseMock = Response & {
   status: ReturnType<typeof vi.fn>;
   json: ReturnType<typeof vi.fn>;
   send: ReturnType<typeof vi.fn>;
+  setHeader: ReturnType<typeof vi.fn>;
 };
 
 export function createResponseMock(): ResponseMock {
@@ -12,6 +13,7 @@ export function createResponseMock(): ResponseMock {
   res.status = vi.fn(() => res);
   res.json = vi.fn(() => res);
   res.send = vi.fn(() => res);
+  res.setHeader = vi.fn(() => res);
   return res as unknown as ResponseMock;
 }
 

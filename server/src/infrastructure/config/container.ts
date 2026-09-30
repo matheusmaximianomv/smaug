@@ -72,6 +72,12 @@ import { RevenueQueryService } from "@src/application/services/revenue-query.ser
 import { RevenueQueryController } from "@src/presentation/controllers/revenue-query.controller";
 import { ExpenseQueryService } from "@src/application/services/expense-query.service";
 import { ExpenseQueryController } from "@src/presentation/controllers/expense-query.controller";
+import { PrismaDataImportRepository } from "@src/infrastructure/database/repositories/prisma-data-import.repository";
+import { DataImportRepository } from "@src/domain/ports/data-import.repository";
+import { ImportEntriesUseCase } from "@src/domain/use-cases/data-import/import-entries.use-case";
+import { DataExportService } from "@src/application/services/data-export.service";
+import { DataImportService } from "@src/application/services/data-import.service";
+import { DataController } from "@src/presentation/controllers/data.controller";
 
 const prismaClient = new PrismaClient();
 
@@ -89,7 +95,9 @@ container.registerInstance<UserRepository>("UserRepository", userRepository);
 container.registerInstance<UserService>("UserService", userService);
 container.registerInstance<UserController>("UserController", userController);
 
-const oneTimeRevenueRepository: OneTimeRevenueRepository = new PrismaOneTimeRevenueRepository(prismaClient);
+const oneTimeRevenueRepository: OneTimeRevenueRepository = new PrismaOneTimeRevenueRepository(
+  prismaClient,
+);
 const createOneTimeRevenueUseCase = new CreateOneTimeRevenueUseCase(oneTimeRevenueRepository);
 const updateOneTimeRevenueUseCase = new UpdateOneTimeRevenueUseCase(oneTimeRevenueRepository);
 const deleteOneTimeRevenueUseCase = new DeleteOneTimeRevenueUseCase(oneTimeRevenueRepository);
@@ -102,11 +110,19 @@ const oneTimeRevenueService = new OneTimeRevenueService(
 );
 const oneTimeRevenueController = new OneTimeRevenueController(oneTimeRevenueService);
 
-container.registerInstance<OneTimeRevenueRepository>("OneTimeRevenueRepository", oneTimeRevenueRepository);
+container.registerInstance<OneTimeRevenueRepository>(
+  "OneTimeRevenueRepository",
+  oneTimeRevenueRepository,
+);
 container.registerInstance<OneTimeRevenueService>("OneTimeRevenueService", oneTimeRevenueService);
-container.registerInstance<OneTimeRevenueController>("OneTimeRevenueController", oneTimeRevenueController);
+container.registerInstance<OneTimeRevenueController>(
+  "OneTimeRevenueController",
+  oneTimeRevenueController,
+);
 
-const expenseCategoryRepository: ExpenseCategoryRepository = new PrismaExpenseCategoryRepository(prismaClient);
+const expenseCategoryRepository: ExpenseCategoryRepository = new PrismaExpenseCategoryRepository(
+  prismaClient,
+);
 const createExpenseCategoryUseCase = new CreateExpenseCategoryUseCase(expenseCategoryRepository);
 const getExpenseCategoryUseCase = new GetExpenseCategoryUseCase(expenseCategoryRepository);
 const listExpenseCategoriesUseCase = new ListExpenseCategoriesUseCase(expenseCategoryRepository);
@@ -122,11 +138,22 @@ const expenseCategoryService = new ExpenseCategoryService(
 );
 const expenseCategoryController = new ExpenseCategoryController(expenseCategoryService);
 
-container.registerInstance<ExpenseCategoryRepository>("ExpenseCategoryRepository", expenseCategoryRepository);
-container.registerInstance<ExpenseCategoryService>("ExpenseCategoryService", expenseCategoryService);
-container.registerInstance<ExpenseCategoryController>("ExpenseCategoryController", expenseCategoryController);
+container.registerInstance<ExpenseCategoryRepository>(
+  "ExpenseCategoryRepository",
+  expenseCategoryRepository,
+);
+container.registerInstance<ExpenseCategoryService>(
+  "ExpenseCategoryService",
+  expenseCategoryService,
+);
+container.registerInstance<ExpenseCategoryController>(
+  "ExpenseCategoryController",
+  expenseCategoryController,
+);
 
-const oneTimeExpenseRepository: OneTimeExpenseRepository = new PrismaOneTimeExpenseRepository(prismaClient);
+const oneTimeExpenseRepository: OneTimeExpenseRepository = new PrismaOneTimeExpenseRepository(
+  prismaClient,
+);
 const createOneTimeExpenseUseCase = new CreateOneTimeExpenseUseCase(
   oneTimeExpenseRepository,
   expenseCategoryRepository,
@@ -146,12 +173,21 @@ const oneTimeExpenseService = new OneTimeExpenseService(
 );
 const oneTimeExpenseController = new OneTimeExpenseController(oneTimeExpenseService);
 
-container.registerInstance<OneTimeExpenseRepository>("OneTimeExpenseRepository", oneTimeExpenseRepository);
+container.registerInstance<OneTimeExpenseRepository>(
+  "OneTimeExpenseRepository",
+  oneTimeExpenseRepository,
+);
 container.registerInstance<OneTimeExpenseService>("OneTimeExpenseService", oneTimeExpenseService);
-container.registerInstance<OneTimeExpenseController>("OneTimeExpenseController", oneTimeExpenseController);
+container.registerInstance<OneTimeExpenseController>(
+  "OneTimeExpenseController",
+  oneTimeExpenseController,
+);
 
-const installmentExpenseRepository: InstallmentExpenseRepository = new PrismaInstallmentExpenseRepository(prismaClient);
-const listInstallmentExpensesUseCase = new ListInstallmentExpensesUseCase(installmentExpenseRepository);
+const installmentExpenseRepository: InstallmentExpenseRepository =
+  new PrismaInstallmentExpenseRepository(prismaClient);
+const listInstallmentExpensesUseCase = new ListInstallmentExpensesUseCase(
+  installmentExpenseRepository,
+);
 const createInstallmentExpenseUseCase = new CreateInstallmentExpenseUseCase(
   installmentExpenseRepository,
   expenseCategoryRepository,
@@ -161,8 +197,12 @@ const updateInstallmentExpenseUseCase = new UpdateInstallmentExpenseUseCase(
   installmentExpenseRepository,
   expenseCategoryRepository,
 );
-const terminateInstallmentExpenseUseCase = new TerminateInstallmentExpenseUseCase(installmentExpenseRepository);
-const deleteInstallmentExpenseUseCase = new DeleteInstallmentExpenseUseCase(installmentExpenseRepository);
+const terminateInstallmentExpenseUseCase = new TerminateInstallmentExpenseUseCase(
+  installmentExpenseRepository,
+);
+const deleteInstallmentExpenseUseCase = new DeleteInstallmentExpenseUseCase(
+  installmentExpenseRepository,
+);
 const installmentExpenseService = new InstallmentExpenseService(
   expenseCategoryRepository,
   installmentExpenseRepository,
@@ -179,10 +219,18 @@ container.registerInstance<InstallmentExpenseRepository>(
   "InstallmentExpenseRepository",
   installmentExpenseRepository,
 );
-container.registerInstance<InstallmentExpenseService>("InstallmentExpenseService", installmentExpenseService);
-container.registerInstance<InstallmentExpenseController>("InstallmentExpenseController", installmentExpenseController);
+container.registerInstance<InstallmentExpenseService>(
+  "InstallmentExpenseService",
+  installmentExpenseService,
+);
+container.registerInstance<InstallmentExpenseController>(
+  "InstallmentExpenseController",
+  installmentExpenseController,
+);
 
-const recurringExpenseRepository: RecurringExpenseRepository = new PrismaRecurringExpenseRepository(prismaClient);
+const recurringExpenseRepository: RecurringExpenseRepository = new PrismaRecurringExpenseRepository(
+  prismaClient,
+);
 const createRecurringExpenseUseCase = new CreateRecurringExpenseUseCase(
   recurringExpenseRepository,
   expenseCategoryRepository,
@@ -193,7 +241,9 @@ const updateRecurringExpenseUseCase = new UpdateRecurringExpenseUseCase(
   recurringExpenseRepository,
   expenseCategoryRepository,
 );
-const terminateRecurringExpenseUseCase = new TerminateRecurringExpenseUseCase(recurringExpenseRepository);
+const terminateRecurringExpenseUseCase = new TerminateRecurringExpenseUseCase(
+  recurringExpenseRepository,
+);
 const deleteRecurringExpenseUseCase = new DeleteRecurringExpenseUseCase(recurringExpenseRepository);
 const recurringExpenseService = new RecurringExpenseService(
   expenseCategoryRepository,
@@ -207,11 +257,22 @@ const recurringExpenseService = new RecurringExpenseService(
 );
 const recurringExpenseController = new RecurringExpenseController(recurringExpenseService);
 
-container.registerInstance<RecurringExpenseRepository>("RecurringExpenseRepository", recurringExpenseRepository);
-container.registerInstance<RecurringExpenseService>("RecurringExpenseService", recurringExpenseService);
-container.registerInstance<RecurringExpenseController>("RecurringExpenseController", recurringExpenseController);
+container.registerInstance<RecurringExpenseRepository>(
+  "RecurringExpenseRepository",
+  recurringExpenseRepository,
+);
+container.registerInstance<RecurringExpenseService>(
+  "RecurringExpenseService",
+  recurringExpenseService,
+);
+container.registerInstance<RecurringExpenseController>(
+  "RecurringExpenseController",
+  recurringExpenseController,
+);
 
-const fixedRevenueRepository: FixedRevenueRepository = new PrismaFixedRevenueRepository(prismaClient);
+const fixedRevenueRepository: FixedRevenueRepository = new PrismaFixedRevenueRepository(
+  prismaClient,
+);
 const createFixedRevenueUseCase = new CreateFixedRevenueUseCase(fixedRevenueRepository);
 const deleteFixedRevenueUseCase = new DeleteFixedRevenueUseCase(fixedRevenueRepository);
 const getFixedRevenueUseCase = new GetFixedRevenueUseCase(fixedRevenueRepository);
@@ -229,15 +290,27 @@ const fixedRevenueService = new FixedRevenueService(
 );
 const fixedRevenueController = new FixedRevenueController(fixedRevenueService);
 
-container.registerInstance<FixedRevenueRepository>("FixedRevenueRepository", fixedRevenueRepository);
+container.registerInstance<FixedRevenueRepository>(
+  "FixedRevenueRepository",
+  fixedRevenueRepository,
+);
 container.registerInstance<FixedRevenueService>("FixedRevenueService", fixedRevenueService);
-container.registerInstance<FixedRevenueController>("FixedRevenueController", fixedRevenueController);
+container.registerInstance<FixedRevenueController>(
+  "FixedRevenueController",
+  fixedRevenueController,
+);
 
-const revenueQueryService = new RevenueQueryService(oneTimeRevenueRepository, fixedRevenueRepository);
+const revenueQueryService = new RevenueQueryService(
+  oneTimeRevenueRepository,
+  fixedRevenueRepository,
+);
 const revenueQueryController = new RevenueQueryController(revenueQueryService);
 
 container.registerInstance<RevenueQueryService>("RevenueQueryService", revenueQueryService);
-container.registerInstance<RevenueQueryController>("RevenueQueryController", revenueQueryController);
+container.registerInstance<RevenueQueryController>(
+  "RevenueQueryController",
+  revenueQueryController,
+);
 
 const expenseQueryService = new ExpenseQueryService(
   expenseCategoryRepository,
@@ -248,7 +321,34 @@ const expenseQueryService = new ExpenseQueryService(
 const expenseQueryController = new ExpenseQueryController(expenseQueryService);
 
 container.registerInstance<ExpenseQueryService>("ExpenseQueryService", expenseQueryService);
-container.registerInstance<ExpenseQueryController>("ExpenseQueryController", expenseQueryController);
+container.registerInstance<ExpenseQueryController>(
+  "ExpenseQueryController",
+  expenseQueryController,
+);
+
+const dataImportRepository: DataImportRepository = new PrismaDataImportRepository(prismaClient);
+
+const importEntriesUseCase = new ImportEntriesUseCase(
+  expenseCategoryRepository,
+  dataImportRepository,
+);
+
+const dataExportService = new DataExportService(
+  revenueQueryService,
+  expenseQueryService,
+  oneTimeRevenueRepository,
+  fixedRevenueRepository,
+  oneTimeExpenseRepository,
+  installmentExpenseRepository,
+  recurringExpenseRepository,
+);
+const dataImportService = new DataImportService(importEntriesUseCase);
+const dataController = new DataController(dataExportService, dataImportService);
+
+container.registerInstance<DataImportRepository>("DataImportRepository", dataImportRepository);
+container.registerInstance<DataExportService>("DataExportService", dataExportService);
+container.registerInstance<DataImportService>("DataImportService", dataImportService);
+container.registerInstance<DataController>("DataController", dataController);
 
 export {
   container,
@@ -264,4 +364,5 @@ export {
   expenseQueryController,
   expenseCategoryController,
   expenseCategoryRepository,
+  dataController,
 };

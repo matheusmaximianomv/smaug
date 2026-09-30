@@ -28,15 +28,11 @@ describe("MonthlyCompetence", () => {
     });
 
     it("should throw error when year is less than 2000", () => {
-      expect(() => MonthlyCompetence.create(1, 1999)).toThrow(
-        "Year must be an integer >= 2000",
-      );
+      expect(() => MonthlyCompetence.create(1, 1999)).toThrow("Year must be an integer >= 2000");
     });
 
     it("should throw error when year is not an integer", () => {
-      expect(() => MonthlyCompetence.create(1, 2026.5)).toThrow(
-        "Year must be an integer >= 2000",
-      );
+      expect(() => MonthlyCompetence.create(1, 2026.5)).toThrow("Year must be an integer >= 2000");
     });
 
     it("should accept month when it equals the minimum value 1", () => {
@@ -166,5 +162,71 @@ describe("MonthlyCompetence year-level comparisons", () => {
   it("should not treat an earlier year as after", () => {
     expect(earlier.isAfter(later)).toBe(false);
     expect(earlier.isAfterOrEqual(later)).toBe(false);
+  });
+});
+
+describe("MonthlyCompetence.addMonths", () => {
+  it("should advance within the same year", () => {
+    const result = MonthlyCompetence.addMonths(MonthlyCompetence.create(3, 2026), 2);
+    expect(result.toString()).toBe("2026-05");
+  });
+
+  it("should roll over into the next year", () => {
+    const result = MonthlyCompetence.addMonths(MonthlyCompetence.create(11, 2026), 3);
+    expect(result.toString()).toBe("2027-02");
+  });
+
+  it("should walk backwards with a negative offset", () => {
+    const result = MonthlyCompetence.addMonths(MonthlyCompetence.create(3, 2026), -4);
+    expect(result.toString()).toBe("2025-11");
+  });
+
+  it("should return an equal competence for a zero offset", () => {
+    const result = MonthlyCompetence.addMonths(MonthlyCompetence.create(7, 2026), 0);
+    expect(result.toString()).toBe("2026-07");
+  });
+
+  it("should land on December when the offset closes a year", () => {
+    const result = MonthlyCompetence.addMonths(MonthlyCompetence.create(1, 2026), -1);
+    expect(result.toString()).toBe("2025-12");
+  });
+});
+
+describe("MonthlyCompetence.range", () => {
+  it("should return a single competence when start equals end", () => {
+    const month = MonthlyCompetence.create(4, 2026);
+    expect(MonthlyCompetence.range(month, month).map(String)).toEqual(["2026-04"]);
+  });
+
+  it("should include both ends of the interval", () => {
+    const range = MonthlyCompetence.range(
+      MonthlyCompetence.create(1, 2026),
+      MonthlyCompetence.create(4, 2026),
+    );
+    expect(range.map(String)).toEqual(["2026-01", "2026-02", "2026-03", "2026-04"]);
+  });
+
+  it("should cross the year boundary", () => {
+    const range = MonthlyCompetence.range(
+      MonthlyCompetence.create(11, 2026),
+      MonthlyCompetence.create(2, 2027),
+    );
+    expect(range.map(String)).toEqual(["2026-11", "2026-12", "2027-01", "2027-02"]);
+  });
+
+  it("should return an empty list when the interval is inverted", () => {
+    const range = MonthlyCompetence.range(
+      MonthlyCompetence.create(6, 2026),
+      MonthlyCompetence.create(3, 2026),
+    );
+    expect(range).toEqual([]);
+  });
+
+  it("should return twelve competences for a full year", () => {
+    const range = MonthlyCompetence.range(
+      MonthlyCompetence.create(1, 2026),
+      MonthlyCompetence.create(12, 2026),
+    );
+    expect(range).toHaveLength(12);
   });
 });

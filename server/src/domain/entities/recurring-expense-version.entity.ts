@@ -41,14 +41,34 @@ export class RecurringExpenseVersion {
   }
 
   public static create(props: RecurringExpenseVersionProps): RecurringExpenseVersion {
+    const effective = MonthlyCompetence.create(props.effectiveMonth, props.effectiveYear);
+    if (effective.isPastMonth()) {
+      throw new PastEffectiveDateError();
+    }
+
+    return RecurringExpenseVersion.build(props);
+  }
+
+  /**
+   * Nasce uma versão em competência já vencida — é o caminho da importação de histórico, que existe
+   * justamente para trazer o passado. A única regra dispensada é a trava temporal: descrição, valor
+   * e faixa de mês/ano continuam sendo validados aqui, e não na confiança de quem chama. Usar
+   * `rehydrate` no lugar disto abriria mão de todas elas de uma vez.
+   */
+  public static createForImport(props: RecurringExpenseVersionProps): RecurringExpenseVersion {
+    return RecurringExpenseVersion.build(props);
+  }
+
+  public static rehydrate(props: RecurringExpenseVersionPersistenceProps): RecurringExpenseVersion {
+    return new RecurringExpenseVersion(props);
+  }
+
+  private static build(props: RecurringExpenseVersionProps): RecurringExpenseVersion {
     const normalizedDescription = RecurringExpenseVersion.normalizeDescription(props.description);
     RecurringExpenseVersion.validateDescription(normalizedDescription);
     RecurringExpenseVersion.validateAmount(props.amount);
 
     const effective = MonthlyCompetence.create(props.effectiveMonth, props.effectiveYear);
-    if (effective.isPastMonth()) {
-      throw new PastEffectiveDateError();
-    }
 
     return new RecurringExpenseVersion({
       id: props.id ?? randomUUID(),
@@ -62,10 +82,6 @@ export class RecurringExpenseVersion {
     });
   }
 
-  public static rehydrate(props: RecurringExpenseVersionPersistenceProps): RecurringExpenseVersion {
-    return new RecurringExpenseVersion(props);
-  }
-
   public getEffectiveCompetence(): MonthlyCompetence {
     return MonthlyCompetence.create(this.effectiveMonth, this.effectiveYear);
   }
@@ -75,7 +91,10 @@ export class RecurringExpenseVersion {
   }
 
   private static validateDescription(description: string): void {
-    if (description.length < MIN_DESCRIPTION_LENGTH || description.length > MAX_DESCRIPTION_LENGTH) {
+    if (
+      description.length < MIN_DESCRIPTION_LENGTH ||
+      description.length > MAX_DESCRIPTION_LENGTH
+    ) {
       throw new Error(
         `Description must be between ${MIN_DESCRIPTION_LENGTH} and ${MAX_DESCRIPTION_LENGTH} characters`,
       );

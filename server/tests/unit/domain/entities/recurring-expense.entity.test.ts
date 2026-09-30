@@ -32,7 +32,9 @@ describe("RecurringExpense", () => {
   });
 
   it("should throw PastCompetenceError when start competence is in the past", () => {
-    expect(() => RecurringExpense.create({ ...validProps, startMonth: 1 })).toThrow(PastCompetenceError);
+    expect(() => RecurringExpense.create({ ...validProps, startMonth: 1 })).toThrow(
+      PastCompetenceError,
+    );
   });
 
   it("should throw EndDateBeforeStartError when end competence is before start", () => {
@@ -79,8 +81,7 @@ describe("RecurringExpense clearTermination and open-ended activity", () => {
     vi.useRealTimers();
   });
 
-  const build = () =>
-    RecurringExpense.create({ userId: "user-1", startMonth: 4, startYear: 2026 });
+  const build = () => RecurringExpense.create({ userId: "user-1", startMonth: 4, startYear: 2026 });
 
   it("should remove the end competence", () => {
     const terminated = build().terminate(10, 2026);
@@ -97,5 +98,60 @@ describe("RecurringExpense clearTermination and open-ended activity", () => {
 
   it("should stay active indefinitely when there is no end competence", () => {
     expect(build().isActiveForMonth(12, 2040)).toBe(true);
+  });
+});
+
+describe("RecurringExpense createForImport", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE_DATE);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const pastProps = {
+    userId: "user-1",
+    startMonth: 1,
+    startYear: 2024,
+  } as const;
+
+  it("should accept a start competence in the past, which is the point of importing history", () => {
+    const expense = RecurringExpense.createForImport(pastProps);
+
+    expect(expense.startMonth).toBe(1);
+    expect(expense.startYear).toBe(2024);
+  });
+
+  it("should mint an id and timestamps like create does", () => {
+    const expense = RecurringExpense.createForImport(pastProps);
+
+    expect(expense.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(expense.createdAt.toISOString()).toBe(BASE_DATE.toISOString());
+    expect(expense.updatedAt.toISOString()).toBe(BASE_DATE.toISOString());
+  });
+
+  it("should keep the end competence when it is on or after the start", () => {
+    const expense = RecurringExpense.createForImport({
+      ...pastProps,
+      endMonth: 6,
+      endYear: 2024,
+    });
+
+    expect(expense.endMonth).toBe(6);
+    expect(expense.endYear).toBe(2024);
+  });
+
+  it("should still reject an end competence before the start", () => {
+    expect(() =>
+      RecurringExpense.createForImport({ ...pastProps, endMonth: 12, endYear: 2023 }),
+    ).toThrow(EndDateBeforeStartError);
+  });
+
+  it("should still reject a month outside 1-12", () => {
+    expect(() => RecurringExpense.createForImport({ ...pastProps, startMonth: 13 })).toThrow(
+      "Month must be an integer between 1 and 12",
+    );
   });
 });

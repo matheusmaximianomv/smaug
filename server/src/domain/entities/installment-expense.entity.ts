@@ -72,9 +72,10 @@ export class InstallmentExpense {
   }
 
   public updateDetails(changes: { description?: string; categoryId?: string }): InstallmentExpense {
-    const normalizedDescription = changes.description !== undefined
-      ? InstallmentExpense.normalizeDescription(changes.description)
-      : this.description;
+    const normalizedDescription =
+      changes.description !== undefined
+        ? InstallmentExpense.normalizeDescription(changes.description)
+        : this.description;
     if (changes.description !== undefined) {
       InstallmentExpense.validateDescription(normalizedDescription);
     }
@@ -105,7 +106,7 @@ export class InstallmentExpense {
     const startCompetence = this.getStartCompetence();
 
     return Array.from({ length: this.installmentCount }, (_, index) => {
-      const incremented = InstallmentExpense.addMonths(startCompetence, index);
+      const incremented = MonthlyCompetence.addMonths(startCompetence, index);
       const amountCents = baseCents + (index === 0 ? remainder : 0);
 
       return Installment.create({
@@ -118,19 +119,15 @@ export class InstallmentExpense {
     });
   }
 
-  private static addMonths(competence: MonthlyCompetence, offset: number): MonthlyCompetence {
-    const totalMonths = competence.year * 12 + (competence.month - 1) + offset;
-    const year = Math.floor(totalMonths / 12);
-    const month = (totalMonths % 12) + 1;
-    return MonthlyCompetence.create(month, year);
-  }
-
   private static normalizeDescription(description: string): string {
     return description.trim();
   }
 
   private static validateDescription(description: string): void {
-    if (description.length < MIN_DESCRIPTION_LENGTH || description.length > MAX_DESCRIPTION_LENGTH) {
+    if (
+      description.length < MIN_DESCRIPTION_LENGTH ||
+      description.length > MAX_DESCRIPTION_LENGTH
+    ) {
       throw new Error(
         `Description must be between ${MIN_DESCRIPTION_LENGTH} and ${MAX_DESCRIPTION_LENGTH} characters`,
       );
