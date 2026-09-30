@@ -79,6 +79,16 @@ export function getImportRowMessage(code: string, value?: string): string {
 }
 
 /**
+ * Cópia em pt-BR de um código de negócio, sem precisar de um erro do axios em mãos.
+ * Existe para as guardas que o cliente aplica antes de chamar a API — o seletor de período da
+ * exportação recusa um recorte inválido na tela, e a frase que ele mostra tem de ser a mesma que a
+ * API devolveria naquele código, não uma segunda redação vivendo dentro do componente.
+ */
+export function getErrorMessageByCode(code: string, fallback: string): string {
+  return MESSAGES[code] ?? fallback;
+}
+
+/**
  * Distingue "esta sessão não vale mais" de "a chamada falhou agora".
  * Só 401 (header ausente/inválido) e 404 (usuário inexistente) invalidam a sessão;
  * falha de rede, timeout e 5xx são transitórios e não devem deslogar ninguém.
@@ -125,7 +135,7 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
       const first = Object.values(body.details).flat()[0];
       if (first) return first;
     }
-    const mapped = MESSAGES[body.error];
+    const mapped = getErrorMessageByCode(body.error, "");
     if (mapped) return mapped;
   }
 

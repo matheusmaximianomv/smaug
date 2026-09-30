@@ -2,17 +2,18 @@ import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { cleanup, configure } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-// O default de 1s do `waitFor` é apertado demais quando a suíte roda com cobertura: a
-// instrumentação do v8 deixa cada worker bem mais lento e os arquivos de integração mais pesados
-// estouravam o prazo esperando o MSW responder. Os testes passavam sozinhos e em série, e só
-// falhavam sob contenção — sintoma de prazo curto, não de bug.
-configure({ asyncUtilTimeout: 5000 });
 import { TextDecoder, TextEncoder } from "node:util";
 import { ReadableStream, TransformStream, WritableStream } from "node:stream/web";
 import { server } from "./tests/msw/server";
 import { resetDb } from "./tests/msw/db";
 import { drainToasts } from "./tests/toast";
 import { resetFixtureIds } from "./tests/fixtures";
+
+// O default de 1s do `waitFor` é apertado demais quando a suíte roda com cobertura: a
+// instrumentação do v8 deixa cada worker bem mais lento e os arquivos de integração mais pesados
+// estouravam o prazo esperando o MSW responder. Os testes passavam sozinhos e em série, e só
+// falhavam sob contenção — sintoma de prazo curto, não de bug.
+configure({ asyncUtilTimeout: 5000 });
 
 // ---------------------------------------------------------------------------
 // 1. Globais de stream/encoder que o MSW usa para montar Response.
