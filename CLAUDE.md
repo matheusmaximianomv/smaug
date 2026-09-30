@@ -84,8 +84,10 @@ series and installment number as tiebreakers, so twin rows can't reorder between
 which persists it in a single `$transaction`: import never deduplicates, so a half-written batch
 could not be retried safely. Import is always additive — the file's `serie_id` only groups rows
 with each other and is then discarded. It is also the one place allowed to bypass the
-past-competence guard (via `RecurringExpense.rehydrate` / `RecurringExpenseVersion.rehydrate`),
-because migrating history is its purpose. The `observacao` column exists in the format but has no
+past-competence guard, via `RecurringExpense.createForImport` /
+`RecurringExpenseVersion.createForImport` — factories that waive **only** the temporal guard and
+still enforce every other invariant; `rehydrate` stays reserved for the repository.
+The `observacao` column exists in the format but has no
 field in the domain: it is exported empty and ignored on import. Import sends the CSV as a raw
 `text/csv` body (`express.text`), not multipart.
 
@@ -170,7 +172,7 @@ This repo uses Spec Kit. Feature work lives in `specs/###-feature-name/` (`spec.
 
 `.specify/memory/constitution.md` is the normative document — it wins over ad-hoc practice. Beyond the layering rules already described, it mandates: no framework types in the domain, DI everywhere, YAGNI over speculative abstraction, no dead or commented-out code, Server Components by default with `"use client"` only for interactivity/state/effects/browser APIs, and local state preferred over global.
 
-`docs/prototipo/` is prototype material, **not production code** — it runs on React UMD and persists to `localStorage`. Treat it as a visual reference only; see `docs/prototipo/v2/README.md`. The "Área de Dados" (CSV export/import) that v2 specifies **is implemented** (branch `006-importar-exportar-dados`, no `specs/006-*` folder), and its wire format stays frozen in `docs/prototipo/v2/ESPECIFICACAO-CSV.md` — that file is the contract, not the prototype's JS.
+`docs/prototipo/` is prototype material, **not production code** — it runs on React UMD and persists to `localStorage`. Treat it as a visual reference only; see `docs/prototipo/v2/README.md`. The "Área de Dados" (CSV export/import) that v2 specifies **is implemented** on branch `006-importar-exportar-dados`, and its wire format stays frozen in `specs/006-importar-exportar-dados/contracts/csv-format.md` — that file is the contract, not the prototype's JS.
 
 CI: `.github/workflows/ci.yml` runs lint, typecheck, `validate:deps` and the Vitest suites; `.github/workflows/e2e.yml` runs Playwright on chromium. Neither may call `prisma:generate`/`prisma:prepare` — without `DATABASE_PROVIDER` that rewrites the tracked `schema.prisma` to postgresql and the E2E wrapper fails on purpose.
 
