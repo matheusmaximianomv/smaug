@@ -41,17 +41,12 @@ export class DataExportService {
   public async getSummary(
     userId: string,
     query: DataExportQueryDto,
+    referenceDate: Date = new Date(),
   ): Promise<DataExportSummaryResponseDto> {
-    const bounds = await this.resolveBounds(userId, query);
+    const bounds = await this.resolveBounds(userId, query, referenceDate);
     const rows = await this.buildRows(userId, bounds);
 
-    return {
-      total: rows.length,
-      revenues: rows.filter((row) => row.nature === "receita").length,
-      expenses: rows.filter((row) => row.nature === "despesa").length,
-      periodStart: bounds === null ? null : bounds.start.toString(),
-      periodEnd: bounds === null ? null : bounds.end.toString(),
-    };
+    return DataExportService.toSummaryDto(rows, bounds);
   }
 
   public async exportCsv(
@@ -59,12 +54,25 @@ export class DataExportService {
     query: DataExportQueryDto,
     referenceDate: Date = new Date(),
   ): Promise<{ filename: string; content: string }> {
-    const bounds = await this.resolveBounds(userId, query);
+    const bounds = await this.resolveBounds(userId, query, referenceDate);
     const rows = await this.buildRows(userId, bounds);
 
     return {
       filename: DataExportService.buildFilename(referenceDate),
       content: serializeCsv(rows),
+    };
+  }
+
+  private static toSummaryDto(
+    rows: CsvEntryRow[],
+    bounds: CompetenceBounds | null,
+  ): DataExportSummaryResponseDto {
+    return {
+      total: rows.length,
+      revenues: rows.filter((row) => row.nature === "receita").length,
+      expenses: rows.filter((row) => row.nature === "despesa").length,
+      periodStart: bounds === null ? null : bounds.start.toString(),
+      periodEnd: bounds === null ? null : bounds.end.toString(),
     };
   }
 
@@ -198,9 +206,10 @@ export class DataExportService {
   private async resolveBounds(
     userId: string,
     query: DataExportQueryDto,
+    referenceDate: Date,
   ): Promise<CompetenceBounds | null> {
     if (query.mode === "full") {
-      return this.resolveFullBounds(userId);
+      return this.resolveFullBounds(userId, referenceDate);
     }
 
     const start = MonthlyCompetence.create(query.startMonth!, query.startYear!);
@@ -222,7 +231,7 @@ export class DataExportService {
    */
   private async resolveFullBounds(
     userId: string,
-    referenceDate: Date = new Date(),
+    referenceDate: Date,
   ): Promise<CompetenceBounds | null> {
     const [
       oneTimeRevenues,

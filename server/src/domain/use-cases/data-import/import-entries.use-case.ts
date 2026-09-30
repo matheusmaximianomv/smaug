@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { ExpenseCategory } from "@src/domain/entities/expense-category.entity";
 import { OneTimeRevenue } from "@src/domain/entities/one-time-revenue.entity";
 import { FixedRevenue } from "@src/domain/entities/fixed-revenue.entity";
@@ -238,7 +237,8 @@ export class ImportEntriesUseCase {
   /**
    * Único ponto onde a trava de competência passada precisa ser contornada: `create()` de
    * recorrente e de sua versão rejeitam meses passados, e a importação existe justamente para
-   * trazer histórico. As demais validações já foram aplicadas na leitura do arquivo.
+   * trazer histórico. `createForImport` dispensa só essa trava — as demais invariantes seguem
+   * sendo cobradas pela entidade.
    */
   private static appendRecurringExpense(
     userId: string,
@@ -248,32 +248,26 @@ export class ImportEntriesUseCase {
   ): void {
     const first = entries[0]!;
     const last = entries[entries.length - 1]!;
-    const now = new Date();
 
-    const expense = RecurringExpense.rehydrate({
-      id: randomUUID(),
+    const expense = RecurringExpense.createForImport({
       userId,
       startMonth: first.competenceMonth,
       startYear: first.competenceYear,
       endMonth: last.competenceMonth,
       endYear: last.competenceYear,
-      createdAt: now,
-      updatedAt: now,
     });
 
     const versions = ImportEntriesUseCase.changePoints(
       entries,
       (entry) => `${entry.description}|${entry.amount}|${entry.category.trim().toLowerCase()}`,
     ).map((entry) =>
-      RecurringExpenseVersion.rehydrate({
-        id: randomUUID(),
+      RecurringExpenseVersion.createForImport({
         recurringExpenseId: expense.id,
         categoryId: ensureCategory(entry.category),
         description: entry.description,
         amount: entry.amount,
         effectiveMonth: entry.competenceMonth,
         effectiveYear: entry.competenceYear,
-        createdAt: now,
       }),
     );
 

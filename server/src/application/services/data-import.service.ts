@@ -10,6 +10,7 @@ import {
   ImportEntriesUseCase,
   ImportEntryInput,
   ImportEntryType,
+  ImportReport,
 } from "@src/domain/use-cases/data-import/import-entries.use-case";
 import {
   ImportEmptyFileError,
@@ -39,8 +40,8 @@ interface ParseResult {
 export class DataImportService {
   public constructor(private readonly importEntriesUseCase: ImportEntriesUseCase) {}
 
-  public preview(content: string): ImportPreviewResponseDto {
-    const { entries, errors } = this.parse(content);
+  public async preview(content: string): Promise<ImportPreviewResponseDto> {
+    const { entries, errors } = DataImportService.parse(content);
 
     return {
       validRows: entries.length,
@@ -50,7 +51,7 @@ export class DataImportService {
   }
 
   public async import(userId: string, content: string): Promise<ImportResultResponseDto> {
-    const { entries } = this.parse(content);
+    const { entries } = DataImportService.parse(content);
 
     if (entries.length === 0) {
       throw new ImportNoValidRowsError();
@@ -58,6 +59,10 @@ export class DataImportService {
 
     const report = await this.importEntriesUseCase.execute({ userId, entries });
 
+    return DataImportService.toResponseDto(report);
+  }
+
+  private static toResponseDto(report: ImportReport): ImportResultResponseDto {
     return {
       total:
         report.oneTimeRevenues +
@@ -80,7 +85,7 @@ export class DataImportService {
    * Uma linha inválida gera no máximo um erro e é descartada; as demais seguem. O arquivo só é
    * rejeitado por inteiro quando está vazio ou quando o cabeçalho não tem as colunas obrigatórias.
    */
-  public parse(content: string): ParseResult {
+  private static parse(content: string): ParseResult {
     const grid = parseCsvGrid(content);
 
     if (grid.length === 0) {

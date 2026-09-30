@@ -1,7 +1,8 @@
 import { CsvEntryRow } from "@src/application/dtos/data-export.dto";
 
 /**
- * Colunas na ordem fixada pela especificação do formato (docs/prototipo/v2/ESPECIFICACAO-CSV.md).
+ * Colunas na ordem fixada pelo contrato do formato
+ * (specs/006-importar-exportar-dados/contracts/csv-format.md).
  * A ordem faz parte do contrato: mudá-la quebra qualquer arquivo já exportado.
  */
 export const CSV_COLUMNS = [
