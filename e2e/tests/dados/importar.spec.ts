@@ -153,7 +153,7 @@ test.describe("dados — importar", () => {
     });
 
     await goto(page, "/dados");
-    await expect(page.getByTestId("preview-card")).toContainText("Prévia");
+    await expect(page.getByRole("region", { name: "Prévia" })).toBeVisible();
 
     const [download] = await Promise.all([
       page.waitForEvent("download"),

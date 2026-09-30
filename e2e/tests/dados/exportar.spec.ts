@@ -45,7 +45,7 @@ test.describe("dados — exportar", () => {
 
     // Escopado no card: o nome do usuário na sidebar vem do título do teste e também
     // casaria com "prévia" numa busca por texto solta.
-    const preview = page.getByTestId("preview-card");
+    const preview = page.getByRole("region", { name: "Prévia" });
     await expect(preview).toContainText("Prévia");
     await expect(preview).toContainText("2");
     await expect(preview).toContainText("lançamentos");
@@ -66,7 +66,7 @@ test.describe("dados — exportar", () => {
     });
 
     await goto(page, "/dados");
-    await expect(page.getByTestId("preview-card")).toContainText("2");
+    await expect(page.getByRole("region", { name: "Prévia" })).toContainText("2");
 
     const [download] = await Promise.all([
       page.waitForEvent("download"),
