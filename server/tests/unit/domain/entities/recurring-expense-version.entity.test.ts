@@ -36,7 +36,9 @@ describe("RecurringExpenseVersion", () => {
   });
 
   it("should throw PastEffectiveDateError when effective competence is in the past", () => {
-    expect(() => RecurringExpenseVersion.create({ ...validProps, effectiveMonth: 2 })).toThrow(PastEffectiveDateError);
+    expect(() => RecurringExpenseVersion.create({ ...validProps, effectiveMonth: 2 })).toThrow(
+      PastEffectiveDateError,
+    );
   });
 
   it("should throw error when amount has more than two decimal places", () => {
@@ -107,5 +109,66 @@ describe("RecurringExpenseVersion rehydrate and validation", () => {
         effectiveYear: 2026,
       }),
     ).toThrow("Amount must be greater than 0");
+  });
+});
+
+describe("RecurringExpenseVersion createForImport", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE_DATE);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const pastProps = {
+    recurringExpenseId: "recurring-1",
+    categoryId: "category-1",
+    description: "Aluguel",
+    amount: 2000,
+    effectiveMonth: 1,
+    effectiveYear: 2024,
+  } as const;
+
+  it("should accept an effective competence in the past, which is the point of importing history", () => {
+    const version = RecurringExpenseVersion.createForImport(pastProps);
+
+    expect(version.effectiveMonth).toBe(1);
+    expect(version.effectiveYear).toBe(2024);
+  });
+
+  it("should mint an id and a timestamp like create does", () => {
+    const version = RecurringExpenseVersion.createForImport(pastProps);
+
+    expect(version.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(version.createdAt.toISOString()).toBe(BASE_DATE.toISOString());
+  });
+
+  it("should still trim the description", () => {
+    const version = RecurringExpenseVersion.createForImport({
+      ...pastProps,
+      description: "  Aluguel  ",
+    });
+
+    expect(version.description).toBe("Aluguel");
+  });
+
+  it("should still reject an empty description", () => {
+    expect(() =>
+      RecurringExpenseVersion.createForImport({ ...pastProps, description: " " }),
+    ).toThrow("Description must be between 1 and 255 characters");
+  });
+
+  it("should still reject a non-positive amount", () => {
+    expect(() => RecurringExpenseVersion.createForImport({ ...pastProps, amount: 0 })).toThrow(
+      "Amount must be greater than 0",
+    );
+  });
+
+  it("should still reject an amount with more than two decimal places", () => {
+    expect(() => RecurringExpenseVersion.createForImport({ ...pastProps, amount: 10.555 })).toThrow(
+      "Amount must have at most 2 decimal places",
+    );
   });
 });
