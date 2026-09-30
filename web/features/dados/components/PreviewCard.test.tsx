@@ -3,6 +3,12 @@ import { render, screen } from "@testing-library/react";
 import { PreviewCard } from "./PreviewCard";
 
 describe("PreviewCard", () => {
+  it("se expõe como uma região nomeada pelo título", () => {
+    render(<PreviewCard title="Prévia" count={0} countLabel="lançamentos" />);
+
+    expect(screen.getByRole("region", { name: "Prévia" })).toBeInTheDocument();
+  });
+
   it("mostra o título e a contagem", () => {
     render(<PreviewCard title="Prévia" count={12} countLabel="lançamentos" />);
 

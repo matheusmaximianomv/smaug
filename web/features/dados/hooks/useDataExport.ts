@@ -7,7 +7,7 @@ import { getApiErrorMessage } from "@/infra/api-error";
 import { downloadBlob } from "@/infra/file-download";
 import type { ExportParams } from "../types";
 
-const QUERY_KEY = ["data", "export-summary"];
+const QK = ["data", "export-summary"];
 
 /**
  * `enabled` desliga a prévia enquanto o período escolhido é inválido: a API recusaria com 400 e
@@ -15,7 +15,7 @@ const QUERY_KEY = ["data", "export-summary"];
  */
 export function useDataExport(params: ExportParams, enabled = true) {
   const query = useQuery({
-    queryKey: [...QUERY_KEY, params],
+    queryKey: [...QK, params],
     queryFn: () => DadosService.getExportSummary(params),
     staleTime: 30_000,
     enabled,

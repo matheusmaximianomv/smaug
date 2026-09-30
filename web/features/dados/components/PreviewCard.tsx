@@ -28,8 +28,8 @@ export function PreviewCard({
   className,
 }: PreviewCardProps) {
   return (
-    <div
-      data-testid="preview-card"
+    <section
+      aria-label={title}
       className={cn("rounded-lg border border-border bg-surface p-5 sm:sticky sm:top-4", className)}
     >
       <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-text-muted">
@@ -51,6 +51,6 @@ export function PreviewCard({
 
       {children}
       {footer && <p className="mt-3 text-[11.5px] text-text-subtle">{footer}</p>}
-    </div>
+    </section>
   );
 }

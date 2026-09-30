@@ -1,25 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/shared/components/Button";
 import { MonthYearSelect } from "@/shared/components/MonthYearSelect";
-import { getCurrentCompetence, compareCompetences } from "@/shared/lib/competence";
 import { formatMonthYear } from "@/shared/lib/dateUtils";
 import { useDataExport } from "../hooks/useDataExport";
+import { useExportSelection } from "../hooks/useExportSelection";
 import { CodeChip } from "./CodeChip";
 import { PreviewCard } from "./PreviewCard";
 import { SegmentedControl } from "./SegmentedControl";
-import type { ExportMode, ExportParams } from "../types";
-
-const MAX_MONTHS = 12;
-
-function spanInMonths(
-  start: { year: number; month: number },
-  end: { year: number; month: number },
-): number {
-  return (end.year - start.year) * 12 + (end.month - start.month) + 1;
-}
 
 function formatCompetenceLabel(competence: string | null): string {
   if (!competence) return "—";
@@ -28,32 +17,8 @@ function formatCompetenceLabel(competence: string | null): string {
 }
 
 export function ExportPanel() {
-  const current = getCurrentCompetence();
-  const [mode, setMode] = useState<ExportMode>("period");
-  const [start, setStart] = useState(current);
-  const [end, setEnd] = useState(current);
-
-  const span = spanInMonths(start, end);
-  const inverted = compareCompetences(end, start) < 0;
-  const tooLong = span > MAX_MONTHS;
-  const periodError = inverted
-    ? "O mês final é anterior ao inicial."
-    : tooLong
-      ? `O período tem ${span} meses. O máximo é 12.`
-      : undefined;
-
-  const params: ExportParams =
-    mode === "full"
-      ? { mode: "full" }
-      : {
-          mode: "period",
-          startYear: start.year,
-          startMonth: start.month,
-          endYear: end.year,
-          endMonth: end.month,
-        };
-
-  const { data, isLoading, download } = useDataExport(params, mode === "full" || !periodError);
+  const { mode, setMode, start, setStart, end, setEnd, params, periodError } = useExportSelection();
+  const { data, isLoading, download } = useDataExport(params, !periodError);
 
   const total = data?.total ?? 0;
   const periodLabel =
@@ -81,15 +46,15 @@ export function ExportPanel() {
                 label="De"
                 month={start.month}
                 year={start.year}
-                onMonthChange={(month) => setStart((prev) => ({ ...prev, month }))}
-                onYearChange={(year) => setStart((prev) => ({ ...prev, year }))}
+                onMonthChange={(month) => setStart({ ...start, month })}
+                onYearChange={(year) => setStart({ ...start, year })}
               />
               <MonthYearSelect
                 label="Até"
                 month={end.month}
                 year={end.year}
-                onMonthChange={(month) => setEnd((prev) => ({ ...prev, month }))}
-                onYearChange={(year) => setEnd((prev) => ({ ...prev, year }))}
+                onMonthChange={(month) => setEnd({ ...end, month })}
+                onYearChange={(year) => setEnd({ ...end, year })}
                 error={periodError}
               />
               <p className="text-[12.5px] text-text-muted">

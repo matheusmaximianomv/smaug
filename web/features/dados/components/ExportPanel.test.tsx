@@ -146,7 +146,9 @@ describe("ExportPanel", () => {
     await userEvent.selectOptions(screen.getByLabelText("Até — mês"), "12");
     await userEvent.selectOptions(screen.getByLabelText("Até — ano"), "2027");
 
-    expect(await screen.findByText(/O máximo é 12\./)).toBeInTheDocument();
+    // A mesma frase que a API devolveria em EXPORT_PERIOD_TOO_LONG: a guarda local não redige
+    // uma segunda versão da recusa.
+    expect(await screen.findByText("O período selecionado passa de 12 meses.")).toBeInTheDocument();
   });
 
   it("desabilita o download enquanto o período está inválido", async () => {

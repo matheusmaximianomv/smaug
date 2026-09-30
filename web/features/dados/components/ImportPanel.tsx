@@ -1,36 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { FileText, X } from "lucide-react";
 import { Button } from "@/shared/components/Button";
-import { useDataImport } from "../hooks/useDataImport";
+import { useImportFlow } from "../hooks/useImportFlow";
 import { ImportDropzone } from "./ImportDropzone";
 import { ImportErrorList } from "./ImportErrorList";
 import { ImportSummaryCard } from "./ImportSummaryCard";
 import { PreviewCard } from "./PreviewCard";
-import type { ImportPreview, ImportResult } from "../types";
 
 export function ImportPanel() {
-  const [file, setFile] = useState<File | null>(null);
-  const [content, setContent] = useState("");
-  const [preview, setPreview] = useState<ImportPreview | null>(null);
-  const [result, setResult] = useState<ImportResult | null>(null);
-  const { preview: previewMutation, run } = useDataImport();
-
-  const reset = (): void => {
-    setFile(null);
-    setContent("");
-    setPreview(null);
-    setResult(null);
-  };
-
-  const handleFile = async (selected: File): Promise<void> => {
-    const text = await selected.text();
-    setFile(selected);
-    setContent(text);
-    setResult(null);
-    previewMutation.mutate(text, { onSuccess: setPreview });
-  };
+  const { file, preview, result, isPreviewing, isImporting, selectFile, confirm, reset } =
+    useImportFlow();
 
   if (result) {
     return <ImportSummaryCard result={result} onRestart={reset} />;
@@ -39,7 +19,7 @@ export function ImportPanel() {
   if (!preview) {
     return (
       <div className="mt-5 space-y-4">
-        <ImportDropzone onFileSelected={handleFile} disabled={previewMutation.isPending} />
+        <ImportDropzone onFileSelected={selectFile} disabled={isPreviewing} />
         <p className="rounded-md border border-border bg-bg px-3 py-2 text-[12.5px] leading-[1.5] text-text-subtle">
           Toda importação <strong className="font-bold">cria registros novos</strong>. Nada é
           atualizado, nada se liga ao que já existe — importar o mesmo arquivo duas vezes gera tudo
@@ -90,9 +70,9 @@ export function ImportPanel() {
         meta={meta}
       >
         <Button
-          onClick={() => run.mutate(content, { onSuccess: setResult })}
+          onClick={confirm}
           disabled={preview.validRows === 0}
-          isLoading={run.isPending}
+          isLoading={isImporting}
           className="mt-3.5 w-full justify-center"
         >
           {`Importar ${preview.validRows} ${preview.validRows === 1 ? "lançamento" : "lançamentos"}`}
