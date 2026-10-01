@@ -80,8 +80,8 @@ O Prisma resolve caminho SQLite relativo a partir da pasta do schema, tanto no C
 gerado (`relativePath`). Com o schema derivado em `prisma/sqlite/`, isso fazia
 `file:./prisma/sqlite/dev.db` virar `prisma/sqlite/prisma/sqlite/dev.db`, e ninguém lê o `.env`
 esperando essa regra. A regra adotada é: **caminho relativo parte de `server/`**, a pasta do `.env`.
-O wrapper (`resolveSqliteUrl` em `scripts/lib/prisma-env.mjs`) e o runtime (`resolveSqliteUrl` em
-`env.ts`) tornam o caminho absoluto antes de entregá-lo ao Prisma. O `container.ts` passou a usar o
+O wrapper (`resolveSqliteUrl` em `scripts/lib/prisma-env.mjs`) e o runtime (`env.ts`, via
+`infrastructure/config/sqlite-url.ts`) tornam o caminho absoluto antes de entregá-lo ao Prisma. O `container.ts` passou a usar o
 client único de `database/config.ts`, que recebe a URL já resolvida; antes ele criava um segundo
 `PrismaClient` sem URL, que leria a variável crua. Isso reverte a NFR-002 (sem mudança em
 `server/src`) em dois arquivos de infraestrutura.
