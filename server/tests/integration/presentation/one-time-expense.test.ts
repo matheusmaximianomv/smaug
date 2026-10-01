@@ -59,9 +59,10 @@ describe("One-Time Expense Endpoints", () => {
   const authHeaders = () => ({ "X-User-Id": userId });
 
   const futureCompetence = (monthsAhead: number) => {
+    // UTC, como MonthlyCompetence.isPastMonth(): em hora local o teste quebra na virada do mês.
     const now = new Date();
-    const target = new Date(now.getFullYear(), now.getMonth() + monthsAhead, 1);
-    return { competenceYear: target.getFullYear(), competenceMonth: target.getMonth() + 1 };
+    const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + monthsAhead, 1));
+    return { competenceYear: target.getUTCFullYear(), competenceMonth: target.getUTCMonth() + 1 };
   };
 
   it("should create, list, update, and delete a one-time expense when data is valid", async () => {
