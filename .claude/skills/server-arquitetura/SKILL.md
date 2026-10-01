@@ -90,8 +90,9 @@ tests/unit/... espelhando cada arquivo acima + tests/integration/presentation/re
 
 ## Checklist — adicionar um agregado novo, na ordem
 
-1. **Prisma**: modelo em `server/prisma/schema.prisma` + migration (`npm run --prefix server migrate:deploy`
-   aplica; não existe script de dev-migrate nem de seed).
+1. **Prisma**: modelo em `server/prisma/schema.prisma` + migration nos dois dialetos
+   (`npm run --prefix server migrate:new -- <nome>`, depois `migrate:deploy` aplica; não existe
+   script de seed).
 2. **Entidade** (e entidade de versão, se o agregado for versionado) — skill `server-entidade-dominio`.
 3. **Erros** de domínio no catálogo — skill `server-erros-dominio`.
 4. **Porta** em `domain/ports/` — skill `server-repositorio`.

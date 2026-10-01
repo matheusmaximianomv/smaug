@@ -174,7 +174,8 @@ Portas: API 3100, Web 3101 (não colidem com o `npm run dev`, em 3000/3001). Kno
 `E2E_API_PORT`, `E2E_WEB_PORT`, `E2E_WEB_MODE` (`dev` local / `build` no CI), `E2E_TMP_DIR`,
 `E2E_KEEP_DB`, `E2E_ALL_BROWSERS`.
 
-`scripts/run-e2e.mjs` cria `e2e/.tmp/smaug-e2e-<runid>.db`, roda `prisma db push`, sobe o
+`scripts/run-e2e.mjs` recusa rodar se o client do Prisma não for SQLite, cria
+`e2e/.tmp/smaug-e2e-<runid>.db`, roda `prisma db push` pelo wrapper do server, sobe o
 Playwright, limpa `["", "-journal", "-wal", "-shm"]` no fim e trata SIGINT/SIGTERM.
 `global-setup.ts` confere que `/health` responde `provider: "sqlite"`, faz um `POST /users` de sonda
 para provar que o schema existe, congela `E2E_BASE_COMPETENCE` no env e avisa se faltarem menos de

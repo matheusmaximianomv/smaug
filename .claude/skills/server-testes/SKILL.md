@@ -236,10 +236,13 @@ beforeAll(async () => {
   prisma = new PrismaClient({ datasources: { db: { url: TEST_DB_URL } } });
 
   const { execSync } = await import("child_process");
-  execSync(`DATABASE_URL=${TEST_DB_URL} npx prisma db push --force-reset --skip-generate`, {
-    cwd: process.cwd(),
-    stdio: "pipe",
-  });
+  execSync(
+    `DATABASE_URL=${TEST_DB_URL} npx prisma db push --schema prisma/sqlite/schema.prisma --force-reset --skip-generate`,
+    {
+      cwd: process.cwd(),
+      stdio: "pipe",
+    },
+  );
 
   const { createHttpServer } = await import("@src/infrastructure/http/server");
   app = createHttpServer();
@@ -257,7 +260,7 @@ Prisma.
 afterAll(async () => {
   await prisma.$disconnect();
   const { unlinkSync, existsSync } = await import("fs");
-  const dbPath = TEST_DB_URL.replace("file:", "").replace("./", "prisma/");
+  const dbPath = TEST_DB_URL.replace("file:", "").replace("./", "prisma/sqlite/");
   if (existsSync(dbPath)) unlinkSync(dbPath);
 });
 

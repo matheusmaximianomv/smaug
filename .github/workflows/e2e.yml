@@ -34,11 +34,11 @@ jobs:
       - name: Instalar dependências (raiz, server, web e e2e)
         run: npm run install:all
 
-      # ATENÇÃO: não rode `prisma:generate` nem `prisma:prepare` aqui. O
-      # postinstall do @prisma/client já gera o client a partir do schema
-      # versionado (que está em `sqlite`), e `prisma:prepare` sem
-      # DATABASE_PROVIDER reescreveria o datasource para postgresql — o
-      # run-e2e.mjs detecta e falha, mas o certo é não chamar.
+      # A E2E roda em SQLite; o run-e2e.mjs recusa um client de outro provider.
+      - name: Gerar o client do Prisma (SQLite)
+        run: npm run --prefix server prisma:generate
+        env:
+          DATABASE_PROVIDER: sqlite
 
       - name: Cache dos browsers do Playwright
         uses: actions/cache@v4

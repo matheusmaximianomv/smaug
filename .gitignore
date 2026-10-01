@@ -33,8 +33,11 @@ Thumbs.db
 
 # Databases / Prisma
 prisma/*.db
+# Schemas derivados de server/prisma/schema.prisma pelos scripts do server
+server/prisma/*/schema.prisma
 *.sqlite
 *.db
+*.db-journal
 
 # E2E (Playwright)
 e2e/.tmp/
