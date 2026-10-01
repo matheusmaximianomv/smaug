@@ -62,7 +62,7 @@ provider, regenerate.
 
 A relative SQLite path in `DATABASE_URL` is relative to `server/` (where `.env` lives):
 `file:./prisma/sqlite/dev.db` is `server/prisma/sqlite/dev.db`. Prisma itself would resolve it from
-the derived schema's folder, so both the wrapper and `env.ts` (`resolveSqliteUrl`) turn it absolute
+the derived schema's folder, so both the wrapper and `env.ts` (via `config/sqlite-url.ts`) turn it absolute
 first; the whole app shares the single client from `infrastructure/database/config.ts`.
 
 ## Architecture

@@ -46,23 +46,3 @@ describe("env config validation", () => {
     expect(mod.env.DATABASE_URL).toBe(`file:${process.cwd()}/prisma/sqlite/dev.db`);
   });
 });
-
-describe("resolveSqliteUrl", () => {
-  it("should make a relative path absolute from the base directory, keeping the query", async () => {
-    const { resolveSqliteUrl } = await importEnvModule();
-    expect(resolveSqliteUrl("file:./dev.db?connection_limit=1", "/srv/server")).toBe(
-      "file:/srv/server/dev.db?connection_limit=1",
-    );
-  });
-
-  it("should keep an absolute SQLite path untouched", async () => {
-    const { resolveSqliteUrl } = await importEnvModule();
-    expect(resolveSqliteUrl("file:/tmp/e2e.db", "/srv/server")).toBe("file:/tmp/e2e.db");
-  });
-
-  it("should keep a non-SQLite URL untouched", async () => {
-    const { resolveSqliteUrl } = await importEnvModule();
-    const url = "postgresql://postgres:postgres@localhost:5432/smaug?schema=public";
-    expect(resolveSqliteUrl(url, "/srv/server")).toBe(url);
-  });
-});
