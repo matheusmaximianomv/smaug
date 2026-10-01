@@ -65,8 +65,9 @@ describe("Installment Expense Endpoints", () => {
   const authHeaders = () => ({ "X-User-Id": userId });
 
   const currentStart = () => {
+    // UTC, como MonthlyCompetence.isPastMonth(): em hora local o teste quebra na virada do mês.
     const now = new Date();
-    return { startYear: now.getFullYear(), startMonth: now.getMonth() + 1 };
+    return { startYear: now.getUTCFullYear(), startMonth: now.getUTCMonth() + 1 };
   };
 
   it("should create, list, get, update, terminate, and delete an installment expense", async () => {
