@@ -3,6 +3,7 @@ import { container } from "tsyringe";
 import { PrismaClient } from "@prisma/client";
 import { Logger } from "@src/application/ports/logger.interface.ts";
 import { PinoLogger } from "@src/infrastructure/logging/logger.ts";
+import { getPrismaClient } from "@src/infrastructure/database/config.ts";
 import {
   getRepository,
   RepositoryFactory,
@@ -79,7 +80,7 @@ import { DataExportService } from "@src/application/services/data-export.service
 import { DataImportService } from "@src/application/services/data-import.service";
 import { DataController } from "@src/presentation/controllers/data.controller";
 
-const prismaClient = new PrismaClient();
+const prismaClient = getPrismaClient();
 
 container.registerInstance<PrismaClient>("PrismaClient", prismaClient);
 container.registerSingleton<Logger>("Logger", PinoLogger);

@@ -34,10 +34,11 @@ jobs:
       - name: Instalar dependências (raiz, server, web e e2e)
         run: npm run install:all
 
-      # ATENÇÃO: não rode `prisma:generate` nem `prisma:prepare` aqui. O
-      # postinstall do @prisma/client já gera o client a partir do schema
-      # versionado (que está em `sqlite`), e `prisma:prepare` sem
-      # DATABASE_PROVIDER reescreveria o datasource para postgresql.
+      # Lint, typecheck e testes rodam contra o client SQLite.
+      - name: Gerar o client do Prisma (SQLite)
+        run: npm run --prefix server prisma:generate
+        env:
+          DATABASE_PROVIDER: sqlite
 
       - name: Lint
         run: npm run lint
@@ -60,3 +61,44 @@ jobs:
       # `prisma db push`, então não há banco a provisionar aqui.
       - name: Testes (server e web)
         run: npm test
+
+  migrations:
+    name: Migrations (SQLite e PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Banco sombra do dialeto PostgreSQL: o `migrate diff` o apaga e reaplica as
+    # migrations nele a cada verificação.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: smaug_shadow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Instalar dependências (server)
+        run: npm ci --prefix server
+
+      # Falha se as pastas prisma/sqlite/migrations e prisma/postgresql/migrations
+      # divergirem entre si ou se alguma não reproduzir prisma/schema.prisma.
+      - name: Verificar paridade e fidelidade das migrations
+        run: npm run --prefix server migrate:check
+        env:
+          POSTGRES_SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/smaug_shadow

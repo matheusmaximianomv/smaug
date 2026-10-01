@@ -28,7 +28,8 @@ const ROOT = path.resolve(E2E_DIR, "..");
 const SERVER_DIR = path.join(ROOT, "server");
 const WEB_DIR = path.join(ROOT, "web");
 const PRISMA_CLI = path.join(SERVER_DIR, "node_modules", "prisma", "build", "index.js");
-const SCHEMA = path.join(SERVER_DIR, "prisma", "schema.prisma");
+const PRISMA_WRAPPER = path.join(SERVER_DIR, "scripts", "prisma.mjs");
+const CLIENT_SCHEMA = path.join(SERVER_DIR, "node_modules", ".prisma", "client", "schema.prisma");
 const PW_CLI = path.join(E2E_DIR, "node_modules", "@playwright", "test", "cli.js");
 
 const argv = process.argv.slice(2);
@@ -71,15 +72,15 @@ if (DB_FILE.includes(path.join("server", "prisma"))) {
   die("Recusando criar o banco de teste dentro de server/prisma.");
 }
 
-// A armadilha do prisma-prepare.mjs: se alguém rodou `prisma:prepare` sem
-// DATABASE_PROVIDER, o schema versionado virou postgresql e o client gerado não
-// fala SQLite. Falhar cedo, com a correção, em vez de um erro confuso em runtime.
-const schemaSrc = readFileSync(SCHEMA, "utf8");
-if (!/datasource\s+\w+\s*\{[\s\S]*?provider\s*=\s*"sqlite"/m.test(schemaSrc)) {
+// O client gerado é de UM provider por vez: se o último `prisma:generate` foi
+// com postgresql, a API não falaria SQLite. Falhar cedo, com a correção, em vez
+// de um erro confuso em runtime.
+if (
+  !existsSync(CLIENT_SCHEMA) ||
+  !/provider\s*=\s*"sqlite"/.test(readFileSync(CLIENT_SCHEMA, "utf8"))
+) {
   die(
-    'server/prisma/schema.prisma não está com provider = "sqlite".\n' +
-      "Provavelmente `prisma:prepare` rodou sem DATABASE_PROVIDER. Reverta com:\n" +
-      "  git checkout -- server/prisma/schema.prisma\n" +
+    "O client do Prisma não está gerado para SQLite. Gere com:\n" +
       "  DATABASE_PROVIDER=sqlite npm run --prefix server prisma:generate",
   );
 }
@@ -92,14 +93,13 @@ for (const f of readdirSync(TMP_DIR)) {
   }
 }
 
-// --- 3. Cria e migra o banco exclusivo do run ------------------------------
-// cwd = e2e/ de propósito: não existe .env aqui, então o CLI do Prisma não
-// carrega server/.env por engano. --schema absoluto resolve o resto.
-// NUNCA chamar prisma:prepare/generate: reescreveriam o schema versionado.
+// --- 3. Cria o banco exclusivo do run ---------------------------------------
+// Pelo wrapper do server, que usa o schema derivado prisma/sqlite/schema.prisma.
+// DATABASE_PROVIDER e DATABASE_URL explícitos vencem o server/.env.
 console.log(`[e2e] banco desta execução: ${DB_FILE}`);
 const push = spawnSync(
   process.execPath,
-  [PRISMA_CLI, "db", "push", "--schema", SCHEMA, "--force-reset", "--skip-generate"],
+  [PRISMA_WRAPPER, "db", "push", "--force-reset", "--skip-generate"],
   {
     cwd: E2E_DIR,
     stdio: "inherit",

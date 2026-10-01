@@ -47,7 +47,10 @@ describe("database config", () => {
 
     expect(first).toBe(second);
     expect(PrismaClientMock).toHaveBeenCalledTimes(1);
-    expect(prismaOptions[0]).toEqual({ datasources: { db: { url: "file:./dev.db" } } });
+    // O env.ts já entrega o caminho SQLite absoluto, a partir do diretório corrente.
+    expect(prismaOptions[0]).toEqual({
+      datasources: { db: { url: `file:${process.cwd()}/dev.db` } },
+    });
   });
 
   it("should disconnect and allow a new client afterwards", async () => {

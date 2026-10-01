@@ -51,8 +51,10 @@ npm run test:e2e         # Playwright, com SQLite exclusivo do run
 - `npm run --prefix server validate:deps` está **quebrado** (aponta para um `.dependency-cruiser.cjs`
   inexistente). Use sempre o script da raiz.
 - Instalar dependência em `web/` exige `--legacy-peer-deps` (React 19 RC) — já fixado em `web/.npmrc`.
-- Nunca rode `prisma:generate`/`prisma:prepare` no CI: sem `DATABASE_PROVIDER` isso reescreve o
-  `datasource` do `prisma/schema.prisma` versionado para `postgresql` e quebra o E2E de propósito.
+- Prisma sempre pelos scripts do server (`prisma:generate`, `migrate:deploy`, `migrate:new`,
+  `prisma -- <args>`): eles escolhem `prisma/<provider>/` pela `DATABASE_PROVIDER` (ambiente, depois
+  `server/.env`) e nunca alteram arquivo versionado. Mudança de schema = editar
+  `server/prisma/schema.prisma` + `migrate:new`, que cria a migration em SQLite **e** PostgreSQL.
 
 ## Política de idioma
 

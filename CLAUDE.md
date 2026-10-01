@@ -41,11 +41,29 @@ Husky + lint-staged run the **root** `.lintstagedrc.js` at commit time: `server/
 ### Prisma
 
 ```bash
-npm run --prefix server prisma:generate   # runs prisma:prepare, then prisma generate
-DATABASE_PROVIDER=postgresql npm run --prefix server prisma:generate
+npm run --prefix server prisma:generate   # client for the resolved provider
+npm run --prefix server migrate:deploy    # applies prisma/<provider>/migrations
+npm run --prefix server migrate:new -- <snake_name>   # same migration in both dialects
+npm run --prefix server migrate:check     # parity + fidelity of both folders (CI)
+npm run --prefix server prisma -- <any prisma CLI args>
 ```
 
-`scripts/prisma-prepare.mjs` **rewrites the `datasource` provider inside the tracked `prisma/schema.prisma`** from `$DATABASE_PROVIDER` (defaulting to `postgresql`, and mapping `memory` → `sqlite`). Running it will show up as a diff on `schema.prisma` — expected, but don't commit an accidental provider flip.
+`server/prisma/schema.prisma` is the **single source** of the models and is never rewritten. Every
+command goes through `server/scripts/prisma.mjs`, which resolves `DATABASE_PROVIDER` /
+`DATABASE_URL` from the system env first and `server/.env` second (same precedence as `env.ts`),
+**fails** when the provider is missing or invalid (no default; `memory` → `sqlite`), writes the
+derived, gitignored `prisma/<provider>/schema.prisma` and passes it as `--schema`. Prisma 4 looks for
+migrations next to that schema, so each provider has its own tracked `prisma/<provider>/migrations/`
+— same folder names, same order, one dialect each. `migrate dev` is blocked (it would create the
+migration in one dialect only); `migrate:new` diffs both folders against the source schema instead.
+`migrate:new`/`migrate:check` need a **throwaway** Postgres in `POSTGRES_SHADOW_DATABASE_URL` (it is
+wiped on every run; created if missing). The generated client targets one provider at a time — switch
+provider, regenerate.
+
+A relative SQLite path in `DATABASE_URL` is relative to `server/` (where `.env` lives):
+`file:./prisma/sqlite/dev.db` is `server/prisma/sqlite/dev.db`. Prisma itself would resolve it from
+the derived schema's folder, so both the wrapper and `env.ts` (`resolveSqliteUrl`) turn it absolute
+first; the whole app shares the single client from `infrastructure/database/config.ts`.
 
 ## Architecture
 
@@ -93,7 +111,7 @@ field in the domain: it is exported empty and ignored on import. Import sends th
 
 **Env** (`infrastructure/config/env.ts`) is Zod-parsed at import time and calls `process.exit(1)` on failure: `DATABASE_PROVIDER` (`postgresql|sqlite|memory`), `DATABASE_URL`, `NODE_ENV` — all three required, no default — plus `PORT` (3000), `LOG_LEVEL` (`info`), `CORS_ORIGIN` (`http://localhost:3001`).
 
-**Docker.** `server/Dockerfile` (multi-stage, `node:22-alpine`) and `server/docker-compose.yml` bring the API up against `postgres:16-alpine`, reading `server/.env.docker`; the container runs `npm run migrate:deploy` before starting. There is no image for `web/`. Migrations apply with `npm run --prefix server migrate:deploy` — there is no dev-migrate or seed script anywhere in `server/`.
+**Docker.** `server/Dockerfile` (multi-stage, `node:22-alpine`) and `server/docker-compose.yml` bring the API up against `postgres:16-alpine`, reading `server/.env.docker`; the image is always PostgreSQL (`DATABASE_PROVIDER=postgresql` baked in) and the container runs `npm run migrate:deploy` before starting. There is no image for `web/`. There is no seed script anywhere in `server/`.
 
 ### Frontend — feature-based (`web/`)
 
@@ -123,7 +141,7 @@ middleware.ts
 ## Testing
 
 - **Server unit** (`server/tests/unit/`, mirrors the layer structure): node env, in-memory repositories, no database.
-- **Server integration** (`server/tests/integration/presentation/`): Supertest against the real Express app over SQLite. Each test file shells out to `execSync("prisma db push --force-reset")` against **its own `.db` file** and then dynamically imports the app so the container picks up the test URL — so a generated Prisma client is a prerequisite, and these runs drop `.db` files in `server/`.
+- **Server integration** (`server/tests/integration/presentation/`): Supertest against the real Express app over SQLite. Each test file shells out to `execSync("prisma db push --schema prisma/sqlite/schema.prisma --force-reset")` against **its own `.db` file** (an absolute path in `server/prisma/sqlite/`, removed in `afterAll` — the CLI, the test's own client and the app must all open the same file) and then dynamically imports the app so the container picks up the test URL — so a **SQLite** client from `DATABASE_PROVIDER=sqlite prisma:generate` is a prerequisite (it also writes the derived schema those commands point at).
 - `server/tests/helpers/` is shared harness: `controller-contract.ts` exposes `describeControllerContract`, which generates the standard happy-path / mapped-domain-error / `next(err)` battery — use it when adding a controller instead of rewriting those cases.
 - `server/vitest.config.ts` supplies the `@src` alias and 100% coverage thresholds. The `test:unit` / `test:integration` scripts filter **by path** (`vitest run tests/unit`), not by project. It is the only Vitest config in `server/`.
 - **Web unit/component/integration**: Vitest + jsdom + `@testing-library/react`, with **MSW** intercepting HTTP so the real axios interceptors are exercised. `web/vitest.setup.ts` handles the jsdom 29 gaps (`matchMedia`, `ResizeObserver`, pointer capture), the MSW lifecycle and the global `afterEach`. Unit and component tests sit **next to the source**; page-level integration tests go in `web/tests/integration/`, because they import from more than one feature — which inside a feature would breach the cross-feature import ban.
@@ -174,12 +192,12 @@ This repo uses Spec Kit. Feature work lives in `specs/###-feature-name/` (`spec.
 
 `docs/prototipo/` is prototype material, **not production code** — it runs on React UMD and persists to `localStorage`. Treat it as a visual reference only; see `docs/prototipo/v2/README.md`. The "Área de Dados" (CSV export/import) that v2 specifies **is implemented** on branch `006-importar-exportar-dados`, and its wire format stays frozen in `specs/006-importar-exportar-dados/contracts/csv-format.md` — that file is the contract, not the prototype's JS.
 
-CI: `.github/workflows/ci.yml` runs lint, typecheck, `validate:deps` and the Vitest suites; `.github/workflows/e2e.yml` runs Playwright on chromium. Neither may call `prisma:generate`/`prisma:prepare` — without `DATABASE_PROVIDER` that rewrites the tracked `schema.prisma` to postgresql and the E2E wrapper fails on purpose.
+CI: `.github/workflows/ci.yml` runs lint, typecheck, `validate:deps` and the Vitest suites against a SQLite client (`prisma:generate` with `DATABASE_PROVIDER=sqlite`), plus a `migrations` job that runs `migrate:check` with a Postgres service; `.github/workflows/e2e.yml` runs Playwright on chromium. `e2e/scripts/run-e2e.mjs` refuses to start unless the generated client is SQLite.
 
 ## Tech Stack
 
 | Layer   | Key technologies                                                                                                                                        |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server  | Node 22, TypeScript 5 strict ESM, Express 5, Prisma 4 (SQLite dev, PostgreSQL-ready), tsyringe 4, Zod 4, Pino, tsup                                     |
+| Server  | Node 22, TypeScript 5 strict ESM, Express 5, Prisma 4 (SQLite dev, PostgreSQL in Docker), tsyringe 4, Zod 4, Pino, tsup                                 |
 | Web     | Next.js 15 App Router, React 19 RC, Tailwind 3, TanStack Query 5, axios, React Hook Form + Zod, lucide-react                                            |
 | Tooling | separate npm packages (no workspaces), ESLint 10, Prettier, Husky, lint-staged, dependency-cruiser 17, Vitest 4 (server + web), MSW 2, Playwright (e2e) |

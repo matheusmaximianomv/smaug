@@ -1,9 +1,12 @@
+import path from "node:path";
 import request from "supertest";
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import type { Express } from "express";
 
-const TEST_DB_URL = "file:./test-one-time-expense.db";
+// Absoluto: CLI, client do teste e app precisam abrir o mesmo arquivo.
+const TEST_DB_FILE = path.resolve("prisma/sqlite/test-one-time-expense.db");
+const TEST_DB_URL = `file:${TEST_DB_FILE}`;
 
 describe("One-Time Expense Endpoints", () => {
   let prisma: PrismaClient;
@@ -23,7 +26,7 @@ describe("One-Time Expense Endpoints", () => {
     prisma = new PrismaClient({ datasources: { db: { url: TEST_DB_URL } } });
 
     const { execSync } = await import("child_process");
-    execSync(`DATABASE_URL=${TEST_DB_URL} npx prisma db push --force-reset --skip-generate`, {
+    execSync(`DATABASE_URL=${TEST_DB_URL} npx prisma db push --schema prisma/sqlite/schema.prisma --force-reset --skip-generate`, {
       cwd: process.cwd(),
       stdio: "pipe",
     });
@@ -46,8 +49,7 @@ describe("One-Time Expense Endpoints", () => {
   afterAll(async () => {
     await prisma.$disconnect();
     const { unlinkSync, existsSync } = await import("fs");
-    const dbPath = TEST_DB_URL.replace("file:", "").replace("./", "prisma/");
-    if (existsSync(dbPath)) unlinkSync(dbPath);
+    if (existsSync(TEST_DB_FILE)) unlinkSync(TEST_DB_FILE);
   });
 
   beforeEach(async () => {

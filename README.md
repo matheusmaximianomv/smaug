@@ -61,7 +61,16 @@ cp server/.env.example server/.env
 cp web/.env.example web/.env.local
 ```
 
-Ajuste `DATABASE_PROVIDER` e `DATABASE_URL` conforme necessário.
+O `.env.example` já vem em SQLite. Crie o banco de desenvolvimento e gere o client:
+
+```bash
+npm run --prefix server prisma:generate   # client do provider do .env
+npm run --prefix server migrate:deploy    # cria/atualiza server/prisma/sqlite/dev.db
+npm run dev
+```
+
+Nenhuma variável precisa ser exportada no terminal: os scripts do Prisma leem o
+ambiente e, na falta, o `server/.env` — a mesma regra do server em runtime.
 
 > ⚠️ **`web/` exige `--legacy-peer-deps`.** O React está fixado num prerelease
 > (`19.0.0-rc-…`) e `^19.0.0` não casa com prerelease no semver do npm. Sem a
@@ -142,17 +151,62 @@ npm run --prefix e2e typecheck
 
 ## Prisma (Backend)
 
-```bash
-npm run --prefix server prisma:generate     # roda prisma:prepare e depois generate
-DATABASE_PROVIDER=postgresql npm run --prefix server prisma:generate
-npm run --prefix server migrate:deploy      # aplica migrations
+`server/prisma/schema.prisma` é a **fonte única** dos models e nunca é reescrito.
+Cada provider tem uma pasta própria:
+
+```
+server/prisma/
+├── schema.prisma             # fonte (versionado)
+├── sqlite/
+│   ├── schema.prisma         # derivado (fora do git)
+│   └── migrations/           # dialeto SQLite (versionado)
+└── postgresql/
+    ├── schema.prisma         # derivado (fora do git)
+    └── migrations/           # dialeto PostgreSQL (versionado)
 ```
 
-> ⚠️ `scripts/prisma-prepare.mjs` **reescreve o `datasource` dentro do
-> `prisma/schema.prisma` versionado** a partir de `$DATABASE_PROVIDER` (default
-> `postgresql`; `memory` vira `sqlite`). Isso aparece como diff no arquivo —
-> esperado, mas não commite uma troca acidental de provider. O schema rastreado
-> está em `sqlite`, e o E2E falha de propósito se não estiver.
+`DATABASE_PROVIDER` (`sqlite`, `postgresql` ou `memory`, que vale como `sqlite`)
+escolhe a pasta; o comando é o mesmo para os dois bancos. Sem a variável, ou com
+valor inválido, os scripts param com erro — não há provider padrão.
+
+```bash
+npm run --prefix server prisma:generate     # client do provider
+npm run --prefix server migrate:deploy      # aplica prisma/<provider>/migrations
+npm run --prefix server prisma -- studio    # qualquer outro comando do CLI
+DATABASE_PROVIDER=postgresql npm run --prefix server prisma:generate   # o ambiente vence o .env
+```
+
+O client é gerado para **um provider por vez**: ao trocar, gere de novo.
+
+### Nova migration
+
+Edite `server/prisma/schema.prisma` e crie a migration nos dois dialetos, com o
+mesmo nome:
+
+```bash
+npm run --prefix server migrate:new -- add_notes_to_expenses
+npm run --prefix server migrate:deploy
+```
+
+`migrate:new` e `migrate:check` precisam de um PostgreSQL **descartável** para o
+dialeto PostgreSQL (ele é apagado a cada uso), em `POSTGRES_SHADOW_DATABASE_URL`:
+
+```bash
+cd server && docker compose up -d postgres
+export POSTGRES_SHADOW_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/smaug_shadow
+```
+
+`migrate dev` fica bloqueado, porque criaria a migration num dialeto só.
+`npm run --prefix server migrate:check` falha se as pastas divergirem entre si ou
+não reproduzirem o schema de origem, e é o que o CI roda.
+
+> **Caminho do SQLite.** Um caminho relativo em `DATABASE_URL` parte de `server/`, a
+> pasta do `.env`: `file:./prisma/sqlite/dev.db` é `server/prisma/sqlite/dev.db`.
+> O próprio Prisma resolveria a partir da pasta do schema derivado; os scripts e o
+> `env.ts` tornam o caminho absoluto antes. Um banco criado por `db push` (sem a
+> tabela `_prisma_migrations`) precisa ser marcado uma vez, com
+> `npm run --prefix server prisma -- migrate resolve --applied <migration>` para
+> cada migration.
 
 ## Docker (Backend)
 
@@ -161,13 +215,15 @@ cd server && docker compose up --build
 ```
 
 Sobe a API junto de um `postgres:16-alpine`, lendo `server/.env.docker`. A
-imagem roda `migrate:deploy` antes de subir e expõe um healthcheck em `/health`.
+imagem é sempre PostgreSQL: gera o client e aplica as migrations de
+`prisma/postgresql/` antes de subir, e expõe um healthcheck em `/health`.
 Não há imagem para o `web/`.
 
 ## CI
 
 `.github/workflows/ci.yml` roda lint, typecheck, `validate:deps` e a suíte
-Vitest. `.github/workflows/e2e.yml` roda o Playwright em chromium e publica o
+Vitest (com o client SQLite) e, num job à parte com um PostgreSQL de serviço, o
+`migrate:check`. `.github/workflows/e2e.yml` roda o Playwright em chromium e publica o
 relatório como artefato.
 
 ## Fluxo de Commit
