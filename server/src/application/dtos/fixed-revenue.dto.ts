@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ReferenceCompetenceDto } from "@src/application/dtos/competence.dto";
 
 export const createFixedRevenueSchema = z.object({
   description: z
@@ -90,6 +91,9 @@ export interface FixedRevenueResponseDto {
   startYear: number;
   endMonth: number | null;
   endYear: number | null;
+  /** Término anterior ao mês corrente: a mesma regra que recusa o encerramento. */
+  isExpired: boolean;
+  reference: ReferenceCompetenceDto;
   createdAt: string;
   updatedAt: string;
   currentVersion?: FixedRevenueVersionResponseDto;

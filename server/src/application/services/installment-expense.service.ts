@@ -16,8 +16,16 @@ import {
   CreateInstallmentExpenseDto,
   InstallmentExpenseResponseDto,
   InstallmentDto,
+  InstallmentStatus,
   UpdateInstallmentExpenseDto,
 } from "@src/application/dtos/installment-expense.dto";
+import { CompetenceStatus } from "@src/domain/value-objects/monthly-competence.value-object";
+
+const INSTALLMENT_STATUS: Record<CompetenceStatus, InstallmentStatus> = {
+  PAST: "PAID",
+  CURRENT: "CURRENT",
+  FUTURE: "PENDING",
+};
 
 export class InstallmentExpenseService {
   public constructor(
@@ -104,6 +112,8 @@ export class InstallmentExpenseService {
     installments: Installment[],
     category: ExpenseCategory,
   ): InstallmentExpenseResponseDto {
+    const referenceDate = new Date();
+    const end = expense.getEndCompetence();
     return {
       id: expense.id,
       userId: expense.userId,
@@ -117,7 +127,13 @@ export class InstallmentExpenseService {
       installmentCount: expense.installmentCount,
       startYear: expense.startYear,
       startMonth: expense.startMonth,
-      installments: installments.map(InstallmentExpenseService.toInstallmentDto),
+      endYear: end.year,
+      endMonth: end.month,
+      canDelete: !InstallmentExpense.hasPastInstallments(installments, referenceDate),
+      canTerminate: InstallmentExpense.hasFutureInstallments(installments, referenceDate),
+      installments: installments.map((installment) =>
+        InstallmentExpenseService.toInstallmentDto(installment, referenceDate),
+      ),
       createdAt: expense.createdAt.toISOString(),
       updatedAt: expense.updatedAt.toISOString(),
     };
@@ -155,13 +171,14 @@ export class InstallmentExpenseService {
     return new Map<string, Installment[]>(pairs);
   }
 
-  private static toInstallmentDto(installment: Installment): InstallmentDto {
+  private static toInstallmentDto(installment: Installment, referenceDate: Date): InstallmentDto {
     return {
       id: installment.id,
       installmentNumber: installment.installmentNumber,
       amount: installment.amount,
       competenceYear: installment.competenceYear,
       competenceMonth: installment.competenceMonth,
+      status: INSTALLMENT_STATUS[installment.statusAt(referenceDate)],
       createdAt: installment.createdAt.toISOString(),
     };
   }

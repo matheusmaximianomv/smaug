@@ -19,10 +19,20 @@ import {
   OneTimeExpenseItemDto,
   InstallmentExpenseItemDto,
   RecurringExpenseItemDto,
+  ExpenseYearSummaryResponseDto,
 } from "@src/application/dtos/expense-query.dto";
 import { ExpenseCategory } from "@src/domain/entities/expense-category.entity";
+import { MonthlyCompetence } from "@src/domain/value-objects/monthly-competence.value-object";
+import { toReferenceDto } from "@src/application/dtos/competence.dto";
 
 const CENTS_FACTOR = 100;
+const MONTHS_IN_YEAR = 12;
+
+interface RecurringForMonth {
+  expense: RecurringExpense;
+  version: RecurringExpenseVersion;
+  previousAmount: number | null;
+}
 
 export class ExpenseQueryService {
   public constructor(
@@ -39,13 +49,29 @@ export class ExpenseQueryService {
     const { competenceYear, competenceMonth } = query;
 
     const [oneTimeExpenses, installments, recurringExpenses] = await Promise.all([
-      this.oneTimeExpenseRepository.findByUserAndCompetence(userId, competenceYear, competenceMonth),
-      this.installmentExpenseRepository.findInstallmentsByCompetence(userId, competenceYear, competenceMonth),
-      this.recurringExpenseRepository.findActiveForCompetence(userId, competenceYear, competenceMonth),
+      this.oneTimeExpenseRepository.findByUserAndCompetence(
+        userId,
+        competenceYear,
+        competenceMonth,
+      ),
+      this.installmentExpenseRepository.findInstallmentsByCompetence(
+        userId,
+        competenceYear,
+        competenceMonth,
+      ),
+      this.recurringExpenseRepository.findActiveForCompetence(
+        userId,
+        competenceYear,
+        competenceMonth,
+      ),
     ]);
 
     const installmentParents = await this.loadInstallmentParents(installments, userId);
-    const recurringWithVersions = await this.loadRecurringVersions(recurringExpenses, competenceYear, competenceMonth);
+    const recurringWithVersions = await this.loadRecurringVersions(
+      recurringExpenses,
+      competenceYear,
+      competenceMonth,
+    );
 
     const categoryIds = new Set<string>();
 
@@ -58,12 +84,24 @@ export class ExpenseQueryService {
     const categoryMap = await this.loadCategories([...categoryIds], userId);
 
     const items: ExpenseQueryItemDto[] = [
-      ...oneTimeExpenses.map((expense) => this.toOneTimeExpenseDto(expense, categoryMap.get(expense.categoryId)!)),
-      ...installments.map((installment) =>
-        this.toInstallmentExpenseDto(installment, this.getInstallmentParent(installmentParents, installment), this.getInstallmentCategory(categoryMap, installmentParents, installment)),
+      ...oneTimeExpenses.map((expense) =>
+        this.toOneTimeExpenseDto(expense, categoryMap.get(expense.categoryId)!),
       ),
-      ...recurringWithVersions.map(({ expense, version }) =>
-        this.toRecurringExpenseDto(expense, version, categoryMap.get(version.categoryId)!)),
+      ...installments.map((installment) =>
+        this.toInstallmentExpenseDto(
+          installment,
+          this.getInstallmentParent(installmentParents, installment),
+          this.getInstallmentCategory(categoryMap, installmentParents, installment),
+        ),
+      ),
+      ...recurringWithVersions.map(({ expense, version, previousAmount }) =>
+        this.toRecurringExpenseDto(
+          expense,
+          version,
+          previousAmount,
+          categoryMap.get(version.categoryId)!,
+        ),
+      ),
     ];
 
     const oneTimeTotal = ExpenseQueryService.round(
@@ -80,6 +118,8 @@ export class ExpenseQueryService {
     return {
       competenceYear,
       competenceMonth,
+      competenceStatus: MonthlyCompetence.create(competenceMonth, competenceYear).statusAt(),
+      reference: toReferenceDto(MonthlyCompetence.current()),
       expenses: items,
       totals: {
         oneTime: oneTimeTotal,
@@ -87,6 +127,31 @@ export class ExpenseQueryService {
         recurring: recurringTotal,
         total,
       },
+    };
+  }
+
+  /**
+   * Reaproveita a consulta mensal para os 12 meses (mesmo padrão do
+   * `DataExportService`): a faixa anual soma igual à tela e ao Dashboard por
+   * construção. Otimizar com consulta por intervalo só com medição que justifique.
+   */
+  public async getYearSummary(
+    userId: string,
+    year: number,
+  ): Promise<ExpenseYearSummaryResponseDto> {
+    const months = await Promise.all(
+      Array.from({ length: MONTHS_IN_YEAR }, (_, index) =>
+        this.getConsolidatedExpenses(userId, { competenceYear: year, competenceMonth: index + 1 }),
+      ),
+    );
+    return {
+      year,
+      reference: toReferenceDto(MonthlyCompetence.current()),
+      months: months.map((month) => ({
+        month: month.competenceMonth,
+        competenceStatus: month.competenceStatus,
+        totals: month.totals,
+      })),
     };
   }
 
@@ -98,7 +163,9 @@ export class ExpenseQueryService {
       return new Map();
     }
 
-    const uniqueIds = [...new Set(installments.map((installment) => installment.installmentExpenseId))];
+    const uniqueIds = [
+      ...new Set(installments.map((installment) => installment.installmentExpenseId)),
+    ];
     const parents = await Promise.all(
       uniqueIds.map((id) => this.installmentExpenseRepository.findById(id)),
     );
@@ -143,25 +210,58 @@ export class ExpenseQueryService {
     expenses: RecurringExpense[],
     year: number,
     month: number,
-  ): Promise<Array<{ expense: RecurringExpense; version: RecurringExpenseVersion }>> {
+  ): Promise<RecurringForMonth[]> {
     if (expenses.length === 0) {
       return [];
     }
 
+    const competence = MonthlyCompetence.create(month, year);
     const versions = await Promise.all(
       expenses.map(async (expense) => {
-        const version = await this.recurringExpenseRepository.findVersionForMonth(expense.id, year, month);
+        const version = await this.recurringExpenseRepository.findVersionForMonth(
+          expense.id,
+          year,
+          month,
+        );
         if (!version) {
           throw new RecurringExpenseNotFoundError(expense.id);
         }
-        return { expense, version };
+        const previousAmount = await this.loadPreviousAmount(expense, version, competence);
+        return { expense, version, previousAmount };
       }),
     );
 
     return versions;
   }
 
-  private async loadCategories(ids: string[], userId: string): Promise<Map<string, ExpenseCategory>> {
+  /**
+   * Só busca a versão anterior quando a vigente começa exatamente neste mês e o
+   * mês é posterior ao início da série (a primeira versão nasce no início, então
+   * não há anterior a ela). Assim a consulta extra acontece apenas no mês de
+   * reajuste, e nunca recua para antes de 01/2000.
+   */
+  private async loadPreviousAmount(
+    expense: RecurringExpense,
+    version: RecurringExpenseVersion,
+    competence: MonthlyCompetence,
+  ): Promise<number | null> {
+    const startsNow = version.getEffectiveCompetence().equals(competence);
+    if (!startsNow || !competence.isAfter(expense.getStartCompetence())) {
+      return null;
+    }
+    const previousMonth = MonthlyCompetence.addMonths(competence, -1);
+    const previous = await this.recurringExpenseRepository.findVersionForMonth(
+      expense.id,
+      previousMonth.year,
+      previousMonth.month,
+    );
+    return previous?.amount ?? null;
+  }
+
+  private async loadCategories(
+    ids: string[],
+    userId: string,
+  ): Promise<Map<string, ExpenseCategory>> {
     if (ids.length === 0) {
       return new Map();
     }
@@ -180,7 +280,10 @@ export class ExpenseQueryService {
     return map;
   }
 
-  private toOneTimeExpenseDto(expense: OneTimeExpense, category: ExpenseCategory): OneTimeExpenseItemDto {
+  private toOneTimeExpenseDto(
+    expense: OneTimeExpense,
+    category: ExpenseCategory,
+  ): OneTimeExpenseItemDto {
     return {
       id: expense.id,
       type: "ONE_TIME",
@@ -221,6 +324,8 @@ export class ExpenseQueryService {
       totalAmount: parent.totalAmount,
       startYear: parent.startYear,
       startMonth: parent.startMonth,
+      endYear: parent.getEndCompetence().year,
+      endMonth: parent.getEndCompetence().month,
       createdAt: parent.createdAt.toISOString(),
       updatedAt: parent.updatedAt.toISOString(),
     };
@@ -229,6 +334,7 @@ export class ExpenseQueryService {
   private toRecurringExpenseDto(
     expense: RecurringExpense,
     version: RecurringExpenseVersion,
+    previousAmount: number | null,
     category: ExpenseCategory,
   ): RecurringExpenseItemDto {
     return {
@@ -250,6 +356,7 @@ export class ExpenseQueryService {
       effectiveYear: version.effectiveYear,
       effectiveMonth: version.effectiveMonth,
       versionId: version.id,
+      previousAmount,
       createdAt: expense.createdAt.toISOString(),
       updatedAt: expense.updatedAt.toISOString(),
     };

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { RecurringExpenseService } from "@src/application/services/recurring-expense.service";
 import type { ExpenseCategoryRepository } from "@src/domain/ports/expense-category.repository";
 import type { RecurringExpenseRepository } from "@src/domain/ports/recurring-expense.repository";
@@ -94,5 +94,47 @@ describe("RecurringExpenseService data integrity guards", () => {
     await expect(service.get("user-1", "recurring-1")).rejects.toThrow(
       ExpenseCategoryNotFoundError,
     );
+  });
+
+  describe("expiration and reference", () => {
+    const category = ExpenseCategory.create({ id: "category-1", userId: "user-1", name: "Moradia" });
+    const endingIn = (endMonth: number | null) =>
+      RecurringExpense.rehydrate({
+        id: "recurring-1",
+        userId: "user-1",
+        startMonth: 1,
+        startYear: 2026,
+        endMonth,
+        endYear: endMonth === null ? null : 2026,
+        createdAt: TIMESTAMP,
+        updatedAt: TIMESTAMP,
+      });
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-04-10T12:00:00.000Z"));
+      categoryRepository.findById.mockResolvedValue(category);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should flag a series that ended before the current month", async () => {
+      getUseCase.execute.mockResolvedValue({ expense: endingIn(2), versions: [version] });
+
+      const result = await service.get("user-1", "recurring-1");
+
+      expect(result.isExpired).toBe(true);
+      expect(result.reference).toEqual({ year: 2026, month: 4 });
+    });
+
+    it("should not flag a series that ends this month or has no end", async () => {
+      getUseCase.execute.mockResolvedValueOnce({ expense: endingIn(4), versions: [version] });
+      getUseCase.execute.mockResolvedValueOnce({ expense: endingIn(null), versions: [version] });
+
+      expect((await service.get("user-1", "recurring-1")).isExpired).toBe(false);
+      expect((await service.get("user-1", "recurring-1")).isExpired).toBe(false);
+    });
   });
 });

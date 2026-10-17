@@ -33,7 +33,6 @@ describe("InstallmentExpenseService data integrity guards", () => {
     updateInstallments: vi.fn(),
     delete: vi.fn(),
     deleteFutureInstallments: vi.fn(),
-    hasPastInstallments: vi.fn(),
     findInstallmentsByExpense: vi.fn(),
     findInstallmentsByCompetence: vi.fn(),
   };
@@ -128,5 +127,63 @@ describe("InstallmentExpenseService data integrity guards", () => {
 
     expect(result[0].installments).toEqual([]);
     loadInstallments.mockRestore();
+  });
+
+  it("should project installment status and the delete/terminate rules into the response", async () => {
+    const running = InstallmentExpense.create({
+      id: "expense-2",
+      userId: "user-1",
+      categoryId: "category-1",
+      description: "Notebook",
+      totalAmount: 100,
+      installmentCount: 3,
+      startMonth: 2,
+      startYear: 2026,
+    });
+    getUseCase.execute.mockResolvedValue({
+      expense: running,
+      installments: running.calculateInstallments(),
+    });
+    categoryRepository.findById.mockResolvedValue(
+      ExpenseCategory.create({ id: "category-1", userId: "user-1", name: "Eletrônicos" }),
+    );
+
+    const result = await service.get("user-1", "expense-2");
+
+    expect(result.installments.map((installment) => installment.status)).toEqual([
+      "PAID",
+      "CURRENT",
+      "PENDING",
+    ]);
+    expect(result).toMatchObject({ endYear: 2026, endMonth: 4, canDelete: false, canTerminate: true });
+  });
+
+  it("should allow deleting and terminating a plan that has not started", async () => {
+    getUseCase.execute.mockResolvedValue({ expense, installments: expense.calculateInstallments() });
+    categoryRepository.findById.mockResolvedValue(
+      ExpenseCategory.create({ id: "category-1", userId: "user-1", name: "Eletrônicos" }),
+    );
+
+    const result = await service.get("user-1", "expense-1");
+
+    expect(result.installments.map((installment) => installment.status)).toEqual([
+      "CURRENT",
+      "PENDING",
+    ]);
+    expect(result).toMatchObject({ canDelete: true, canTerminate: true });
+  });
+
+  it("should forbid terminating when no future installment remains", async () => {
+    getUseCase.execute.mockResolvedValue({
+      expense,
+      installments: expense.calculateInstallments().slice(0, 1),
+    });
+    categoryRepository.findById.mockResolvedValue(
+      ExpenseCategory.create({ id: "category-1", userId: "user-1", name: "Eletrônicos" }),
+    );
+
+    const result = await service.get("user-1", "expense-1");
+
+    expect(result.canTerminate).toBe(false);
   });
 });

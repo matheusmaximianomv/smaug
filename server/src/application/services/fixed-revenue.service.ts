@@ -1,6 +1,7 @@
 import { FixedRevenue } from "@src/domain/entities/fixed-revenue.entity";
 import { FixedRevenueVersion } from "@src/domain/entities/fixed-revenue-version.entity";
 import { FixedRevenueRepository } from "@src/domain/ports/fixed-revenue.repository";
+import { toReferenceDto } from "@src/application/dtos/competence.dto";
 import { MonthlyCompetence } from "@src/domain/value-objects/monthly-competence.value-object";
 import { CreateFixedRevenueUseCase } from "@src/domain/use-cases/fixed-revenue/create-fixed-revenue.use-case";
 import { DeleteFixedRevenueUseCase } from "@src/domain/use-cases/fixed-revenue/delete-fixed-revenue.use-case";
@@ -104,6 +105,8 @@ export class FixedRevenueService {
       startYear: revenue.startYear,
       endMonth: revenue.endMonth,
       endYear: revenue.endYear,
+      isExpired: revenue.isExpiredAt(),
+      reference: toReferenceDto(MonthlyCompetence.current()),
       createdAt: revenue.createdAt.toISOString(),
       updatedAt: revenue.updatedAt.toISOString(),
     };
@@ -140,8 +143,7 @@ export class FixedRevenueService {
       return undefined;
     }
 
-    const now = new Date();
-    const currentCompetence = MonthlyCompetence.create(now.getMonth() + 1, now.getFullYear());
+    const currentCompetence = MonthlyCompetence.current();
 
     const inEffect = sortedVersions.filter((version) =>
       MonthlyCompetence.create(version.effectiveMonth, version.effectiveYear).isBeforeOrEqual(

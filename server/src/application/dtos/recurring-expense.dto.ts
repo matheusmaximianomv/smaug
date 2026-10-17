@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ReferenceCompetenceDto } from "@src/application/dtos/competence.dto";
 
 const descriptionSchema = z
   .string({ error: "Description is required" })
@@ -99,6 +100,9 @@ export interface RecurringExpenseResponseDto {
   startMonth: number;
   endYear: number | null;
   endMonth: number | null;
+  /** Término anterior ao mês corrente: a mesma regra que recusa o encerramento. */
+  isExpired: boolean;
+  reference: ReferenceCompetenceDto;
   currentVersion: RecurringExpenseVersionDto;
   versions: RecurringExpenseVersionDto[];
   createdAt: string;
