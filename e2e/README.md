@@ -52,9 +52,12 @@ npm run --prefix e2e report
 
 - **Nunca** literais de mês/ano. Tudo deriva de `competence.current`, congelada
   no `globalSetup` e propagada por env para todos os workers.
-- **Nunca** semear no passado: a API rejeita competência passada. Estados
-  passados ("Pago", "Encerrada") são calculados no cliente — use `shiftClock(n)`
-  para **avançar** o relógio do browser.
+- **Nunca** semear no passado pelos `create-*`: a API rejeita competência
+  passada. A situação de cada mês (passado/atual/futuro, parcela paga, série
+  encerrada) é calculada pelo **servidor**, com o relógio dele — mexer no relógio
+  do browser não muda nada. Para ter dado passado (um parcelamento já em
+  andamento), importe-o: `seed.importCsv([...])` é o único escritor que dispensa
+  a trava de passado.
 - Valores de parcela são assertados contra o que a API devolveu, nunca contra
   literais — o arredondamento é regra de domínio.
 - Este pacote é **caixa-preta**: não importa nada de `server/` nem de `web/`.

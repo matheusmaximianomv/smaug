@@ -16,7 +16,6 @@ interface Fixtures {
   seedUser: UserDto;
   seed: SeedClient;
   competence: CompetenceKit;
-  shiftClock: (months: number) => Promise<void>;
 }
 
 export const test = base.extend<Options & Fixtures>({
@@ -76,25 +75,6 @@ export const test = base.extend<Options & Fixtures>({
 
   competence: async ({}, use) => {
     await use(competenceKit());
-  },
-
-  /**
-   * Avança o relógio DO BROWSER. Nunca volta: a API rejeita competência passada
-   * (`MonthlyCompetence.isPastMonth()`), então dados semeados viraram "passados"
-   * e as mutações quebrariam.
-   *
-   * Estados como "Pago", "Encerrada" e "X/N pagas" são calculados no cliente com
-   * `new Date()` — é assim que os alcançamos, já que não são semeáveis.
-   *
-   * `setFixedTime` e não `install()`: congela Date.now/new Date mas MANTÉM os
-   * timers rodando, essencial para o auto-dismiss do toast e os backoffs do
-   * React Query. Chame ANTES do page.goto da tela sob teste.
-   */
-  shiftClock: async ({ page, competence }, use) => {
-    await use(async (months: number) => {
-      const t = competence.plus(months);
-      await page.clock.setFixedTime(new Date(Date.UTC(t.year, t.month - 1, 15, 12, 0, 0)));
-    });
   },
 });
 

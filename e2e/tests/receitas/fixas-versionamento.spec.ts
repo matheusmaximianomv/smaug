@@ -1,15 +1,10 @@
-import type { Page } from "@playwright/test";
 import { cenarioReceitaFixaVersionada } from "../../src/fixtures/scenarios.js";
 import { expect, test } from "../../src/fixtures/test.js";
-import { brl, monthLong, monthShort } from "../../src/support/format.js";
-import { dialog, fillCompetence, goto, panel } from "../../src/support/ui.js";
+import { brl, monthShort, monthTitle } from "../../src/support/format.js";
+import { ficha, goto } from "../../src/support/ui.js";
 
-async function abrirAbaFixas(page: Page): Promise<void> {
-  await page.getByRole("tab", { name: /^Fixas/ }).click();
-}
-
-test.describe("versionamento de receita fixa", () => {
-  test("adiciona versão futura sem mudar o valor vigente hoje", async ({
+test.describe("receitas fixas — versionamento", () => {
+  test("cria nova versão pela Ficha e o histórico passa a ter duas", async ({
     page,
     seed,
     competence,
@@ -21,144 +16,63 @@ test.describe("versionamento de receita fixa", () => {
       start: competence.current,
     });
     await goto(page, "/receitas");
-    await abrirAbaFixas(page);
 
-    await page.getByRole("button", { name: "Nova versão" }).click();
-    const modal = dialog(page);
-    await modal.getByLabel("Nova descrição").fill("Salário reajustado");
-    await modal.getByLabel("Novo valor (R$)").fill("4800");
-    await fillCompetence(modal, "Vigência a partir de", competence.next);
-    await modal.getByRole("button", { name: "Criar nova versão" }).click();
+    await page.getByRole("button", { name: /Salário/ }).click();
+    const salario = ficha(page, "Salário");
+    await salario.getByRole("button", { name: "Nova versão" }).click();
+    await salario.getByLabel(/Novo valor mensal/).fill("4.800,00");
+    await salario.getByRole("button", { name: "Criar nova versão" }).click();
 
-    const card = page.getByTestId("fixed-revenue-card");
-    await expect(card).toContainText("2 versões");
-    // A versão vigente HOJE continua sendo a primeira.
-    await expect(card).toContainText(`${brl(4000)}/mês`);
-    await expect(card).toContainText("Salário");
+    await expect(page.getByText("Nova versão criada")).toBeVisible();
+    await salario.getByRole("tab", { name: "Histórico (2)" }).click();
+    const historico = salario
+      .getByRole("list", { name: "Histórico de versões" })
+      .getByRole("listitem");
+    await expect(historico.nth(0)).toContainText(`A partir de ${monthShort(competence.next)}`);
+    await expect(historico.nth(0)).toContainText(`${brl(4800)}/mês`);
+    await expect(historico.nth(1)).toContainText("Vigente");
   });
 
-  test("o histórico lista as versões da mais recente para a mais antiga", async ({
+  test("o mês do reajuste mostra o valor anterior e a linha do tempo destaca a mudança", async ({
     page,
     seed,
     competence,
   }) => {
-    const cenario = await cenarioReceitaFixaVersionada(seed, competence);
+    const { primeira, segunda } = await cenarioReceitaFixaVersionada(seed, competence);
     await goto(page, "/receitas");
-    await abrirAbaFixas(page);
-
-    await page.getByRole("button", { name: "Ver histórico" }).click();
-
-    const modal = dialog(page);
-    await expect(modal.getByText("Histórico de versões")).toBeVisible();
-    await expect(modal.getByText(/^A partir de /)).toHaveText([
-      `A partir de ${monthShort(competence.next)}`,
-      `A partir de ${monthShort(competence.current)}`,
-    ]);
-    await expect(modal).toContainText(`${brl(cenario.segunda.amount)}/mês`);
-    await expect(modal).toContainText(`${brl(cenario.primeira.amount)}/mês`);
-
-    await modal.getByRole("button", { name: "Fechar" }).click();
-    await expect(modal).toBeHidden();
-  });
-
-  test("bloqueia vigência em mês passado", async ({ page, seed, competence }) => {
-    await seed.createFixedRevenue({
-      description: "Salário",
-      amount: 4000,
-      modality: "ALTERABLE",
-      start: competence.current,
-    });
-    await goto(page, "/receitas");
-    await abrirAbaFixas(page);
-
-    await page.getByRole("button", { name: "Nova versão" }).click();
-    const modal = dialog(page);
-    await modal.getByLabel("Nova descrição").fill("Salário retroativo");
-    await modal.getByLabel("Novo valor (R$)").fill("4800");
-    await fillCompetence(modal, "Vigência a partir de", {
-      year: competence.current.year - 1,
-      month: competence.current.month,
-    });
-    await modal.getByRole("button", { name: "Criar nova versão" }).click();
-
-    await expect(modal.getByText("A vigência não pode começar em mês passado.")).toBeVisible();
-  });
-
-  test("recusa duas versões vigentes no mesmo mês", async ({ page, seed, competence }) => {
-    await cenarioReceitaFixaVersionada(seed, competence);
-    await goto(page, "/receitas");
-    await abrirAbaFixas(page);
-
-    await page.getByRole("button", { name: "Nova versão" }).click();
-    const modal = dialog(page);
-    await modal.getByLabel("Nova descrição").fill("Salário conflitante");
-    await modal.getByLabel("Novo valor (R$)").fill("5000");
-    await fillCompetence(modal, "Vigência a partir de", competence.next);
-    await modal.getByRole("button", { name: "Criar nova versão" }).click();
-
-    await expect(page.getByText("Já existe uma versão vigente a partir deste mês.")).toBeVisible();
-    await expect(page.getByTestId("fixed-revenue-card")).toContainText("2 versões");
-  });
-
-  test("encerra a receita fixa no mês escolhido", async ({ page, seed, competence }) => {
-    await seed.createFixedRevenue({
-      description: "Salário",
-      amount: 4000,
-      modality: "ALTERABLE",
-      start: competence.current,
-    });
-    await goto(page, "/receitas");
-    await abrirAbaFixas(page);
-
-    await page.getByRole("button", { name: "Encerrar" }).click();
-    const modal = dialog(page);
-    await fillCompetence(modal, "Mês de encerramento", competence.current);
-    await modal.getByRole("button", { name: "Encerrar receita" }).click();
-
-    await expect(page.getByTestId("fixed-revenue-card")).toContainText(
-      `Vigência: ${monthShort(competence.current)} → ${monthShort(competence.current)}`,
-    );
-  });
-
-  // ⏱ O badge "Encerrada" é calculado no cliente: só aparece quando o relógio
-  // do browser passa do mês de encerramento.
-  test("receita encerrada no mês passado aparece como encerrada", async ({
-    page,
-    seed,
-    competence,
-    shiftClock,
-  }) => {
-    await seed.createFixedRevenue({
-      description: "Bolsa temporária",
-      amount: 900,
-      modality: "ALTERABLE",
-      start: competence.current,
-      end: competence.current,
-    });
-
-    await shiftClock(1);
-    await goto(page, "/receitas");
-    await abrirAbaFixas(page);
-
-    const card = page.getByTestId("fixed-revenue-card");
-    await expect(card.getByText("Encerrada", { exact: true })).toBeVisible();
-    await expect(card.getByRole("button", { name: "Nova versão" })).toHaveCount(0);
-    await expect(card.getByRole("button", { name: "Encerrar" })).toHaveCount(0);
-    await expect(card.getByRole("button", { name: "Ver histórico" })).toBeVisible();
-  });
-
-  test("o dashboard do mês seguinte reflete a nova versão", async ({ page, seed, competence }) => {
-    const cenario = await cenarioReceitaFixaVersionada(seed, competence);
-    await goto(page, "/dashboard");
-
-    const receitas = panel(page, "Receitas do período");
-    await expect(receitas).toContainText(cenario.primeira.description);
-    await expect(receitas).toContainText(brl(cenario.primeira.amount));
 
     await page.getByRole("button", { name: "Próximo mês" }).click();
-    await expect(page.getByText(monthLong(competence.next))).toBeVisible();
+    await expect(page.getByRole("heading", { name: monthTitle(competence.next) })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Salário reajustado/ })).toContainText(
+      `reajuste · era ${brl(primeira.amount)}`,
+    );
 
-    await expect(receitas).toContainText(cenario.segunda.description);
-    await expect(receitas).toContainText(brl(cenario.segunda.amount));
+    await page.getByRole("button", { name: /Salário reajustado/ }).click();
+    const chips = ficha(page, "Salário")
+      .getByRole("list", { name: "Versões" })
+      .getByRole("listitem");
+    await expect(chips).toHaveCount(2);
+    await expect(chips.nth(1)).toContainText(brl(segunda.amount));
+    await expect(chips.nth(0)).toContainText("Vigente");
+  });
+
+  test("encerra a fixa e ela some dos meses seguintes", async ({ page, seed, competence }) => {
+    await seed.createFixedRevenue({
+      description: "Salário",
+      amount: 4000,
+      modality: "ALTERABLE",
+      start: competence.current,
+    });
+    await goto(page, "/receitas");
+
+    await page.getByRole("button", { name: /Salário/ }).click();
+    const salario = ficha(page, "Salário");
+    await salario.getByRole("button", { name: "Encerrar" }).click();
+    await salario.getByRole("button", { name: "Encerrar receita" }).click();
+
+    await expect(page.getByText("Receita encerrada")).toBeVisible();
+    await salario.getByRole("button", { name: "Fechar" }).first().click();
+    await page.getByRole("button", { name: "Próximo mês" }).click();
+    await expect(page.getByText("Receitas fixas aparecem aqui automaticamente.")).toBeVisible();
   });
 });

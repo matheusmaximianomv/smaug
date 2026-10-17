@@ -1,11 +1,10 @@
 import type { Locator, Page } from "@playwright/test";
-import type { Competence } from "./competence.js";
 
 /**
  * Helpers de localização compartilhados pelos specs.
  *
- * Só entra aqui o que é *estrutural* na UI (o portal do Radix, o par de selects
- * do MonthYearSelect, o KpiCard sem papel próprio). Cópia de texto fica no
+ * Só entra aqui o que é *estrutural* na UI (o portal do Radix, a faixa de
+ * meses, o KpiCard sem papel próprio). Cópia de texto fica no
  * spec, para que a asserção seja legível no ponto de uso.
  */
 
@@ -44,20 +43,6 @@ export async function goto(page: Page, path: string): Promise<void> {
 /** O conteúdo do Modal vive num portal do Radix — `getByRole` atravessa. */
 export function dialog(page: Page): Locator {
   return page.getByRole("dialog");
-}
-
-/**
- * `MonthYearSelect` renderiza dois `<select>` com `aria-label`
- * `"<label> — mês"` e `"<label> — ano"`. Os values são o número do mês (1–12)
- * e o ano com quatro dígitos.
- */
-export async function fillCompetence(
-  scope: Page | Locator,
-  label: string,
-  competence: Competence,
-): Promise<void> {
-  await scope.getByLabel(`${label} — mês`).selectOption(String(competence.month));
-  await scope.getByLabel(`${label} — ano`).selectOption(String(competence.year));
 }
 
 /**
@@ -104,4 +89,18 @@ export async function documentOverflow(page: Page): Promise<number> {
   return page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
+}
+
+/** Faixa de 12 meses das telas de Receitas/Despesas; cada célula é um botão "Jan", "Fev"… */
+export function monthStrip(page: Page): Locator {
+  return page.getByRole("group", { name: "Meses do ano" });
+}
+
+/**
+ * Ficha aberta de um lançamento, pelo nome acessível (a descrição). O `×` do
+ * cabeçalho e o rodapé têm, ambos, um botão "Fechar" — use `.last()` para o do
+ * rodapé.
+ */
+export function ficha(page: Page, description: string): Locator {
+  return page.getByRole("dialog", { name: description });
 }

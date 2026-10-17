@@ -1,6 +1,12 @@
 import { APP_ROUTES } from "../../src/config/env.js";
 import { expect, test } from "../../src/fixtures/test.js";
-import { dialog, documentOverflow, goto, hideDevOverlays } from "../../src/support/ui.js";
+import {
+  dialog,
+  documentOverflow,
+  goto,
+  hideDevOverlays,
+  monthStrip,
+} from "../../src/support/ui.js";
 
 /**
  * Roda só no projeto `mobile-chromium` (Pixel 5, 393×851), que é o que aciona o
@@ -70,27 +76,47 @@ test.describe("layout no celular", () => {
     expect(await documentOverflow(page)).toBeLessThanOrEqual(1);
   });
 
-  test("a tabela de receitas rola na horizontal sem estourar a página", async ({
-    page,
-    seed,
-    competence,
-  }) => {
-    await seed.createOneTimeRevenue({
-      description: "Consultoria de arquitetura de software para cliente internacional",
-      amount: 12345.67,
-      competence: competence.current,
+  test.describe("receitas e despesas em 375 px", () => {
+    test.use({ viewport: { width: 375, height: 812 } });
+
+    test("a faixa de meses rola na horizontal sem estourar a página", async ({
+      page,
+      seed,
+      competence,
+    }) => {
+      const category = await seed.createCategory("Educação");
+      await seed.createInstallmentExpense({
+        description: "Curso de especialização em arquitetura de software",
+        totalAmount: 12345.67,
+        installmentCount: 12,
+        categoryId: category.id,
+        start: competence.current,
+      });
+
+      await goto(page, "/despesas");
+      await expect(page.getByRole("button", { name: /Curso de especialização/ })).toBeVisible();
+
+      const rolagem = await monthStrip(page).evaluate((el) => ({
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+      }));
+      expect(rolagem.scrollWidth).toBeGreaterThan(rolagem.clientWidth);
+      // Barra de progresso da parcelada some no celular.
+      await expect(page.getByRole("progressbar")).toBeHidden();
+      expect(await documentOverflow(page)).toBeLessThanOrEqual(1);
     });
 
-    await goto(page, "/receitas");
-    await expect(page.getByRole("row")).not.toHaveCount(0);
+    test("o assistente abre ancorado na base da tela", async ({ page }) => {
+      await goto(page, "/receitas");
+      await hideDevOverlays(page);
 
-    const container = page.locator("div.overflow-x-auto").first();
-    const rolagem = await container.evaluate((el) => ({
-      scrollWidth: el.scrollWidth,
-      clientWidth: el.clientWidth,
-    }));
+      await page.getByRole("button", { name: "Nova receita" }).click();
 
-    expect(rolagem.scrollWidth).toBeGreaterThan(rolagem.clientWidth);
-    expect(await documentOverflow(page)).toBeLessThanOrEqual(1);
+      const caixa = await dialog(page).boundingBox();
+      const viewport = page.viewportSize()!;
+      expect(caixa).not.toBeNull();
+      expect(viewport.height - (caixa!.y + caixa!.height)).toBeLessThanOrEqual(16);
+      expect(await documentOverflow(page)).toBeLessThanOrEqual(1);
+    });
   });
 });
