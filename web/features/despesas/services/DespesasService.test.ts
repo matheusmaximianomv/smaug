@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db, mockApiError, seedDb } from "../../../tests/msw";
 import {
   makeCategoryWithCount,
@@ -8,6 +8,7 @@ import {
   makeRecurringExpenseVersion,
 } from "../../../tests/fixtures";
 import { bodyOf, recordRequests, signatures } from "../../../tests/requests";
+import { freezeDateOnly, unfreezeTime } from "../../../tests/time";
 import { DespesasService } from "./DespesasService";
 
 const CATEGORY = makeCategoryWithCount({ name: "Moradia" });
@@ -21,16 +22,6 @@ const ONE_TIME_PAYLOAD = {
 };
 
 describe("despesas avulsas", () => {
-  it("getOneTime faz GET em /expenses/one-time", async () => {
-    seedDb({ oneTimeExpenses: [makeOneTimeExpense()] });
-    const calls = recordRequests();
-
-    const expenses = await DespesasService.getOneTime();
-
-    expect(signatures(calls)).toEqual(["GET /expenses/one-time"]);
-    expect(expenses).toHaveLength(1);
-  });
-
   it("createOneTime faz POST em /expenses/one-time com o payload", async () => {
     seedDb({ categories: [CATEGORY] });
     const calls = recordRequests();
@@ -85,16 +76,6 @@ describe("despesas parceladas", () => {
     startMonth: 9,
   };
 
-  it("getInstallments faz GET em /expenses/installment", async () => {
-    seedDb({ installmentExpenses: [makeInstallmentExpense()] });
-    const calls = recordRequests();
-
-    const expenses = await DespesasService.getInstallments();
-
-    expect(signatures(calls)).toEqual(["GET /expenses/installment"]);
-    expect(expenses[0].installments).toHaveLength(3);
-  });
-
   it("createInstallment faz POST em /expenses/installment com o payload", async () => {
     seedDb({ categories: [CATEGORY] });
     const calls = recordRequests();
@@ -139,16 +120,6 @@ describe("despesas recorrentes", () => {
     startYear: 2026,
     startMonth: 9,
   };
-
-  it("getRecurring faz GET em /expenses/recurring", async () => {
-    seedDb({ recurringExpenses: [makeRecurringExpense()] });
-    const calls = recordRequests();
-
-    const expenses = await DespesasService.getRecurring();
-
-    expect(signatures(calls)).toEqual(["GET /expenses/recurring"]);
-    expect(expenses).toHaveLength(1);
-  });
 
   it("createRecurring faz POST em /expenses/recurring", async () => {
     seedDb({ categories: [CATEGORY] });
@@ -241,5 +212,82 @@ describe("despesas recorrentes", () => {
     ).rejects.toMatchObject({
       response: { status: 404, data: { error: "RECURRING_EXPENSE_NOT_FOUND" } },
     });
+  });
+});
+
+describe("consultas da tela", () => {
+  beforeEach(() => freezeDateOnly());
+  afterEach(() => unfreezeTime());
+
+  it("getMonth faz GET em /expenses com a competência como query", async () => {
+    seedDb({ oneTimeExpenses: [makeOneTimeExpense({ competenceYear: 2026, competenceMonth: 9 })] });
+    const calls = recordRequests();
+
+    const month = await DespesasService.getMonth({ year: 2026, month: 9 });
+
+    expect(signatures(calls)).toEqual(["GET /expenses"]);
+    expect(Object.fromEntries(calls[0].search)).toEqual({
+      competenceYear: "2026",
+      competenceMonth: "9",
+    });
+    expect(month).toMatchObject({
+      competenceStatus: "CURRENT",
+      reference: { year: 2026, month: 9 },
+    });
+    expect(month.expenses).toHaveLength(1);
+  });
+
+  it("getYearSummary faz GET em /expenses/summary?year=", async () => {
+    const calls = recordRequests();
+
+    const summary = await DespesasService.getYearSummary(2026);
+
+    expect(signatures(calls)).toEqual(["GET /expenses/summary"]);
+    expect(calls[0].search.get("year")).toBe("2026");
+    expect(summary.months).toHaveLength(12);
+  });
+
+  it("getInstallment faz GET em /expenses/installment/:id", async () => {
+    const expense = makeInstallmentExpense({ startYear: 2026, startMonth: 8 });
+    seedDb({ installmentExpenses: [expense] });
+    const calls = recordRequests();
+
+    const detail = await DespesasService.getInstallment(expense.id);
+
+    expect(signatures(calls)).toEqual([`GET /expenses/installment/${expense.id}`]);
+    expect(detail.installments.map((i) => i.status)).toEqual(["PAID", "CURRENT", "PENDING"]);
+    expect(detail).toMatchObject({ canDelete: false, canTerminate: true });
+  });
+
+  it("terminateInstallment faz POST em /expenses/installment/:id/terminate (não PATCH)", async () => {
+    const expense = makeInstallmentExpense({ startYear: 2026, startMonth: 8 });
+    seedDb({ installmentExpenses: [expense] });
+    const calls = recordRequests();
+
+    const terminated = await DespesasService.terminateInstallment(expense.id);
+
+    expect(signatures(calls)).toEqual([`POST /expenses/installment/${expense.id}/terminate`]);
+    expect(terminated.installments).toHaveLength(2);
+    expect(terminated.canTerminate).toBe(false);
+  });
+
+  it("terminateInstallment propaga o 409 sem parcelas futuras", async () => {
+    const expense = makeInstallmentExpense({ startYear: 2026, startMonth: 7 });
+    seedDb({ installmentExpenses: [expense] });
+
+    await expect(DespesasService.terminateInstallment(expense.id)).rejects.toMatchObject({
+      response: { status: 409, data: { error: "NO_FUTURE_INSTALLMENTS" } },
+    });
+  });
+
+  it("getRecurring(id) faz GET em /expenses/recurring/:id", async () => {
+    const expense = makeRecurringExpense({ endYear: 2026, endMonth: 8 });
+    seedDb({ recurringExpenses: [expense] });
+    const calls = recordRequests();
+
+    const detail = await DespesasService.getRecurring(expense.id);
+
+    expect(signatures(calls)).toEqual([`GET /expenses/recurring/${expense.id}`]);
+    expect(detail).toMatchObject({ isExpired: true, reference: { year: 2026, month: 9 } });
   });
 });

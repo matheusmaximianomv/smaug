@@ -2,10 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   addMonths,
   compareCompetences,
+  diffMonths,
+  fromApiStatus,
+  sameCompetence,
+  formatCompetenceLong,
+  formatCompetenceShort,
+  monthRange,
   getCompetenceStatus,
   getCurrentCompetence,
-  isBeforeOrEqual,
-  isEligible,
   selectableYears,
 } from "./competence";
 
@@ -106,42 +110,6 @@ describe("getCompetenceStatus", () => {
   });
 });
 
-describe("isEligible", () => {
-  it("aceita o mês atual", () => {
-    expect(isEligible(SET_26, SET_26)).toBe(true);
-  });
-
-  it("aceita competências futuras", () => {
-    expect(isEligible({ year: 2027, month: 1 }, SET_26)).toBe(true);
-  });
-
-  it("rejeita competências passadas", () => {
-    expect(isEligible({ year: 2026, month: 8 }, SET_26)).toBe(false);
-  });
-
-  it("usa a competência de hoje quando a referência é omitida", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-09-13T12:00:00.000Z"));
-
-    expect(isEligible({ year: 2026, month: 9 })).toBe(true);
-    expect(isEligible({ year: 2026, month: 8 })).toBe(false);
-  });
-});
-
-describe("isBeforeOrEqual", () => {
-  it("devolve true quando a primeira é anterior", () => {
-    expect(isBeforeOrEqual({ year: 2026, month: 1 }, SET_26)).toBe(true);
-  });
-
-  it("devolve true quando são iguais", () => {
-    expect(isBeforeOrEqual(SET_26, SET_26)).toBe(true);
-  });
-
-  it("devolve false quando a primeira é posterior", () => {
-    expect(isBeforeOrEqual({ year: 2026, month: 10 }, SET_26)).toBe(false);
-  });
-});
-
 describe("selectableYears", () => {
   it("oferece 5 anos começando no ano anterior à referência", () => {
     expect(selectableYears(SET_26)).toEqual([2025, 2026, 2027, 2028, 2029]);
@@ -152,5 +120,59 @@ describe("selectableYears", () => {
     vi.setSystemTime(new Date("2026-09-13T12:00:00.000Z"));
 
     expect(selectableYears()).toEqual([2025, 2026, 2027, 2028, 2029]);
+  });
+});
+
+describe("diffMonths", () => {
+  it("conta os meses entre duas competências, atravessando o ano", () => {
+    expect(diffMonths({ year: 2026, month: 11 }, { year: 2027, month: 2 })).toBe(3);
+  });
+
+  it("devolve zero para a mesma competência e negativo quando b vem antes", () => {
+    expect(diffMonths(SET_26, SET_26)).toBe(0);
+    expect(diffMonths(SET_26, { year: 2026, month: 6 })).toBe(-3);
+  });
+});
+
+describe("formatCompetenceShort / formatCompetenceLong", () => {
+  it('formata no padrão curto "Abr/26"', () => {
+    expect(formatCompetenceShort({ year: 2026, month: 4 })).toBe("Abr/26");
+  });
+
+  it('formata no padrão longo "Abril 2026"', () => {
+    expect(formatCompetenceLong({ year: 2026, month: 4 })).toBe("Abril 2026");
+    expect(formatCompetenceLong({ year: 2027, month: 12 })).toBe("Dezembro 2027");
+  });
+});
+
+describe("monthRange", () => {
+  it("gera competências consecutivas atravessando o ano", () => {
+    expect(monthRange({ year: 2026, month: 11 }, 3)).toEqual([
+      { year: 2026, month: 11 },
+      { year: 2026, month: 12 },
+      { year: 2027, month: 1 },
+    ]);
+  });
+
+  it("devolve lista vazia para contagem zero ou negativa", () => {
+    expect(monthRange(SET_26, 0)).toEqual([]);
+    expect(monthRange(SET_26, -2)).toEqual([]);
+  });
+});
+
+describe("fromApiStatus", () => {
+  it("traduz a situação da API para a do front", () => {
+    expect(fromApiStatus("PAST")).toBe("past");
+    expect(fromApiStatus("CURRENT")).toBe("current");
+    expect(fromApiStatus("FUTURE")).toBe("future");
+  });
+});
+
+describe("sameCompetence", () => {
+  it("compara por valor e trata ausência como diferente", () => {
+    expect(sameCompetence(SET_26, { year: 2026, month: 9 })).toBe(true);
+    expect(sameCompetence(SET_26, { year: 2026, month: 10 })).toBe(false);
+    expect(sameCompetence(undefined, SET_26)).toBe(false);
+    expect(sameCompetence(SET_26, undefined)).toBe(false);
   });
 });

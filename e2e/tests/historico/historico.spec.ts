@@ -4,7 +4,7 @@ import {
 } from "../../src/fixtures/scenarios.js";
 import { expect, test } from "../../src/fixtures/test.js";
 import { brl, monthShort } from "../../src/support/format.js";
-import { dialog, fillCompetence, goto } from "../../src/support/ui.js";
+import { ficha, goto } from "../../src/support/ui.js";
 
 test.describe("histórico de versões", () => {
   test("usuário sem versões vê o estado vazio", async ({ page }) => {
@@ -109,14 +109,17 @@ test.describe("histórico de versões", () => {
     });
 
     await goto(page, "/receitas");
-    await page.getByRole("tab", { name: /^Fixas/ }).click();
-    await page.getByRole("button", { name: "Nova versão" }).click();
-    const modal = dialog(page);
-    await modal.getByLabel("Nova descrição").fill("Salário com reajuste anual");
-    await modal.getByLabel("Novo valor (R$)").fill("4600");
-    await fillCompetence(modal, "Vigência a partir de", competence.next);
-    await modal.getByRole("button", { name: "Criar nova versão" }).click();
-    await expect(page.getByTestId("fixed-revenue-card")).toContainText("2 versões");
+    await page.getByRole("button", { name: /Salário/ }).click();
+    const salario = ficha(page, "Salário");
+    await salario.getByRole("button", { name: "Nova versão" }).click();
+    await salario.getByLabel("Nova descrição").fill("Salário com reajuste anual");
+    await salario.getByLabel(/Novo valor mensal/).fill("4600");
+    await salario
+      .getByLabel(/Vigência a partir de/)
+      .selectOption(`${competence.next.year}-${competence.next.month}`);
+    await salario.getByRole("button", { name: "Criar nova versão" }).click();
+    await expect(salario.getByRole("tab", { name: "Histórico (2)" })).toBeVisible();
+    await salario.getByRole("button", { name: "Fechar" }).first().click();
 
     await page
       .getByRole("navigation", { name: "Navegação principal" })

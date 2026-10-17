@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db, mockApiError, seedDb } from "../../../tests/msw";
 import {
   makeFixedRevenue,
@@ -6,6 +6,7 @@ import {
   makeOneTimeRevenue,
 } from "../../../tests/fixtures";
 import { bodyOf, recordRequests, signatures } from "../../../tests/requests";
+import { freezeDateOnly, unfreezeTime } from "../../../tests/time";
 import { ReceitasService } from "./ReceitasService";
 
 const ONE_TIME_PAYLOAD = {
@@ -16,16 +17,6 @@ const ONE_TIME_PAYLOAD = {
 };
 
 describe("receitas avulsas", () => {
-  it("getOneTime faz GET em /revenues/one-time", async () => {
-    seedDb({ oneTimeRevenues: [makeOneTimeRevenue({ description: "Freelance" })] });
-    const calls = recordRequests();
-
-    const revenues = await ReceitasService.getOneTime();
-
-    expect(signatures(calls)).toEqual(["GET /revenues/one-time"]);
-    expect(revenues[0].description).toBe("Freelance");
-  });
-
   it("createOneTime faz POST em /revenues/one-time com o payload", async () => {
     const calls = recordRequests();
 
@@ -85,16 +76,6 @@ describe("receitas fixas", () => {
     startYear: 2026,
     startMonth: 9,
   };
-
-  it("getFixed faz GET em /revenues/fixed", async () => {
-    seedDb({ fixedRevenues: [makeFixedRevenue()] });
-    const calls = recordRequests();
-
-    const revenues = await ReceitasService.getFixed();
-
-    expect(signatures(calls)).toEqual(["GET /revenues/fixed"]);
-    expect(revenues).toHaveLength(1);
-  });
 
   it("createFixed faz POST em /revenues/fixed sem endYear/endMonth", async () => {
     const calls = recordRequests();
@@ -191,5 +172,56 @@ describe("receitas fixas", () => {
 
     expect(signatures(calls)).toEqual([`DELETE /revenues/fixed/${revenue.id}`]);
     expect(db.fixedRevenues).toHaveLength(0);
+  });
+});
+
+describe("consultas da tela", () => {
+  beforeEach(() => freezeDateOnly());
+  afterEach(() => unfreezeTime());
+
+  it("getMonth faz GET em /revenues com a competência como query", async () => {
+    seedDb({ oneTimeRevenues: [makeOneTimeRevenue()] });
+    const calls = recordRequests();
+
+    const month = await ReceitasService.getMonth({ year: 2026, month: 9 });
+
+    expect(signatures(calls)).toEqual(["GET /revenues"]);
+    expect(Object.fromEntries(calls[0].search)).toEqual({
+      competenceYear: "2026",
+      competenceMonth: "9",
+    });
+    expect(month).toMatchObject({
+      competenceStatus: "CURRENT",
+      reference: { year: 2026, month: 9 },
+    });
+    expect(month.oneTimeRevenues).toHaveLength(1);
+  });
+
+  it("getYearSummary faz GET em /revenues/summary?year=", async () => {
+    const calls = recordRequests();
+
+    const summary = await ReceitasService.getYearSummary(2026);
+
+    expect(signatures(calls)).toEqual(["GET /revenues/summary"]);
+    expect(calls[0].search.get("year")).toBe("2026");
+    expect(summary.months).toHaveLength(12);
+  });
+
+  it("getFixed(id) faz GET em /revenues/fixed/:id com versões e expiração", async () => {
+    const revenue = makeFixedRevenue({ endYear: 2026, endMonth: 8 });
+    seedDb({ fixedRevenues: [revenue] });
+    const calls = recordRequests();
+
+    const detail = await ReceitasService.getFixed(revenue.id);
+
+    expect(signatures(calls)).toEqual([`GET /revenues/fixed/${revenue.id}`]);
+    expect(detail).toMatchObject({ isExpired: true, reference: { year: 2026, month: 9 } });
+    expect(detail.versions).toHaveLength(1);
+  });
+
+  it("getFixed(id) propaga o 404", async () => {
+    await expect(ReceitasService.getFixed("fix-999")).rejects.toMatchObject({
+      response: { status: 404, data: { error: "FIXED_REVENUE_NOT_FOUND" } },
+    });
   });
 });

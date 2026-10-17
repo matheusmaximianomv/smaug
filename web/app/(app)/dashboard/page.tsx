@@ -1,7 +1,7 @@
 "use client";
 
 import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
-import { useMonthNavigation } from "@/features/dashboard/hooks/useMonthNavigation";
+import { useCompetenceNavigation } from "@/shared/hooks/useCompetenceNavigation";
 import { MonthNavigator } from "@/shared/components/MonthNavigator";
 import { KpiCard } from "@/features/dashboard/components/KpiCard";
 import { SemesterChart } from "@/features/dashboard/components/SemesterChart";
@@ -13,7 +13,7 @@ import { formatMonthYear } from "@/shared/lib/dateUtils";
 import { addMonths, getCompetenceStatus } from "@/shared/lib/competence";
 
 export default function DashboardPage() {
-  const { selected, status, current, navigate, goToCurrent } = useMonthNavigation();
+  const { selected, status, current, navigate, goToCurrent } = useCompetenceNavigation();
   const { data, isLoading } = useDashboard(selected);
 
   const isFuture = status === "future";

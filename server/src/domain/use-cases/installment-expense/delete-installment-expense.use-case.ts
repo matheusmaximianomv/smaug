@@ -2,6 +2,7 @@ import {
   InstallmentExpenseNotFoundError,
   InstallmentHasPastCompetenceError,
 } from "@src/domain/errors/domain-error";
+import { InstallmentExpense } from "@src/domain/entities/installment-expense.entity";
 import { InstallmentExpenseRepository } from "@src/domain/ports/installment-expense.repository";
 
 export interface DeleteInstallmentExpenseInput {
@@ -19,17 +20,9 @@ export class DeleteInstallmentExpenseUseCase {
       throw new InstallmentExpenseNotFoundError(input.id);
     }
 
-    const referenceDate = new Date();
-    const referenceYear = referenceDate.getUTCFullYear();
-    const referenceMonth = referenceDate.getUTCMonth() + 1;
+    const installments = await this.repository.findInstallmentsByExpense(expense.id);
 
-    const hasPastInstallments = await this.repository.hasPastInstallments(
-      expense.id,
-      referenceMonth,
-      referenceYear,
-    );
-
-    if (hasPastInstallments) {
+    if (InstallmentExpense.hasPastInstallments(installments)) {
       throw new InstallmentHasPastCompetenceError();
     }
 

@@ -28,6 +28,8 @@ function emptyRevenues(year: number, month: number): ConsolidatedRevenueResponse
   return {
     competenceYear: year,
     competenceMonth: month,
+    competenceStatus: "FUTURE",
+    reference: { year: 2026, month: 1 },
     oneTimeRevenues: [],
     fixedRevenues: [],
     totals: { oneTimeTotal: 0, fixedTotal: 0, total: 0 },
@@ -38,6 +40,8 @@ function emptyExpenses(year: number, month: number): ExpenseQueryResponseDto {
   return {
     competenceYear: year,
     competenceMonth: month,
+    competenceStatus: "FUTURE",
+    reference: { year: 2026, month: 1 },
     expenses: [],
     totals: { oneTime: 0, installment: 0, recurring: 0, total: 0 },
   };
@@ -68,6 +72,9 @@ function fixedRevenueDto(id: string, description: string, amount: number) {
     versions: [],
     createdAt: ISO,
     updatedAt: ISO,
+    previousAmount: null,
+    isExpired: false,
+    reference: { year: 2026, month: 1 },
     currentVersion: {
       id: `${id}-v1`,
       fixedRevenueId: id,

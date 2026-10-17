@@ -189,8 +189,10 @@ export class MonthlyCompetence {
   }
 ```
 
-API pública: `isPastMonth(referenceDate = new Date())`, `isFutureOrCurrent(referenceDate = new Date())`,
-`isBefore(other)`, `isBeforeOrEqual(other)`, `isAfter(other)`, `isAfterOrEqual(other)`,
+API pública: `static current(referenceDate = new Date())` (o mês corrente em UTC),
+`static addMonths(c, offset)`, `static range(start, end)`, `isPastMonth(referenceDate = new Date())`,
+`statusAt(referenceDate = new Date())` → `"PAST" | "CURRENT" | "FUTURE"`,
+`isFutureOrCurrent(referenceDate = new Date())`, `isBefore(other)`, `isBeforeOrEqual(other)`, `isAfter(other)`, `isAfterOrEqual(other)`,
 `equals(other)`, `toString()` → `"2026-09"`.
 
 Regras do VO:

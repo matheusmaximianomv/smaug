@@ -1,6 +1,6 @@
 ---
 name: web-arquitetura
-description: Arquitetura do frontend Smaug (web/) — camadas UI → hooks → services → infra, estrutura por feature, política de import e alias, Server vs Client Component, e a anatomia de uma página CRUD do App Router. Leia antes de criar qualquer arquivo em web/.
+description: Arquitetura do frontend Smaug (web/) — camadas UI → hooks → services → infra, estrutura por feature, política de import e alias, Server vs Client Component, e as anatomias de página do App Router (CRUD simples e tela de feature com assistente e Ficha). Leia antes de criar qualquer arquivo em web/.
 ---
 
 # Arquitetura do web
@@ -59,7 +59,7 @@ react/next → terceiros → módulos com alias → módulos relativos → `impo
 
 ```tsx
 import { Button } from "@/shared/components/Button";
-import { useInstallments } from "@/features/despesas/hooks/useInstallments";
+import { useExpenseMonth } from "@/features/despesas/hooks/useExpenseMonth";
 ```
 
 ## Cross-feature
@@ -69,26 +69,30 @@ Compartilhamento acontece por `@/shared` ou `@/infra`. Na prática o código adm
 - ✅ **Tipos** de outra feature, quando o domínio realmente se relaciona:
   `features/despesas/types` importa `Category` de `@/features/categorias/types`;
   `HistoricoService` agrega tipos de `receitas` e `despesas` — é um agregador por desenho.
-- ❌ **Componente, hook ou service** de outra feature. `features/despesas/components/*` importando
-  `MonthYearSelect` de `@/features/receitas/components` é **dívida conhecida** — se você precisar
-  dele numa terceira feature, **promova para `shared/components/`** em vez de repetir o import.
-- ❌ `shared/` importando de `features/`. `shared/components/MonthNavigator.tsx` importa
-  `MonthStatus` de `@/features/dashboard/types`, e isso também é dívida.
+- ❌ **Componente, hook ou service** de outra feature. Quando uma segunda feature precisa dele,
+  **promova para `shared/`** — foi o que aconteceu com `MonthYearSelect` (`shared/components/`), com
+  a navegação de competência (`shared/hooks/useCompetenceNavigation.ts`) e com os blocos de extrato,
+  assistente e Ficha usados por Receitas e Despesas (`shared/components/lancamentos/`).
+- ❌ Hook de outra feature, nem para dado auxiliar: `DespesasScreen` precisa das categorias, mas
+  quem chama `useCategories()` é a **página** `app/(app)/despesas/page.tsx`, que passa
+  `categories` por prop.
+- ❌ `shared/` importando de `features/`. Ainda há dívida: `AppShell` e `Sidebar` importam `useAuth`
+  de `@/features/auth`. Não acrescente outros casos.
 
 ## Server vs Client Component
 
 Regra: **manter a fronteira RSC o mais baixa possível.** `"use client"` vai no componente que de
 fato usa hook/estado/efeito/API de browser — sempre na **primeira linha**, seguida de linha em branco.
 
-| Arquivo                                                                           | Diretiva         |
-| --------------------------------------------------------------------------------- | ---------------- |
-| `app/layout.tsx` (shell + `metadata`)                                             | RSC              |
-| `app/page.tsx` (só `redirect("/login")`)                                          | RSC              |
-| `app/(app)/layout.tsx` (delega para `AppShell`)                                   | RSC              |
-| `app/(auth)/layout.tsx`, `login/page.tsx`, `cadastro/page.tsx`                    | RSC              |
-| todas as `app/(app)/*/page.tsx`                                                   | `"use client"`   |
-| hooks de feature, `providers.tsx`, primitivos com estado                          | `"use client"`   |
-| componentes de apresentação puros (`InstallmentCard`, `KpiCard`, `ConfirmDialog`) | **sem diretiva** |
+| Arquivo                                                                    | Diretiva         |
+| -------------------------------------------------------------------------- | ---------------- |
+| `app/layout.tsx` (shell + `metadata`)                                      | RSC              |
+| `app/page.tsx` (só `redirect("/login")`)                                   | RSC              |
+| `app/(app)/layout.tsx` (delega para `AppShell`)                            | RSC              |
+| `app/(auth)/layout.tsx`, `login/page.tsx`, `cadastro/page.tsx`             | RSC              |
+| todas as `app/(app)/*/page.tsx`                                            | `"use client"`   |
+| hooks de feature, `providers.tsx`, primitivos com estado                   | `"use client"`   |
+| componentes de apresentação puros (`KpiCard`, `EntryRow`, `ConfirmDialog`) | **sem diretiva** |
 
 `metadata` só existe em `app/layout.tsx`. Os providers globais (`QueryClientProvider`,
 `ToastContainer`, devtools) vivem em `app/providers.tsx`, que consome o **singleton**
@@ -97,7 +101,8 @@ fato usa hook/estado/efeito/API de browser — sempre na **primeira linha**, seg
 **Não existem `loading.tsx`, `error.tsx`, `not-found.tsx` nem `route.ts` no projeto** — e isso é
 deliberado:
 
-- Loading é early-return dentro da própria página client: `if (isLoading) return <Skeleton ... />`.
+- Loading é early-return dentro da própria página client (`if (isLoading) return <Skeleton ... />`)
+  ou dentro do container de feature (`LedgerLayout` mostra o esqueleto enquanto `ledger` é `undefined`).
 - Erro de mutação vira **toast** (disparado pelo hook); erro de formulário vira bloco inline
   `<div className="rounded-lg border border-red bg-red-light p-3 text-sm text-red">`.
 - `shared/components/ErrorBoundary.tsx` existe e é testado, mas **não está montado** em nenhum lugar.
@@ -113,56 +118,97 @@ const PUBLIC_ROUTES = ["/login", "/cadastro"];
 export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico|api).*)"] };
 ```
 
-## Anatomia de uma página CRUD
+## Anatomia de página — dois formatos
 
-Gabarito: `app/(app)/despesas/page.tsx` (as páginas de `receitas` e `categorias` o espelham).
+### (a) Página CRUD simples — `app/(app)/categorias/page.tsx`
+
+A página é o container: chama o hook, guarda o estado dos modais e dispara as mutations.
 
 ```tsx
 "use client";
 
 import { useState } from "react";
-import { Plus, TrendingDown } from "lucide-react";
-// hooks de feature → componentes de feature → primitivos de shared → libs → import type
+import { Plus, Tag } from "lucide-react";
+import { useCategories } from "@/features/categorias/hooks/useCategories";
+// componentes de feature → primitivos de shared → import type
 
-type Tab = "avulsas" | "parceladas" | "recorrentes";
-type ModalType = null | "add-avulsa" | "edit-avulsa" | "view-parcelas" | "add-recorrente";
+export default function CategoriasPage() {
+  const { data: categories, isLoading, create, update, remove } = useCategories();
+  const [modal, setModal] = useState<null | "add" | "edit">(null);
+  const [selected, setSelected] = useState<CategoryWithCount | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CategoryWithCount | null>(null);
 
-function getNow() {
-  const d = new Date();
-  return { month: d.getMonth() + 1, year: d.getFullYear() };
-}
-
-export default function DespesasPage() {
-  const now = getNow();
-  const [tab, setTab] = useState<Tab>("avulsas");
-  const [modal, setModal] = useState<ModalType>(null);
-  const [selectedAvulsa, setSelectedAvulsa] = useState<OneTimeExpense | null>(null);
-  const [deleteAvulsa, setDeleteAvulsa] = useState<OneTimeExpense | null>(null);
-
-  const avulsas = useOneTimeExpenses();
+  const handleSave = (data: { name: string }) => {
+    if (modal === "add") {
+      create.mutate(data.name, { onSuccess: () => setModal(null) });
+    } else if (modal === "edit" && selected) {
+      update.mutate({ id: selected.id, name: data.name }, { onSuccess: () => setModal(null) });
+    }
+  };
   // ...
 }
 ```
 
-Regras da página:
+Regras:
 
-1. **Uniões locais `type Tab` / `type ModalType` declaradas acima do componente**; `ModalType`
-   inclui `null` como primeiro membro.
-2. **Um `useState` por modal, seleção e alvo de exclusão**, nomeados `selectedX` / `deleteX`.
-3. **O hook é guardado num substantivo curto e NÃO desestruturado**: `const avulsas = useOneTimeExpenses();`
-   e depois `avulsas.data`, `avulsas.isLoading`, `avulsas.create.mutate(...)`,
-   `avulsas.create.isPending`. (Hook só de query, como `useDashboard`, pode desestruturar.)
-4. **A mutação é disparada pela página**, fechando o modal num `onSuccess` local:
-   ```tsx
-   onSave={(data) => installments.create.mutate(data, { onSuccess: () => setModal(null) })}
-   ```
-5. Renderização em três ramos por aba: `isLoading ? <Skeleton/> : !data?.length ? <EmptyState/> : <lista>`.
-6. **Todos os modais são renderizados ao final**, sempre montados, controlados por
-   `isOpen={modal === "..."}`; o `ConfirmDialog` por `isOpen={!!deleteX}` com um `if (deleteX)`
-   defensivo dentro do `onConfirm` (é exatamente esse idioma que justifica o threshold relaxado de
-   `app/**` no `vitest.config.ts`).
-7. Container raiz: `className="p-4 sm:p-7 max-w-[1100px]"` (mais `space-y-6` nas páginas simples).
-8. O componente da página é `export default function <Rota>Page()`.
+1. **Um `useState` por modal, seleção e alvo de exclusão** (`selected`, `deleteTarget`).
+2. **A mutação é disparada pela página**, fechando o modal num `onSuccess` local.
+3. Renderização em três ramos: `isLoading ? <Skeleton/> : !data?.length ? <EmptyState/> : <lista>`.
+4. Os modais ficam ao final, sempre montados, controlados por `isOpen`; o `ConfirmDialog` por
+   `isOpen={!!deleteTarget}` com um `if (deleteTarget)` defensivo no `onConfirm` — é esse idioma
+   que justifica o threshold relaxado de `app/**` no `vitest.config.ts`.
+5. Container raiz: `className="p-4 sm:p-7 max-w-[1100px]"`.
+6. O componente da página é `export default function <Rota>Page()`.
+
+### (b) Tela de feature — Receitas e Despesas
+
+Quando a tela tem navegação, assistente e Fichas, a página só monta a tela da feature
+(`app/(app)/receitas/page.tsx` é `return <ReceitasScreen />;`). Despesas passa as categorias:
+
+```tsx
+export default function DespesasPage() {
+  const categories = useCategories();
+  return <DespesasScreen categories={categories.data ?? []} />;
+}
+```
+
+`features/despesas/components/DespesasScreen.tsx` é o container:
+
+```tsx
+type ModalState =
+  | null
+  | { t: "new" }
+  | { t: "edit"; item: OneTimeExpenseMonthItem }
+  | { t: "item"; item: ExpenseMonthItem; status: CompetenceStatus };
+
+export function DespesasScreen({ categories }: DespesasScreenProps) {
+  const [modal, setModal] = useState<ModalState>(null);
+  const nav = useLedgerNavigation();
+  const month = useExpenseMonth(nav.selected);
+  const summary = useExpenseYearSummary(nav.selected.year);
+  nav.adoptReference(month.data?.reference ?? summary.data?.reference);
+
+  return (
+    <LedgerLayout /* textos, navigation={nav}, ledger={month.ledger}, onNew, onOpen */>
+      {(modal?.t === "new" || modal?.t === "edit") && <ExpenseWizard /* ... */ />}
+      {modal?.t === "item" && <ExpenseFicha /* ... */ />}
+    </LedgerLayout>
+  );
+}
+```
+
+Regras:
+
+1. **Um único `ModalState`**, união discriminada por `t` com `null`; o que o modal precisa (item,
+   situação da competência) vai **dentro** do estado, não em `useState`s paralelos.
+2. Modais são **montados condicionalmente** (`modal?.t === "..." && <X />`): assistente e Ficha
+   nascem com o estado inicial certo a cada abertura.
+3. **Quem dispara a mutation é o hook do assistente ou da Ficha** (`useExpenseWizard`,
+   `useExpenseMutations({ onSuccess })`), não a tela.
+4. O "agora" vem do servidor (`reference` da consulta), adotado via `nav.adoptReference(...)` durante
+   o render — nunca `new Date()` na tela.
+5. Layout, faixa de meses, resumo, lista, estado vazio e erro vêm de `LedgerLayout`
+   (`shared/components/lancamentos/`); a tela de feature só fornece textos, dados e modais.
 
 ## Checklist — criar uma feature nova
 
@@ -170,7 +216,7 @@ Regras da página:
 - [ ] `types/index.ts` com as interfaces de domínio; `types/schemas.ts` só se houver formulário RHF.
 - [ ] `services/<Feature>Service.ts` (skill `web-feature-services`).
 - [ ] `hooks/use<Coisa>.ts` (skill `web-feature-hooks`).
-- [ ] Componentes apresentacionais (skill `web-componentes`).
+- [ ] Componentes (skill `web-componentes`): apresentacionais, e containers só no formato (b).
 - [ ] Página em `app/(app)/<rota>/page.tsx` com `"use client"`.
 - [ ] Rota acrescentada à navegação (`shared/components/Sidebar.tsx` / `BottomNav.tsx`).
 - [ ] Teste ao lado de cada fonte + integração de página em `web/tests/integration/` (skill `web-testes`).

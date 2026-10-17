@@ -228,8 +228,9 @@ describe("dashboard: tabelas de detalhe", () => {
 
     expect(screen.getByText("Freelance")).toBeInTheDocument();
     expect(screen.getByText("Salário")).toBeInTheDocument();
-    expect(screen.getByText("Avulsa")).toBeInTheDocument();
-    expect(screen.getByText("Fixa")).toBeInTheDocument();
+    // Selo compartilhado com Receitas/Despesas: Avulsa passou de cinza a azul (PRD 6.1).
+    expect(screen.getByText("Avulsa")).toHaveClass("bg-tipo-avulsa-light", "text-tipo-avulsa");
+    expect(screen.getByText("Fixa")).toHaveClass("bg-tipo-fixa-light", "text-tipo-fixa");
 
     const totalRow = screen.getAllByText("Total")[0].closest("tr")!;
     expect(within(totalRow).getByText(/R\$\s?9\.500,00/)).toBeInTheDocument();

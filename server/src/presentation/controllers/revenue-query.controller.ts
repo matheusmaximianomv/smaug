@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { RevenueQueryService } from "@src/application/services/revenue-query.service";
+import { yearSummaryQuerySchema } from "@src/application/dtos/competence.dto";
 
 export class RevenueQueryController {
   constructor(private readonly service: RevenueQueryService) {}
@@ -14,6 +15,16 @@ export class RevenueQueryController {
         competenceYear,
         competenceMonth,
       );
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public async summary(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { year } = yearSummaryQuerySchema.parse(req.query);
+      const result = await this.service.getYearSummary(req.userId!, year);
       res.status(200).json(result);
     } catch (error) {
       next(error);

@@ -204,4 +204,27 @@ describe("FixedRevenueService", () => {
     expect(result).toEqual([]);
     expect(repository.findVersionsForRevenue).not.toHaveBeenCalled();
   });
+
+  it("should expose expiration and the server reference month", async () => {
+    const ended = FixedRevenue.create({
+      id: "fixed-2",
+      userId: "user-1",
+      modality: "UNALTERABLE",
+      startMonth: 1,
+      startYear: 2026,
+      endMonth: 2,
+      endYear: 2026,
+    });
+    getUseCase.execute.mockResolvedValueOnce({ revenue: ended, versions: [buildVersion(1, 2026)] });
+    getUseCase.execute.mockResolvedValueOnce({ revenue, versions: [buildVersion(1, 2026)] });
+
+    const expired = await buildService().getById("user-1", "fixed-2");
+    const open = await buildService().getById("user-1", "fixed-1");
+
+    expect(expired.isExpired).toBe(true);
+    expect(expired.reference).toEqual({ year: 2026, month: 3 });
+    expect(open.isExpired).toBe(false);
+    expect(open.versions).toHaveLength(1);
+    expect(open.currentVersion?.id).toBe("version-2026-1");
+  });
 });

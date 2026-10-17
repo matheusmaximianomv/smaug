@@ -2,20 +2,19 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "../lib/utils";
-import { addMonths } from "../lib/competence";
+import { addMonths, type CompetenceStatus } from "../lib/competence";
 import { MONTH_NAMES_FULL } from "../lib/dateUtils";
-import type { MonthStatus } from "@/features/dashboard/types";
 
 interface MonthNavigatorProps {
   year: number;
   month: number;
-  status: MonthStatus;
+  status: CompetenceStatus;
   onChange: (year: number, month: number) => void;
   onGoToCurrent?: () => void;
   className?: string;
 }
 
-const STATUS_BADGE: Record<MonthStatus, { label: string; cls: string }> = {
+const STATUS_BADGE: Record<CompetenceStatus, { label: string; cls: string }> = {
   current: { label: "Mês vigente", cls: "bg-green-light text-green" },
   future: { label: "Projeção", cls: "bg-[#fff3e0] text-[#e65100]" },
   past: { label: "Passado", cls: "bg-bg text-text-subtle border border-border" },

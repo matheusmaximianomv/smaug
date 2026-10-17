@@ -230,3 +230,41 @@ describe("MonthlyCompetence.range", () => {
     expect(range).toHaveLength(12);
   });
 });
+
+describe("MonthlyCompetence.current", () => {
+  it("should use the UTC month even when the local day is still the previous month", () => {
+    const current = MonthlyCompetence.current(new Date("2026-04-01T00:30:00Z"));
+    expect(current.toString()).toBe("2026-04");
+  });
+
+  it("should default to the system clock", () => {
+    const now = new Date();
+    expect(MonthlyCompetence.current().toString()).toBe(MonthlyCompetence.current(now).toString());
+  });
+});
+
+describe("MonthlyCompetence.statusAt", () => {
+  const ref = new Date("2026-04-01T00:30:00Z");
+
+  it("should classify the month boundary in UTC", () => {
+    expect(MonthlyCompetence.create(3, 2026).statusAt(ref)).toBe("PAST");
+    expect(MonthlyCompetence.create(4, 2026).statusAt(ref)).toBe("CURRENT");
+    expect(MonthlyCompetence.create(5, 2026).statusAt(ref)).toBe("FUTURE");
+  });
+
+  it("should classify the year boundary", () => {
+    const newYear = new Date("2027-01-01T00:00:00Z");
+    expect(MonthlyCompetence.create(12, 2026).statusAt(newYear)).toBe("PAST");
+    expect(MonthlyCompetence.create(1, 2027).statusAt(newYear)).toBe("CURRENT");
+    expect(MonthlyCompetence.create(2, 2027).statusAt(newYear)).toBe("FUTURE");
+  });
+
+  it("should agree with isPastMonth", () => {
+    const month = MonthlyCompetence.create(3, 2026);
+    expect(month.statusAt(ref) === "PAST").toBe(month.isPastMonth(ref));
+  });
+
+  it("should default to the system clock", () => {
+    expect(MonthlyCompetence.current().statusAt()).toBe("CURRENT");
+  });
+});

@@ -1,6 +1,6 @@
 ---
 name: testes-e2e
-description: Como escrever testes E2E do Smaug com Playwright no pacote e2e/ — caixa-preta sem importar server/web, fixtures test.ts + scenarios.ts em vez de page objects, seletores por papel, SeedClient por HTTP, competência congelada e shiftClock.
+description: Como escrever testes E2E do Smaug com Playwright no pacote e2e/ — caixa-preta sem importar server/web, fixtures test.ts + scenarios.ts em vez de page objects, seletores por papel, SeedClient por HTTP (com importCsv para dado passado) e competência congelada.
 ---
 
 # Testes E2E (Playwright)
@@ -39,15 +39,18 @@ e2e/
     global-setup.ts · global-teardown.ts
   tests/
     smoke.spec.ts
-    auth/ · dashboard/ · despesas/ · historico/ · receitas/ · responsive/
+    auth/ · dados/ · dashboard/ · despesas/ · historico/ · lancamentos/ · receitas/ · responsive/
 ```
 
 ## As quatro regras do `e2e/README.md`
 
 > - **Nunca** literais de mês/ano. Tudo deriva de `competence.current`, congelada no `globalSetup`
 >   e propagada por env para todos os workers.
-> - **Nunca** semear no passado: a API rejeita competência passada. Estados passados ("Pago",
->   "Encerrada") são calculados no cliente — use `shiftClock(n)` para **avançar** o relógio do browser.
+> - **Nunca** semear no passado pelos `create-*`: a API rejeita competência passada. A situação de
+>   cada mês (passado/atual/futuro, parcela paga, série encerrada) é calculada pelo **servidor**, com
+>   o relógio dele — mexer no relógio do browser não muda nada. Para ter dado passado (um
+>   parcelamento já em andamento), importe-o: `seed.importCsv([...])` é o único escritor que
+>   dispensa a trava de passado.
 > - Valores de parcela são assertados contra o que a API devolveu, nunca contra literais — o
 >   arredondamento é regra de domínio.
 > - Este pacote é **caixa-preta**: não importa nada de `server/` nem de `web/`.
@@ -60,17 +63,9 @@ A estrutura real é em três camadas:
    `authenticate` (opção, default `true`), `apiRequest`, `seedUser` (**um usuário novo por teste**,
    intitulado `E2E ${testInfo.title.slice(0, 40)}` — é o que permite `fullyParallel` sem truncar
    tabela), `seed` (`SeedClient`), `context` sobrescrito (aborta Google Fonts, injeta o cookie
-   `userId`), `competence` e `shiftClock`.
-   ```ts
-   shiftClock: async ({ page, competence }, use) => {
-     await use(async (months: number) => {
-       const t = competence.plus(months);
-       await page.clock.setFixedTime(new Date(Date.UTC(t.year, t.month - 1, 15, 12, 0, 0)));
-     });
-   },
-   ```
-   `setFixedTime` e não `install()`: congela `Date.now`/`new Date` mas **mantém os timers rodando**,
-   essencial para o auto-dismiss do toast e os backoffs do React Query.
+   `userId`) e `competence`.
+   **Não há fixture de relógio** (`shiftClock` foi removido): desde que a situação das competências
+   passou a vir do servidor, `page.clock` não altera "Paga", "Atual" nem "Encerrada".
    O módulo faz `export { expect };` — **o spec importa `expect` e `test` daqui, nunca de
    `@playwright/test`.**
 2. **`src/fixtures/scenarios.ts`** — builders em pt-BR `cenarioX(seed, k: CompetenceKit, options?)`,
@@ -79,16 +74,17 @@ A estrutura real é em três camadas:
    `cenarioReceitaFixaVersionada`, `cenarioRecorrenteVersionada`, `cenarioHistoricoMisto`,
    `cenarioCategoriaComVinculo`, `cenarioParcelamento`.
 3. **`src/support/ui.ts`** — só o que é **estrutural** na UI: `goto(page, path)` (goto + espera de
-   hidratação), `waitForHydration`, `dialog(page)`, `fillCompetence(scope, label, competence)`,
-   `kpiCard(page, label)`, `monthBadge`, `panel`, `hideDevOverlays`, `documentOverflow`.
+   hidratação), `waitForHydration`, `dialog(page)`, `ficha(page, descrição)` (o diálogo da Ficha pelo
+   nome acessível), `monthStrip(page)` (faixa de 12 meses), `kpiCard(page, label)`, `monthBadge`,
+   `panel`, `hideDevOverlays`, `documentOverflow`.
    Cópia de texto **fica no spec**, para a asserção ser legível no ponto de uso.
 
 Helper específico de um arquivo fica no próprio spec, com JSDoc:
 
 ```ts
-/** A aba traz o contador no nome acessível ("Parceladas 2"), daí o regex. */
-async function abrirAbaParceladas(page: Page): Promise<void> {
-  await page.getByRole("tab", { name: /^Parceladas/ }).click();
+/** A linha do extrato é um botão cujo nome acessível começa pela descrição. */
+function linha(page: Page, description: string): Locator {
+  return page.getByRole("button", { name: new RegExp(`^${description}`) });
 }
 ```
 
@@ -97,10 +93,11 @@ async function abrirAbaParceladas(page: Page): Promise<void> {
 **Primário: papel, rótulo e texto** — `getByRole("tab"|"button"|"dialog"|"heading")`, `getByLabel`,
 `getByPlaceholder`, `getByText`.
 
-**`data-testid` só para card repetido que não tem papel próprio.** Existem exatamente quatro:
-`fixed-revenue-card`, `category-card`, `recurring-expense-card`, `installment-card`.
-`testIdAttribute: "data-testid"` está configurado. Se precisar de um quinto, acrescente também o
-atributo no componente da feature (skill `web-componentes`).
+**`data-testid` só para card repetido que não tem papel próprio.** Resta exatamente um:
+`category-card`. As linhas do extrato de Receitas/Despesas são botões e as Fichas são diálogos
+nomeados pela descrição — consulte-os por papel (`ficha(page, "Notebook")`). Duas armadilhas da
+Ficha: há dois botões "Fechar" (o × e o do rodapé — use `.last()`), e `getByText("Mês atual")`
+precisa de `{ exact: true }` por causa do botão "Voltar para o mês atual".
 
 **Sempre `goto(page, "/despesas")` do `support/ui.ts`, nunca `page.goto` direto** — a exceção são
 os testes de guarda de rota, que querem justamente observar o redirecionamento.
@@ -127,29 +124,47 @@ private async unwrap<T>(res: APIResponse, what: string): Promise<T> {
 Métodos agrupados por comentário-faixa (`// ---- usuários`, `// -------- categorias`, …).
 Variantes `...Raw` existem onde o teste assere a falha (`deleteCategoryRaw`).
 
+**Dado no passado: `importCsv(rows)`.** Recebe as linhas do CSV sem cabeçalho (o método acrescenta
+BOM, cabeçalho e CRLF) e posta em `/data/import`. Monte a competência com `csvCompetence(...)` de
+`support/format.ts`:
+
+```ts
+// A situação das parcelas vem do relógio do SERVIDOR; o único jeito de ter
+// uma parcela já paga é importar a série com o 1º mês no passado.
+await seed.importCsv([
+  `${csvCompetence(competence.prev)};despesa;Eletrônicos;Notebook;33,34;parcelada;1;3;s1;`,
+  `${csvCompetence(competence.current)};despesa;Eletrônicos;Notebook;33,33;parcelada;2;3;s1;`,
+  `${csvCompetence(competence.next)};despesa;Eletrônicos;Notebook;33,33;parcelada;3;3;s1;`,
+]);
+```
+
 ## Estilo do spec
 
 ```ts
 import type { Page } from "@playwright/test";
 import { cenarioParcelamento } from "../../src/fixtures/scenarios.js";
 import { expect, test } from "../../src/fixtures/test.js";
-import { brl, monthShort } from "../../src/support/format.js";
-import { dialog, fillCompetence, goto } from "../../src/support/ui.js";
+import { brl, cellAmount, csvCompetence } from "../../src/support/format.js";
+import { dialog, ficha, goto } from "../../src/support/ui.js";
 
 test.describe("despesas parceladas", () => {
-  test("estado vazio oferece criar o primeiro parcelamento", async ({ page }) => {
+  test("a Revisão divide R$ 100,00 em 3× com os centavos na 1ª e o servidor grava o mesmo", async ({
+    page,
+    seed,
+  }) => {
+    await seed.createCategory("Eletrônicos");
     await goto(page, "/despesas");
-    await abrirAbaParceladas(page);
+    await page.getByRole("button", { name: "Nova despesa" }).click();
 ```
 
 - **Import relativo com extensão `.js` obrigatória** (ESM + `moduleResolution: "Bundler"`).
 - Títulos de `test.describe` e `test` em **pt-BR, minúsculos, linguagem de domínio**
   (`"cria um parcelamento e o card resume o plano"`,
   `"bloqueia primeira parcela em competência passada"`).
-- Fixtures desestruturadas na assinatura: `async ({ page, seed, competence, shiftClock })`.
+- Fixtures desestruturadas na assinatura: `async ({ page, seed, competence })`.
 - `test.use({ authenticate: false })` dentro de um `describe` aninhado para casos não autenticados.
-- Teste que mexe no relógio leva um comentário marcador `// ⏱`.
-- Dinheiro via `brl(...)`, mês via `monthShort(...)` / `monthLong(...)` — **nunca literal**.
+- Dinheiro via `brl(...)` (ou `compact`/`cellAmount` na faixa e nas células), mês via
+  `monthShort(...)` / `monthLong(...)` / `monthTitle(...)` — **nunca literal**.
 - Tabela de rotas vira laço:
   ```ts
   for (const route of APP_ROUTES) {
@@ -197,7 +212,7 @@ guarda de competência é do Vitest (skill `web-testes`).
 - [ ] `goto(page, "/rota")` em vez de `page.goto`.
 - [ ] Seletor por papel/rótulo/texto; `data-testid` só se o card não tiver papel.
 - [ ] Zero literal de mês, ano ou valor de parcela — derive de `competence` e da resposta da API.
-- [ ] Estado "passado" produzido com `shiftClock(n)`, nunca semeando no passado.
+- [ ] Estado "passado" produzido com `seed.importCsv(...)`, nunca com `create-*` no passado nem mexendo no relógio.
 - [ ] `npm run test:e2e` verde.
 
 ## Não faça
@@ -205,7 +220,7 @@ guarda de competência é do Vitest (skill `web-testes`).
 - Não importe de `server/` nem de `web/`.
 - Não crie page object — use fixture + cenário + `support/ui.ts`.
 - Não escreva `"Set/26"`, `2026` ou `R$ 208,33` literal num spec.
-- Não semeie competência passada (a API recusa de propósito).
-- Não use `page.clock.install()` — quebra timers de toast e backoff; use `setFixedTime` via `shiftClock`.
+- Não semeie competência passada pelos `create-*` (a API recusa de propósito) — use `importCsv`.
+- Não use `page.clock` para produzir situação passada: o servidor decide, não o browser.
 - Não importe `expect`/`test` de `@playwright/test`.
 - Não repita no E2E um caminho que o Vitest já cobre barato.

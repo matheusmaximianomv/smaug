@@ -28,12 +28,13 @@ describe("DeleteInstallmentExpenseUseCase", () => {
       updateInstallments: vi.fn(),
       delete: vi.fn(),
       deleteFutureInstallments: vi.fn(),
-      hasPastInstallments: vi.fn(),
       findInstallmentsByExpense: vi.fn(),
       findInstallmentsByCompetence: vi.fn(),
     };
 
-    useCase = new DeleteInstallmentExpenseUseCase(repository as unknown as InstallmentExpenseRepository);
+    useCase = new DeleteInstallmentExpenseUseCase(
+      repository as unknown as InstallmentExpenseRepository,
+    );
 
     expense = InstallmentExpense.create({
       id: "expense-1",
@@ -54,17 +55,29 @@ describe("DeleteInstallmentExpenseUseCase", () => {
 
   it("should delete expense when there are no past installments", async () => {
     (repository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(expense);
-    (repository.hasPastInstallments as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    repository.findInstallmentsByExpense.mockResolvedValue(expense.calculateInstallments());
 
     await useCase.execute({ id: expense.id, userId: USER_ID });
 
-    expect(repository.hasPastInstallments).toHaveBeenCalledWith(expense.id, 3, 2026);
+    expect(repository.findInstallmentsByExpense).toHaveBeenCalledWith(expense.id);
     expect(repository.delete).toHaveBeenCalledWith(expense.id);
   });
 
   it("should throw InstallmentHasPastCompetenceError when there are past installments", async () => {
-    (repository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(expense);
-    (repository.hasPastInstallments as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    const startedInFebruary = InstallmentExpense.create({
+      id: "expense-1",
+      userId: USER_ID,
+      categoryId: "category-1",
+      description: "Notebook",
+      totalAmount: 1000,
+      installmentCount: 3,
+      startMonth: 2,
+      startYear: 2026,
+    });
+    (repository.findById as ReturnType<typeof vi.fn>).mockResolvedValue(startedInFebruary);
+    repository.findInstallmentsByExpense.mockResolvedValue(
+      startedInFebruary.calculateInstallments(),
+    );
 
     await expect(useCase.execute({ id: expense.id, userId: USER_ID })).rejects.toThrow(
       InstallmentHasPastCompetenceError,

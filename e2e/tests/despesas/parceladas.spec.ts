@@ -1,202 +1,102 @@
-import type { Page } from "@playwright/test";
 import { cenarioParcelamento } from "../../src/fixtures/scenarios.js";
 import { expect, test } from "../../src/fixtures/test.js";
-import { brl, monthShort } from "../../src/support/format.js";
-import { dialog, fillCompetence, goto } from "../../src/support/ui.js";
-
-/** A aba traz o contador no nome acessível ("Parceladas 2"), daí o regex. */
-async function abrirAbaParceladas(page: Page): Promise<void> {
-  await page.getByRole("tab", { name: /^Parceladas/ }).click();
-}
+import { brl, cellAmount, csvCompetence } from "../../src/support/format.js";
+import { dialog, ficha, goto } from "../../src/support/ui.js";
 
 test.describe("despesas parceladas", () => {
-  test("estado vazio oferece criar o primeiro parcelamento", async ({ page }) => {
+  test("a Revisão divide R$ 100,00 em 3× com os centavos na 1ª e o servidor grava o mesmo", async ({
+    page,
+    seed,
+  }) => {
+    await seed.createCategory("Eletrônicos");
     await goto(page, "/despesas");
-    await abrirAbaParceladas(page);
 
-    await expect(page.getByText("Nenhum parcelamento cadastrado.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "+ Criar parcelamento" })).toBeVisible();
-  });
+    await page.getByRole("button", { name: "Nova despesa" }).click();
+    await dialog(page)
+      .getByRole("radio", { name: /Parcelada/ })
+      .click();
+    await dialog(page).getByRole("button", { name: "Continuar" }).click();
+    await dialog(page).getByLabel("Descrição").fill("Fone");
+    await dialog(page)
+      .getByLabel(/Valor total/)
+      .fill("100");
+    await dialog(page).getByLabel("Categoria").selectOption({ label: "Eletrônicos" });
+    await dialog(page).getByRole("button", { name: "Aumentar" }).click();
+    await dialog(page).getByRole("button", { name: "Continuar" }).click();
 
-  test("mostra o valor de cada parcela antes de salvar", async ({ page, seed }) => {
-    await seed.createCategory("Lazer");
-    await goto(page, "/despesas");
-    await abrirAbaParceladas(page);
-
-    await page.getByRole("button", { name: "Novo parcelamento" }).click();
-    const modal = dialog(page);
-    await modal.getByLabel("Valor total (R$)").fill("300,00");
-    await modal.getByLabel("Nº de parcelas").fill("3");
-
-    await expect(modal.getByText(`Cada parcela: ${brl(100)}`)).toBeVisible();
-  });
-
-  test("cria um parcelamento e o card resume o plano", async ({ page, seed, competence }) => {
-    const category = await seed.createCategory("Lazer");
-    await goto(page, "/despesas");
-    await abrirAbaParceladas(page);
-
-    await page.getByRole("button", { name: "Novo parcelamento" }).click();
-    const modal = dialog(page);
-    await modal.getByPlaceholder("Ex: Notebook, TV, viagem...").fill("Notebook");
-    await modal.getByLabel("Valor total (R$)").fill("300,00");
-    await modal.getByLabel("Nº de parcelas").fill("3");
-    await modal.getByLabel("Categoria").selectOption({ label: category.name });
-    await fillCompetence(modal, "Primeira parcela em", competence.current);
-    await modal.getByRole("button", { name: "Criar parcelamento" }).click();
-
-    const card = page.getByTestId("installment-card");
-    await expect(card).toHaveCount(1);
-
-    // Os valores vêm da API: a divisão em centavos é regra de domínio.
-    const [criado] = await seed.listInstallmentExpenses();
-    await expect(card).toContainText(
-      `3× · ${monthShort(competence.current)} → ${monthShort(competence.in2)}`,
+    const meses = dialog(page).getByRole("list", { name: "Meses afetados" }).getByRole("listitem");
+    await expect(meses).toHaveCount(3);
+    await expect(meses.nth(0)).toContainText("33,34");
+    await expect(meses.nth(1)).toContainText("33,33");
+    await expect(meses.nth(2)).toContainText("33,33");
+    await expect(dialog(page)).toContainText(
+      `Os centavos que sobram da divisão entram na 1ª parcela (${brl(33.34)}).`,
     );
-    await expect(card).toContainText("0/3 pagas");
-    await expect(card).toContainText(`${brl(criado.installments[0].amount)}/parcela`);
-    await expect(card).toContainText(`${brl(criado.totalAmount)} total`);
-    await expect(card).toContainText("Parcelada");
-    await expect(card).toContainText(category.name);
+    await dialog(page).getByRole("button", { name: "Confirmar despesa" }).click();
+
+    await expect(page.getByText("Parcelamento criado")).toBeVisible();
+    const [gravado] = await seed.listInstallmentExpenses();
+    expect(gravado.installments.map((i) => i.amount)).toEqual([33.34, 33.33, 33.33]);
   });
 
-  test("lista as parcelas com a competência de cada uma", async ({ page, seed, competence }) => {
-    const { installment } = await cenarioParcelamento(seed, competence, {
-      parcelas: 3,
-      total: 300,
-      description: "Notebook",
-    });
-    await goto(page, "/despesas");
-    await abrirAbaParceladas(page);
-
-    await page.getByRole("button", { name: "Ver parcelas" }).click();
-
-    const modal = dialog(page);
-    await expect(modal.getByText(`Parcelas — ${installment.description}`)).toBeVisible();
-    for (const parcela of installment.installments) {
-      await expect(
-        modal.getByText(`${parcela.installmentNumber}/${installment.installmentCount}`, {
-          exact: true,
-        }),
-      ).toBeVisible();
-      await expect(modal).toContainText(
-        monthShort({ year: parcela.competenceYear, month: parcela.competenceMonth }),
-      );
-    }
-    // A parcela do mês vigente é a única marcada como atual.
-    await expect(modal.getByText("Atual")).toHaveCount(1);
-    await expect(modal.getByText("Pago")).toHaveCount(0);
-  });
-
-  // ⏱ Estado passado só existe no relógio do cliente: `shiftClock` avança o
-  // browser um mês, então a primeira parcela vira passado.
-  test("após um mês a primeira parcela consta como paga", async ({
+  test("parcelamento em andamento: a grade marca Paga/Atual e Encerrar remove as futuras", async ({
     page,
     seed,
     competence,
-    shiftClock,
   }) => {
+    // A situação das parcelas vem do relógio do SERVIDOR; o único jeito de ter
+    // uma parcela já paga é importar a série com o 1º mês no passado.
+    await seed.importCsv([
+      `${csvCompetence(competence.prev)};despesa;Eletrônicos;Notebook;33,34;parcelada;1;3;s1;`,
+      `${csvCompetence(competence.current)};despesa;Eletrônicos;Notebook;33,33;parcelada;2;3;s1;`,
+      `${csvCompetence(competence.next)};despesa;Eletrônicos;Notebook;33,33;parcelada;3;3;s1;`,
+    ]);
+    await goto(page, "/despesas");
+
+    await expect(page.getByRole("button", { name: /Notebook/ })).toContainText("Parcela 2 de 3");
+    await page.getByRole("button", { name: /Notebook/ }).click();
+    const notebook = ficha(page, "Notebook");
+    const parcelas = notebook.getByRole("list", { name: "Parcelas" }).getByRole("listitem");
+    await expect(parcelas.nth(0)).toContainText("paga");
+    await expect(parcelas.nth(1)).toContainText("ATUAL");
+    await expect(parcelas.nth(2)).toContainText("pendente");
+    await expect(notebook.getByRole("button", { name: "Remover parcelamento" })).toHaveCount(0);
+
+    await notebook.getByRole("button", { name: "Encerrar parcelamento" }).click();
+    await page
+      .getByRole("dialog", { name: "Encerrar parcelamento?" })
+      .getByRole("button", { name: "Encerrar" })
+      .click();
+
+    await expect(page.getByText("Parcelamento encerrado")).toBeVisible();
+    await expect(
+      notebook.getByRole("list", { name: "Parcelas" }).getByRole("listitem"),
+    ).toHaveCount(2);
+    await notebook.getByRole("button", { name: "Fechar" }).last().click();
+    await page.getByRole("button", { name: "Próximo mês" }).click();
+    await expect(page.getByRole("button", { name: /Notebook/ })).toHaveCount(0);
+  });
+
+  test("parcelamento sem parcela paga pode ser removido", async ({ page, seed, competence }) => {
     const { installment } = await cenarioParcelamento(seed, competence, {
-      parcelas: 3,
+      parcelas: 2,
       total: 300,
-      description: "Notebook",
     });
-
-    await shiftClock(1);
     await goto(page, "/despesas");
-    await abrirAbaParceladas(page);
 
-    await expect(page.getByTestId("installment-card")).toContainText("1/3 pagas");
-
-    await page.getByRole("button", { name: "Ver parcelas" }).click();
-    const modal = dialog(page);
-    await expect(modal.getByText("Pago")).toHaveCount(1);
-    await expect(modal).toContainText(
-      monthShort({
-        year: installment.installments[0].competenceYear,
-        month: installment.installments[0].competenceMonth,
-      }),
+    await page.getByRole("button", { name: /Notebook/ }).click();
+    const notebook = ficha(page, "Notebook");
+    await expect(notebook).toContainText(`2× de ${brl(installment.installments[1].amount)}`);
+    await expect(notebook.getByRole("list", { name: "Parcelas" })).toContainText(
+      cellAmount(installment.installments[0].amount),
     );
-  });
+    await notebook.getByRole("button", { name: "Remover parcelamento" }).click();
+    await page
+      .getByRole("dialog", { name: "Remover parcelamento?" })
+      .getByRole("button", { name: "Remover" })
+      .click();
 
-  test("recusa número de parcelas fora de 1 a 72", async ({ page, seed, competence }) => {
-    const category = await seed.createCategory("Lazer");
-    await goto(page, "/despesas");
-    await abrirAbaParceladas(page);
-
-    await page.getByRole("button", { name: "Novo parcelamento" }).click();
-    const modal = dialog(page);
-    await modal.getByLabel("Descrição").fill("Notebook");
-    await modal.getByLabel("Valor total (R$)").fill("300,00");
-    await modal.getByLabel("Categoria").selectOption({ label: category.name });
-    await fillCompetence(modal, "Primeira parcela em", competence.current);
-
-    await modal.getByLabel("Nº de parcelas").fill("0");
-    await modal.getByRole("button", { name: "Criar parcelamento" }).click();
-    await expect(modal.getByText("Entre 1 e 72 parcelas.")).toBeVisible();
-
-    await modal.getByLabel("Nº de parcelas").fill("73");
-    await modal.getByRole("button", { name: "Criar parcelamento" }).click();
-    await expect(modal.getByText("Entre 1 e 72 parcelas.")).toBeVisible();
-
-    await expect(page.getByText("Nenhum parcelamento cadastrado.")).toBeVisible();
-  });
-
-  test("bloqueia primeira parcela em competência passada", async ({ page, seed, competence }) => {
-    const category = await seed.createCategory("Lazer");
-    await goto(page, "/despesas");
-    await abrirAbaParceladas(page);
-
-    await page.getByRole("button", { name: "Novo parcelamento" }).click();
-    const modal = dialog(page);
-    await modal.getByLabel("Descrição").fill("Notebook");
-    await modal.getByLabel("Valor total (R$)").fill("300,00");
-    await modal.getByLabel("Nº de parcelas").fill("3");
-    await modal.getByLabel("Categoria").selectOption({ label: category.name });
-    await fillCompetence(modal, "Primeira parcela em", {
-      year: competence.current.year - 1,
-      month: competence.current.month,
-    });
-    await modal.getByRole("button", { name: "Criar parcelamento" }).click();
-
-    await expect(
-      modal.getByText("A primeira parcela não pode cair em competência passada."),
-    ).toBeVisible();
-  });
-
-  test("exclui o parcelamento inteiro após confirmação", async ({ page, seed, competence }) => {
-    await cenarioParcelamento(seed, competence, { parcelas: 3, total: 300 });
-    await goto(page, "/despesas");
-    await abrirAbaParceladas(page);
-
-    await page.getByTestId("installment-card").getByRole("button", { name: "Excluir" }).click();
-
-    await expect(
-      dialog(page).getByText("Excluir todo o parcelamento? Todas as parcelas serão removidas."),
-    ).toBeVisible();
-    await dialog(page).getByRole("button", { name: "Excluir" }).click();
-
-    await expect(page.getByText("Nenhum parcelamento cadastrado.")).toBeVisible();
-  });
-
-  test("os valores das parcelas somam o total", async ({ page, seed, competence }) => {
-    // 100,00 em 3 não divide exato: o resto vai para a PRIMEIRA parcela.
-    const { installment } = await cenarioParcelamento(seed, competence, {
-      parcelas: 3,
-      total: 100,
-      description: "Fone de ouvido",
-    });
-
-    const soma = installment.installments.reduce((total, i) => total + i.amount, 0);
-    expect(Number(soma.toFixed(2))).toBe(installment.totalAmount);
-
-    await goto(page, "/despesas");
-    await abrirAbaParceladas(page);
-    await page.getByRole("button", { name: "Ver parcelas" }).click();
-
-    const modal = dialog(page);
-    for (const parcela of installment.installments) {
-      await expect(modal).toContainText(brl(parcela.amount));
-    }
+    await expect(page.getByText("Parcelamento removido")).toBeVisible();
+    expect(await seed.listInstallmentExpenses()).toHaveLength(0);
   });
 });

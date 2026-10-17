@@ -1,6 +1,6 @@
 ---
 name: web-componentes
-description: Como escrever componentes de feature e formulários no web do Smaug — props XProps, apresentacional sem hook de dados, os dois padrões de formulário (React Hook Form + zod vs useState + bag de erros), tokens Tailwind, cn() e acessibilidade em pt-BR.
+description: Como escrever componentes de feature e formulários no web do Smaug — props XProps, apresentacional vs container de feature (Screen/Wizard/Ficha), formulários com React Hook Form + zod (no componente ou dentro do hook do assistente), tokens Tailwind, cn() e acessibilidade em pt-BR.
 ---
 
 # Componente de feature e formulário
@@ -14,27 +14,26 @@ Ao criar/alterar `web/features/<f>/components/*.tsx`. Para primitivos de `shared
 
 1. **`interface <Componente>Props` declarada logo acima do componente**, e **não exportada** em
    componente de feature (primitivos de `shared/` exportam).
-2. **`"use client"` só quando o componente tem estado/efeito/hook.** `InstallmentForm` (useState,
-   useMemo) tem; `InstallmentCard`, `InstallmentModal`, `KpiCard` **não têm** — herdam a fronteira
-   da página.
-3. **Apresentacional de verdade**: sem hook de dados, sem `apiClient`, sem query client.
-4. **"Agora" é injetado por props**, não lido dentro do componente:
-   `currentYear: number; currentMonth: number` — padrão consistente em `InstallmentCard`,
-   `InstallmentModal`, `RecurringExpenseCard`.
-5. Callbacks são `on<Verbo>`. **Excluir recebe o id; visualizar/editar recebem a entidade**:
-   ```ts
-   onDelete: (id: string) => void;
-   onViewInstallments: (exp: InstallmentExpense) => void;
-   ```
-6. Item de lista usa elemento semântico + `data-testid`:
-   `<article data-testid="installment-card" className="...">`.
-7. Modal de feature embrulha `shared/components/Modal`, recebe `{ isOpen, onClose, <entidade> }` e
-   faz early-return quando a entidade falta:
-   ```tsx
-   export function InstallmentModal({ isOpen, onClose, expense, currentYear, currentMonth }: InstallmentModalProps) {
-     if (!expense) return null;
-     return <Modal isOpen={isOpen} onClose={onClose} title={`Parcelas — ${expense.description}`} width="md">
-   ```
+2. **`"use client"` só quando o componente tem estado/efeito/hook.** `ExpenseWizard`,
+   `DespesasScreen` e as Fichas têm; `KpiCard`, `EntryRow`, `MonthStrip` **não têm** — herdam a
+   fronteira de quem os usa.
+3. **Dois papéis, sem meio-termo:**
+   - **Apresentacional** — só props, sem hook de dados, sem `apiClient`, sem query client. É o caso
+     de tudo em `shared/components/lancamentos/` e dos cards/formulários de Categorias.
+   - **Container de feature** — `<Feature>Screen`, `<X>Wizard` e `<X>Ficha` de Receitas/Despesas.
+     Chamam **hooks da própria feature** (`useExpenseMonth`, `useExpenseWizard`,
+     `useInstallmentExpense`, `useExpenseMutations`) e compõem os blocos apresentacionais. Nunca
+     chamam `apiClient`, service ou hook de outra feature.
+4. **"Agora" é injetado por props**, não lido dentro do componente: em Receitas/Despesas é o
+   `reference: Competence` do servidor, e a situação do mês chega como `status: CompetenceStatus`.
+5. Callbacks são `on<Verbo>` (`onClose`, `onEdit`, `onOpen`, `onNew`, `onRetry`). Excluir recebe o
+   id; abrir/editar recebem a entidade.
+6. Linha de lista clicável é um `<button>` de largura total (teclado e leitor de tela de graça),
+   como `EntryRow`. Os testes consultam por papel e nome, não por `data-testid` — o único que resta
+   é o de `CategoryCard`.
+7. Modal de feature embrulha `shared/components/Modal`. Quando é montado condicionalmente pelo
+   container (`modal?.t === "item" && <ExpenseFicha ... />`), passa `isOpen` fixo e não precisa de
+   early-return; enquanto o detalhe carrega, renderiza `FichaPlaceholder`.
 
 ## Exemplo canônico — apresentacional
 
@@ -80,17 +79,17 @@ export function KpiCard({ label, value, sublabel, colorScheme }: KpiCardProps) {
 (ou `Record<Uniao, { label, cls }>`) no módulo, consultado e passado para `cn()`. Nomes em uso:
 `COLOR_MAP`, `WIDTHS`, `STATUS_BADGE`, `STYLES`, `ICONS`, `COLORS`, `NAV_ITEMS`, `OPTIONS`, `TABS`.
 
-## Formulários — existem DOIS padrões
+## Formulários — React Hook Form + zod
 
-**Ambos compartilham a mesma assinatura de props e a mesma regra de ouro:**
-props `{ initial?, categories?, onSave, onClose, isLoading? }`; **`onSave` recebe o payload da API
-já montado, nunca o estado cru do formulário**; e **o formulário nunca dispara mutation** — quem
-chama `.mutate()` é a página.
+**Sempre React Hook Form + `zodResolver`, com o schema em `features/<f>/types/schemas.ts`.**
+Valor monetário digitado é lido por `parseMoneyInput()` de `@/shared/lib/money` (nunca
+`parseFloat`); competência passada é validada no schema contra o `reference` do servidor.
+Há duas formas de montar, conforme o tamanho do formulário:
 
-### (a) React Hook Form + zodResolver — onde existe `types/schemas.ts`
+### (a) Formulário simples — RHF no próprio componente
 
-Hoje: `LoginForm.tsx`, `RegisterForm.tsx`, `CategoryForm.tsx` (features `auth` e `categorias`).
-**Use este padrão quando o formulário for simples e você criar o `schemas.ts` correspondente.**
+Hoje: `LoginForm.tsx`, `RegisterForm.tsx`, `CategoryForm.tsx`. O formulário **nunca dispara
+mutation**: `onSave` recebe o payload pronto e quem chama `.mutate()` é a página.
 
 ```tsx
 "use client";
@@ -147,60 +146,58 @@ genérico é o tipo `XFormData`; `defaultValues` vem de `initial?.campo ?? ""`;
 `RegisterForm` usa `noValidate` no `<form>` — com comentário explicando que a validação nativa do
 browser barraria o submit antes do React.
 
-### (b) `useState` controlado + validação imperativa — os demais 8 formulários
+### (b) Assistente em etapas — RHF dentro do hook da feature
 
-`InstallmentForm`, `OneTimeExpenseForm`, `RecurringExpenseForm`, `RecurringExpenseVersionForm` e os
-formulários de `receitas`. **Use quando houver campos derivados, máscara de moeda ou regra de
-competência** — foi por isso que nasceram.
+`ExpenseWizard.tsx` / `RevenueWizard.tsx`. O `useForm`, as etapas, a prévia e a mutation ficam em
+`useExpenseWizard` (skill `web-feature-hooks`); o componente só lê e liga campos:
 
 ```tsx
-const [desc, setDesc] = useState("");
-const [total, setTotal] = useState("");
-const [count, setCount] = useState("");
-const [catId, setCatId] = useState("");
-const [month, setMonth] = useState(now.month);
-const [year, setYear] = useState(now.year);
-const [errors, setErrors] = useState<Record<string, string>>({});
+export function ExpenseWizard({
+  categories,
+  initialCompetence,
+  reference,
+  edit,
+  onClose,
+}: ExpenseWizardProps) {
+  const wizard = useExpenseWizard({ initialCompetence, reference, edit, onDone: onClose });
+  const { values, errors, form } = wizard;
 
-const installmentAmt = useMemo(() => {
-  const t = Math.round(parseAmount(total) * 100);
-  const c = parseInt(count);
-  if (!t || !c || c < 1 || c > 72) return null;
-  return Math.floor(t / c) / 100;
-}, [total, count]);
-
-function submit(e: React.FormEvent) {
-  e.preventDefault();
-  const v: Record<string, string> = {};
-  if (!desc.trim()) v.desc = "Descrição obrigatória.";
-  const t = parseAmount(total);
-  if (isNaN(t) || t <= 0) v.total = "Valor total inválido.";
-  const c = parseInt(count);
-  if (isNaN(c) || c < 1 || c > 72) v.count = "Entre 1 e 72 parcelas.";
-  if (!catId) v.cat = "Selecione uma categoria.";
-  if (!isEligible({ year, month })) {
-    v.competence = "A primeira parcela não pode cair em competência passada.";
-  }
-  if (Object.keys(v).length) {
-    setErrors(v);
-    return;
-  }
-  onSave({
-    description: desc.trim(),
-    totalAmount: t,
-    installmentCount: c,
-    categoryId: catId,
-    startYear: year,
-    startMonth: month,
-  });
+  return (
+    <WizardShell
+      title={wizard.isEdit ? "Editar despesa" : "Nova despesa"}
+      step={wizard.step}
+      onBack={wizard.back}
+      onContinue={wizard.next}
+      onConfirm={wizard.submit}
+      /* ... */
+    >
+      {wizard.step === DETAILS_STEP && (
+        <MoneyField
+          label={AMOUNT_LABEL[values.kind]}
+          tone="expense"
+          error={errors.amount?.message}
+          {...form.register("amount")}
+        />
+      )}
+    </WizardShell>
+  );
 }
 ```
 
-Detalhes fixos: bag de erro é `Record<string, string>` com chaves curtas (`desc`, `total`, `count`,
-`cat`, `competence`); valor monetário **sempre** por `parseAmount()`, nunca `parseFloat`; competência
-validada com `isEligible({ year, month })` de `@/shared/lib/competence`.
+Detalhes fixos:
 
-### Rodapé de formulário (idêntico nos dois padrões)
+- Erros vêm de **`wizard.errors`**, nunca de `wizard.form.formState.errors` (não re-renderiza).
+- Campos que não são `<input>` nativo (`Stepper`, `CompetenceSelect`, `ChoiceCardGroup`) são
+  controlados por `value={values.x}` + `onChange={(v) => form.setValue("x", v)}`.
+- Rótulos por tipo vêm de `Record<Kind, string>` no módulo (`AMOUNT_LABEL`, `START_LABEL`).
+- Cabeçalho, indicador de etapas e rodapé são do `WizardShell`; não reescreva o rodapé.
+
+A Ficha de série (`SeriesFicha` + `useSeriesActions`) é a exceção documentada: seus dois
+formulários pequenos (Nova versão, Encerrar) guardam valores em `useState` e validam com
+`schema.safeParse` ao confirmar, porque a prévia da linha do tempo é recalculada a cada tecla a
+partir desses mesmos valores. Os schemas continuam vindo da feature.
+
+### Rodapé de formulário simples
 
 ```tsx
 <div className="flex justify-end gap-2 border-t border-border pt-4">
@@ -213,11 +210,17 @@ validada com `isEligible({ year, month })` de `@/shared/lib/competence`.
 </div>
 ```
 
+Modais com `footer` (Fichas, `WizardShell`) passam os botões pelo slot `footer` do `Modal`.
+
 ## Tailwind
 
 - **Só tokens do tema**, nunca hex cru: `bg-surface`, `bg-bg`, `border-border`, `text-text`,
   `text-text-muted`, `text-text-subtle`, `text-red`, `bg-red-light`, `border-red-mid`, `text-green`,
-  `bg-green-light`, `w-nav`. Definidos em `web/tailwind.config.ts`.
+  `bg-green-light`, `w-nav`, e as cores por tipo de lançamento `tipo.{avulsa,parcelada,recorrente,fixa}`
+  (com `.light`). Definidos em `web/tailwind.config.ts`. Cor/ícone/rótulo de cada tipo vêm de
+  `ENTRY_KIND` em `@/shared/lib/entry-types` — não repita o mapa numa feature.
+- Utilitários `bg-stripes` (prévia de nova versão) e `bg-hatch` (meses que deixam de existir) estão
+  em `app/globals.css`.
 - **Tamanhos de fonte arbitrários são intencionais** e fazem parte do design:
   `text-[11px]`, `text-[11.5px]`, `text-[13px]`, `text-[13.5px]`, `text-[14.5px]`, `text-[18px]`,
   `text-[22px]`.
@@ -241,21 +244,22 @@ acessível — quebrar o rótulo quebra o teste.
 
 - [ ] `interface <Componente>Props` acima do componente, não exportada.
 - [ ] `"use client"` só se houver estado/efeito.
-- [ ] Sem hook de dados, sem `apiClient`.
-- [ ] "Agora" recebido por prop.
+- [ ] Apresentacional sem hook de dados; container só com hooks da própria feature; nunca `apiClient`.
+- [ ] "Agora" recebido por prop (`reference`/`status` do servidor).
 - [ ] Variantes por `Record<Uniao, string>` + `cn()`.
-- [ ] `onSave` recebendo o payload pronto; nenhuma mutation chamada aqui.
-- [ ] Rodapé de formulário no formato padrão.
+- [ ] Formulário com RHF + zod; `onSave` com payload pronto (simples) ou mutation no hook (assistente).
+- [ ] Rodapé no formato padrão ou no slot `footer` do `Modal`.
 - [ ] Tokens Tailwind; nada de hex.
-- [ ] `aria-label` em pt-BR nos botões só-ícone; `data-testid` em card de lista.
+- [ ] `aria-label` em pt-BR nos botões só-ícone; linha clicável como `<button>`.
 - [ ] Teste ao lado do arquivo (skill `web-testes`).
 
 ## Não faça
 
-- Não chame `useMutation`/`apiClient` dentro do componente.
-- Não leia `new Date()` dentro de componente de lista/card — receba por prop.
+- Não chame `useMutation`/`apiClient` dentro do componente — mutation mora no hook da feature.
+- Não leia `new Date()` dentro de componente — receba `reference` por prop.
 - Não interpole classe com template literal (``className={`... ${cond ? "x" : ""}`}``); use `cn()`.
   Só `FilterBar.tsx` e `AppShell.tsx` fazem isso, e é dívida.
 - Não use hex arbitrário para cor de tema (os poucos `bg-[#f5f0ff]` existentes são paletas pontuais
   de badge, não precedente).
-- Não crie um terceiro padrão de formulário.
+- Não volte ao formulário com `useState` + bag de erros `Record<string, string>`; use RHF + zod.
+- Não duplique entre Receitas e Despesas um bloco que caberia em `shared/components/lancamentos/`.

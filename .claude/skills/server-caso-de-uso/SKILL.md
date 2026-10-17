@@ -156,12 +156,20 @@ public async execute(input: ListOneTimeRevenuesInput): Promise<OneTimeRevenue[]>
    regra temporal e cross-agregado → caso de uso.
 8. Escrita composta faz **re-leitura** para devolver o estado canônico
    (`findInstallmentsByExpense(persisted.id)`, `findVersions(created.id)`).
-9. "Agora" é calculado inline em UTC quando preciso; não existe abstração de relógio:
+9. "Agora" é um `new Date()` local ao `execute`, passado às regras do domínio; não existe abstração
+   de relógio. O mês corrente sai de `MonthlyCompetence.current(referenceDate)` (UTC), nunca de
+   `getUTCFullYear()`/`getUTCMonth()` no caso de uso:
    ```ts
    const referenceDate = new Date();
-   const referenceYear = referenceDate.getUTCFullYear();
-   const referenceMonth = referenceDate.getUTCMonth() + 1;
+   if (!InstallmentExpense.hasFutureInstallments(allInstallments, referenceDate)) {
+     throw new NoFutureInstallmentsError();
+   }
+   const current = MonthlyCompetence.current(referenceDate);
    ```
+   **A regra que recusa a ação é um predicado da entidade** (`hasPastInstallments`,
+   `hasFutureInstallments`, `isExpiredAt`), e o service usa o **mesmo** predicado para projetar
+   `canDelete`/`canTerminate`/`isExpired` no DTO — assim a interface nunca oferece o que o caso de
+   uso recusaria. Não reescreva a regra no service nem consulte o repositório para ela.
 10. Nada de `@injectable()`/`@inject()` — o projeto **não usa decorators**. A fiação é manual no
     `container.ts` (skill `server-di-container`).
 

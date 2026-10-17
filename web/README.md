@@ -48,7 +48,7 @@ app/            App Router
   layout.tsx  providers.tsx  page.tsx      — page.tsx só faz redirect("/login")
 features/       auth, dashboard, receitas, despesas, categorias, historico
                 cada uma com components/ hooks/ services/ types/
-shared/         components/ (Button, Modal, DataTable, Toast, MonthNavigator, …)
+shared/         components/ (Button, Modal, Toast, MonthNavigator, lancamentos/, …)
                 hooks/ (useToast, useDebounce, useMediaQuery)  lib/  types/
 infra/          api-client, api-error, session, navigation, router-adapter, query-client
 tests/          harness do Vitest — MSW, fixtures, renderWithProviders
@@ -109,7 +109,7 @@ de rede e 5xx são transitórias e não deslogam o usuário.
 `const QK = [...]` no nível do módulo, `useQuery` com `staleTime: 30_000`, e
 `useMutation`s que invalidam (`qc.invalidateQueries({ queryKey: QK })`) e disparam
 um `toast` de `@/shared/hooks/useToast`. Veja
-`features/despesas/hooks/useInstallments.ts` como referência.
+`features/categorias/hooks/useCategories.ts` como referência.
 
 Os defaults globais (retry, backoff, `gcTime`) estão em `infra/query-client.ts`.
 

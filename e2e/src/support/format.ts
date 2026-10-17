@@ -28,3 +28,23 @@ export function monthShort({ year, month }: Competence): string {
 export function monthLong({ year, month }: Competence): string {
   return `${MONTH_NAMES_FULL[month - 1]} de ${year}`;
 }
+
+/** Título do mês nas telas de Receitas/Despesas → "Setembro 2026". */
+export function monthTitle({ year, month }: Competence): string {
+  return `${MONTH_NAMES_FULL[month - 1]} ${year}`;
+}
+
+/** Total da faixa de 12 meses: sem "R$" e sem centavos (truncados) → "3.420". */
+export function compact(value: number): string {
+  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(Math.trunc(value));
+}
+
+/** Valor de célula/barra (Revisão, grades da Ficha): "33,34", sem o prefixo. */
+export function cellAmount(value: number): string {
+  return brl(value).replace("R$", "").trim();
+}
+
+/** Competência no formato do CSV de importação → "2026-09". */
+export function csvCompetence({ year, month }: Competence): string {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}

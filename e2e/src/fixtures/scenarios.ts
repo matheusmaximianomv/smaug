@@ -16,7 +16,7 @@ import type {
  * contra literais (regra 4 do inventário).
  *
  * Nenhum builder semeia no passado — a API rejeita competência passada em todos
- * os `create-*`. Estados passados vêm de `shiftClock`.
+ * os `create-*`. Dados passados (parcela já paga) entram por `seed.importCsv`.
  */
 
 export interface CenarioDashboardCompleto {

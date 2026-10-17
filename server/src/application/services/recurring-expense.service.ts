@@ -17,6 +17,7 @@ import {
   RecurringExpenseVersionDto,
 } from "@src/application/dtos/recurring-expense.dto";
 import { ExpenseCategoryNotFoundError } from "@src/domain/errors/domain-error";
+import { toReferenceDto } from "@src/application/dtos/competence.dto";
 import { MonthlyCompetence } from "@src/domain/value-objects/monthly-competence.value-object";
 
 export class RecurringExpenseService {
@@ -119,6 +120,8 @@ export class RecurringExpenseService {
       startMonth: expense.startMonth,
       endYear: expense.endYear,
       endMonth: expense.endMonth,
+      isExpired: expense.isExpiredAt(),
+      reference: toReferenceDto(MonthlyCompetence.current()),
       currentVersion: this.toVersionDto(currentVersion, categoryMap.get(currentVersion.categoryId)!),
       versions: sortedVersions.map((version) => this.toVersionDto(version, categoryMap.get(version.categoryId)!)),
       createdAt: expense.createdAt.toISOString(),
@@ -169,8 +172,7 @@ export class RecurringExpenseService {
   private static resolveActiveVersion(
     sortedVersions: RecurringExpenseVersion[],
   ): RecurringExpenseVersion {
-    const now = new Date();
-    const currentCompetence = MonthlyCompetence.create(now.getMonth() + 1, now.getFullYear());
+    const currentCompetence = MonthlyCompetence.current();
 
     const inEffect = sortedVersions.filter((version) =>
       MonthlyCompetence.create(version.effectiveMonth, version.effectiveYear).isBeforeOrEqual(

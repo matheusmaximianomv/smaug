@@ -107,19 +107,6 @@ export class PrismaInstallmentExpenseRepository implements InstallmentExpenseRep
     });
   }
 
-  public async hasPastInstallments(expenseId: string, referenceMonth: number, referenceYear: number): Promise<boolean> {
-    const count = await this.prisma.installment.count({
-      where: {
-        installmentExpenseId: expenseId,
-        OR: [
-          { competenceYear: { lt: referenceYear } },
-          { competenceYear: referenceYear, competenceMonth: { lt: referenceMonth } },
-        ],
-      },
-    });
-    return count > 0;
-  }
-
   public async findInstallmentsByExpense(expenseId: string): Promise<Installment[]> {
     const records = await this.prisma.installment.findMany({
       where: { installmentExpenseId: expenseId },

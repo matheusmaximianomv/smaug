@@ -1,17 +1,27 @@
 import { apiClient } from "@/infra/api-client";
+import type { Competence } from "@/shared/lib/competence";
 import type {
+  ExpenseMonth,
+  ExpenseYearSummary,
   OneTimeExpense,
   InstallmentExpense,
   RecurringExpense,
-  RecurringExpenseVersion,
 } from "../types";
 
 export const DespesasService = {
-  // One-time expenses
-  getOneTime: async (): Promise<OneTimeExpense[]> => {
-    const { data } = await apiClient.get("/expenses/one-time");
+  // Consultas da tela
+  getMonth: async ({ year, month }: Competence): Promise<ExpenseMonth> => {
+    const { data } = await apiClient.get("/expenses", {
+      params: { competenceYear: year, competenceMonth: month },
+    });
     return data;
   },
+  getYearSummary: async (year: number): Promise<ExpenseYearSummary> => {
+    const { data } = await apiClient.get("/expenses/summary", { params: { year } });
+    return data;
+  },
+
+  // One-time expenses
   createOneTime: async (payload: {
     description: string;
     amount: number;
@@ -40,8 +50,8 @@ export const DespesasService = {
   },
 
   // Installment expenses
-  getInstallments: async (): Promise<InstallmentExpense[]> => {
-    const { data } = await apiClient.get("/expenses/installment");
+  getInstallment: async (id: string): Promise<InstallmentExpense> => {
+    const { data } = await apiClient.get(`/expenses/installment/${id}`);
     return data;
   },
   createInstallment: async (payload: {
@@ -55,13 +65,17 @@ export const DespesasService = {
     const { data } = await apiClient.post("/expenses/installment", payload);
     return data;
   },
+  terminateInstallment: async (id: string): Promise<InstallmentExpense> => {
+    const { data } = await apiClient.post(`/expenses/installment/${id}/terminate`);
+    return data;
+  },
   deleteInstallment: async (id: string): Promise<void> => {
     await apiClient.delete(`/expenses/installment/${id}`);
   },
 
   // Recurring expenses
-  getRecurring: async (): Promise<RecurringExpense[]> => {
-    const { data } = await apiClient.get("/expenses/recurring");
+  getRecurring: async (id: string): Promise<RecurringExpense> => {
+    const { data } = await apiClient.get(`/expenses/recurring/${id}`);
     return data;
   },
   createRecurring: async (payload: {

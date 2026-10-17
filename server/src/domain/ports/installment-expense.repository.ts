@@ -10,7 +10,6 @@ export interface InstallmentExpenseRepository {
   updateInstallments(installments: Installment[]): Promise<void>;
   delete(id: string): Promise<void>;
   deleteFutureInstallments(expenseId: string, month: number, year: number): Promise<void>;
-  hasPastInstallments(expenseId: string, referenceMonth: number, referenceYear: number): Promise<boolean>;
   findInstallmentsByExpense(expenseId: string): Promise<Installment[]>;
   findInstallmentsByCompetence(userId: string, year: number, month: number): Promise<Installment[]>;
 }

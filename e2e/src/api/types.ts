@@ -79,6 +79,8 @@ export interface InstallmentDto {
   amount: number;
   competenceYear: number;
   competenceMonth: number;
+  /** Situação calculada pelo servidor contra o mês corrente dele (UTC). */
+  status: "PAID" | "CURRENT" | "PENDING";
   createdAt: string;
 }
 
@@ -92,6 +94,10 @@ export interface InstallmentExpenseDto {
   installmentCount: number;
   startYear: number;
   startMonth: number;
+  endYear: number;
+  endMonth: number;
+  canDelete: boolean;
+  canTerminate: boolean;
   installments: InstallmentDto[];
   createdAt: string;
   updatedAt: string;

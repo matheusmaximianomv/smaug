@@ -43,12 +43,16 @@ export const updateInstallmentExpenseSchema = z
 
 export type UpdateInstallmentExpenseDto = z.infer<typeof updateInstallmentExpenseSchema>;
 
+/** Situação da parcela em relação ao mês corrente do servidor: PAST→PAID, FUTURE→PENDING. */
+export type InstallmentStatus = "PAID" | "CURRENT" | "PENDING";
+
 export interface InstallmentDto {
   id: string;
   installmentNumber: number;
   amount: number;
   competenceYear: number;
   competenceMonth: number;
+  status: InstallmentStatus;
   createdAt: string;
 }
 
@@ -65,6 +69,13 @@ export interface InstallmentExpenseResponseDto {
   installmentCount: number;
   startYear: number;
   startMonth: number;
+  /** Competência da última parcela do plano (início + quantidade − 1). */
+  endYear: number;
+  endMonth: number;
+  /** Projeção da regra de remoção: nenhuma parcela passada. */
+  canDelete: boolean;
+  /** Projeção da regra de encerramento: existe parcela futura. */
+  canTerminate: boolean;
   installments: InstallmentDto[];
   createdAt: string;
   updatedAt: string;

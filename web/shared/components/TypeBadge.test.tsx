@@ -39,3 +39,22 @@ describe("TypeBadge", () => {
     expect(screen.getByText("Parcelada").className).not.toBe(fixed);
   });
 });
+
+describe("TypeBadge identidade por tipo", () => {
+  it("pinta Avulsa de azul (não mais cinza), com ícone", () => {
+    render(<TypeBadge type="ONE_TIME" />);
+    const badge = screen.getByText("Avulsa");
+
+    expect(badge).toHaveClass("bg-tipo-avulsa-light", "text-tipo-avulsa");
+    expect(badge.querySelector("svg")).not.toBeNull();
+  });
+
+  it("usa a mesma identidade para a chave da API e a minúscula", () => {
+    const { rerender } = render(<TypeBadge type="RECURRING" />);
+    const upper = screen.getByText("Recorrente").className;
+
+    rerender(<TypeBadge type="recorrente" />);
+
+    expect(screen.getByText("Recorrente").className).toBe(upper);
+  });
+});

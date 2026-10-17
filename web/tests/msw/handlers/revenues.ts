@@ -1,18 +1,66 @@
 import { http, HttpResponse } from "msw";
-import type { OneTimeRevenue } from "@/features/receitas/types";
-import { url } from "../base";
+import type { FixedRevenue, OneTimeRevenue, RevenueMonth } from "@/features/receitas/types";
+import { addMonths, compareCompetences, type Competence } from "@/shared/lib/competence";
+import { serverReference, url } from "../base";
 import { db } from "../db";
+import { apiStatus } from "./expenses";
 import {
+  fixedVersionAt,
   makeFixedRevenue,
   makeFixedRevenueVersion,
   makeOneTimeRevenue,
-  makeRevenueQueryPayload,
+  projectFixedRevenue,
 } from "../../fixtures";
+
+const round = (n: number) => Math.round(n * 100) / 100;
+const sum = (ns: number[]) => round(ns.reduce((a, b) => a + b, 0));
+const notFound = () => HttpResponse.json({ error: "FIXED_REVENUE_NOT_FOUND" }, { status: 404 });
+const project = (r: FixedRevenue) => projectFixedRevenue(r, serverReference());
+
+/** Reproduz `RevenueQueryService.getConsolidatedRevenues` sobre o `db`. */
+export function buildRevenueMonth(c: Competence): RevenueMonth {
+  const reference = serverReference();
+  const oneTimeRevenues = db.oneTimeRevenues.filter(
+    (r) => r.competenceYear === c.year && r.competenceMonth === c.month,
+  );
+
+  const fixedRevenues = db.fixedRevenues.flatMap((r) => {
+    const start = { year: r.startYear, month: r.startMonth };
+    if (compareCompetences(c, start) < 0) return [];
+    if (
+      r.endYear !== null &&
+      r.endMonth !== null &&
+      compareCompetences(c, { year: r.endYear, month: r.endMonth }) > 0
+    ) {
+      return [];
+    }
+    const versions = r.versions ?? [r.currentVersion];
+    const version = fixedVersionAt(versions, c);
+    if (!version) return [];
+    const startsNow = version.effectiveYear === c.year && version.effectiveMonth === c.month;
+    const previous =
+      startsNow && compareCompetences(c, start) > 0
+        ? fixedVersionAt(versions, addMonths(c, -1))
+        : undefined;
+    const { versions: _omit, ...rest } = project(r);
+    return [{ ...rest, currentVersion: version, previousAmount: previous?.amount ?? null }];
+  });
+
+  const oneTimeTotal = sum(oneTimeRevenues.map((r) => r.amount));
+  const fixedTotal = sum(fixedRevenues.map((r) => r.currentVersion.amount));
+  return {
+    competenceYear: c.year,
+    competenceMonth: c.month,
+    competenceStatus: apiStatus(c, reference),
+    reference,
+    oneTimeRevenues,
+    fixedRevenues,
+    totals: { oneTimeTotal, fixedTotal, total: round(oneTimeTotal + fixedTotal) },
+  };
+}
 
 export const revenueHandlers = [
   // ---- avulsas ----
-  http.get(url("/revenues/one-time"), () => HttpResponse.json(db.oneTimeRevenues)),
-
   http.post(url("/revenues/one-time"), async ({ request }) => {
     const body = (await request.json()) as Partial<OneTimeRevenue>;
     const created = makeOneTimeRevenue(body);
@@ -34,7 +82,13 @@ export const revenueHandlers = [
   }),
 
   // ---- fixas ----
+  // Lista consumida pelo Histórico.
   http.get(url("/revenues/fixed"), () => HttpResponse.json(db.fixedRevenues)),
+
+  http.get(url("/revenues/fixed/:id"), ({ params }) => {
+    const revenue = db.fixedRevenues.find((r) => r.id === params.id);
+    return revenue ? HttpResponse.json(project(revenue)) : notFound();
+  }),
 
   http.post(url("/revenues/fixed"), async ({ request }) => {
     const b = (await request.json()) as {
@@ -62,7 +116,7 @@ export const revenueHandlers = [
       versions: [currentVersion],
     });
     db.fixedRevenues.push(created);
-    return HttpResponse.json(created, { status: 201 });
+    return HttpResponse.json(project(created), { status: 201 });
   }),
 
   // ATENÇÃO: devolve a VERSÃO criada, não a receita.
@@ -74,16 +128,14 @@ export const revenueHandlers = [
       effectiveMonth: number;
     };
     const rev = db.fixedRevenues.find((r) => r.id === params.id);
-    if (!rev) {
-      return HttpResponse.json({ error: "FIXED_REVENUE_NOT_FOUND" }, { status: 404 });
-    }
+    if (!rev) return notFound();
     const clash = (rev.versions ?? []).some(
       (v) => v.effectiveYear === b.effectiveYear && v.effectiveMonth === b.effectiveMonth,
     );
     if (clash) return HttpResponse.json({ error: "VERSION_CONFLICT" }, { status: 409 });
 
     const version = makeFixedRevenueVersion(b);
-    rev.versions = [...(rev.versions ?? []), version];
+    rev.versions = [...(rev.versions ?? [rev.currentVersion]), version];
     rev.currentVersion = version;
     return HttpResponse.json(version);
   }),
@@ -91,12 +143,10 @@ export const revenueHandlers = [
   http.patch(url("/revenues/fixed/:id/terminate"), async ({ request, params }) => {
     const b = (await request.json()) as { endYear: number; endMonth: number };
     const rev = db.fixedRevenues.find((r) => r.id === params.id);
-    if (!rev) {
-      return HttpResponse.json({ error: "FIXED_REVENUE_NOT_FOUND" }, { status: 404 });
-    }
+    if (!rev) return notFound();
     rev.endYear = b.endYear;
     rev.endMonth = b.endMonth;
-    return HttpResponse.json(rev);
+    return HttpResponse.json(project(rev));
   }),
 
   http.delete(url("/revenues/fixed/:id"), ({ params }) => {
@@ -104,26 +154,33 @@ export const revenueHandlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
-  // ---- consulta consolidada (dashboard) ----
+  // ---- consultas da tela e do dashboard ----
+  http.get(url("/revenues/summary"), ({ request }) => {
+    const year = Number(new URL(request.url).searchParams.get("year"));
+    if (!Number.isInteger(year) || year < 2000) {
+      return HttpResponse.json(
+        { error: "VALIDATION_ERROR", message: "Year must be >= 2000" },
+        { status: 400 },
+      );
+    }
+    const months = Array.from({ length: 12 }, (_, i) => buildRevenueMonth({ year, month: i + 1 }));
+    return HttpResponse.json({
+      year,
+      reference: serverReference(),
+      months: months.map((m) => ({
+        month: m.competenceMonth,
+        competenceStatus: m.competenceStatus,
+        totals: m.totals,
+      })),
+    });
+  }),
+
   http.get(url("/revenues"), ({ request }) => {
     const q = new URL(request.url).searchParams;
-    const year = Number(q.get("competenceYear"));
-    const month = Number(q.get("competenceMonth"));
     return HttpResponse.json(
-      makeRevenueQueryPayload({
-        competenceYear: year,
-        competenceMonth: month,
-        oneTimeRevenues: db.oneTimeRevenues
-          .filter((r) => r.competenceYear === year && r.competenceMonth === month)
-          .map((r) => ({ id: r.id, description: r.description, amount: r.amount })),
-        fixedRevenues: db.fixedRevenues.map((r) => ({
-          id: r.id,
-          modality: r.modality,
-          currentVersion: {
-            description: r.currentVersion.description,
-            amount: r.currentVersion.amount,
-          },
-        })),
+      buildRevenueMonth({
+        year: Number(q.get("competenceYear")),
+        month: Number(q.get("competenceMonth")),
       }),
     );
   }),

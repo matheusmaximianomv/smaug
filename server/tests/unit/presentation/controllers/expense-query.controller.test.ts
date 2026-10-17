@@ -2,7 +2,16 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { NextFunction } from "express";
 import { ExpenseQueryController } from "@src/presentation/controllers/expense-query.controller";
 import type { ExpenseQueryService } from "@src/application/services/expense-query.service";
-import { createRequestMock, createResponseMock, type ResponseMock } from "../../../helpers/http-mocks";
+import {
+  createRequestMock,
+  createResponseMock,
+  type ResponseMock,
+} from "../../../helpers/http-mocks";
+import {
+  createServiceMock,
+  describeControllerContract,
+  type ControllerMock,
+} from "../../../helpers/controller-contract";
 
 describe("ExpenseQueryController", () => {
   const service = { getConsolidatedExpenses: vi.fn() };
@@ -55,5 +64,37 @@ describe("ExpenseQueryController", () => {
     );
 
     expect(next).toHaveBeenCalledWith(unexpected);
+  });
+});
+
+describeControllerContract(
+  "ExpenseQueryController contract",
+  () => {
+    const service = createServiceMock(["getConsolidatedExpenses", "getYearSummary"]);
+    const controller = new ExpenseQueryController(service as unknown as ExpenseQueryService);
+    return { controller: controller as unknown as ControllerMock, service };
+  },
+  [
+    {
+      method: "summary",
+      delegatesTo: "getYearSummary",
+      request: { query: { year: "2026" } },
+      expectedArgs: ["user-1", 2026],
+      successStatus: 200,
+      successResult: { year: 2026, reference: { year: 2026, month: 4 }, months: [] },
+    },
+  ],
+);
+
+describe("ExpenseQueryController.summary validation", () => {
+  it("should forward a missing year to next without calling the service", async () => {
+    const service = createServiceMock(["getYearSummary"]);
+    const controller = new ExpenseQueryController(service as unknown as ExpenseQueryService);
+    const next = vi.fn();
+
+    await controller.summary(createRequestMock({ query: {} }), createResponseMock(), next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(Error));
+    expect(service.getYearSummary).not.toHaveBeenCalled();
   });
 });

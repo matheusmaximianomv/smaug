@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { Modal } from "./Modal";
 
 const MESSAGE = 'Excluir a despesa "Supermercado"?';
 
@@ -95,5 +96,48 @@ describe("ConfirmDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
 
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+});
+
+describe("ConfirmDialog sobre outro modal", () => {
+  it("mostra o ícone de lixeira na variante danger", () => {
+    const { rerender } = render(
+      <ConfirmDialog isOpen onClose={vi.fn()} onConfirm={vi.fn()} message={MESSAGE} />,
+    );
+    expect(screen.getByRole("dialog").querySelector("svg.lucide-trash2")).toBeNull();
+
+    rerender(
+      <ConfirmDialog isOpen onClose={vi.fn()} onConfirm={vi.fn()} message={MESSAGE} isDanger />,
+    );
+    expect(screen.getByRole("dialog").querySelector("svg.lucide-trash2")).not.toBeNull();
+  });
+
+  it("fica na camada acima do modal pai e Escape fecha só a confirmação", async () => {
+    const closeParent = vi.fn();
+    const closeConfirm = vi.fn();
+    const ui = (confirmOpen: boolean) => (
+      <>
+        <Modal isOpen onClose={closeParent} title="Ficha">
+          <p>Detalhe</p>
+        </Modal>
+        <ConfirmDialog
+          isOpen={confirmOpen}
+          onClose={closeConfirm}
+          onConfirm={vi.fn()}
+          title="Remover despesa?"
+          message={MESSAGE}
+          isDanger
+        />
+      </>
+    );
+    const { rerender } = render(ui(false));
+    rerender(ui(true));
+
+    expect(screen.getByRole("dialog", { name: "Remover despesa?" })).toHaveClass("z-[60]");
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(closeConfirm).toHaveBeenCalledTimes(1);
+    expect(closeParent).not.toHaveBeenCalled();
   });
 });

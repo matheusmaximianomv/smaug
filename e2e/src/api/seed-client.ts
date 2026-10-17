@@ -253,6 +253,23 @@ export class SeedClient {
     return this.api.post(`/expenses/installment/${id}/terminate`, { headers: this.headers });
   }
 
+  // ----------------------------------------------------------- importação
+  /**
+   * Único caminho para dados em competência passada: a importação CSV é o único
+   * escritor que dispensa a trava de passado (parcelas e séries). É assim que um
+   * parcelamento já "em andamento" — com parcela paga segundo o relógio do
+   * SERVIDOR — é montado, já que a situação das parcelas não vem mais do browser.
+   */
+  async importCsv(rows: string[]): Promise<void> {
+    const header =
+      "competencia;natureza;categoria;descricao;valor;tipo;parcela;total_parcelas;serie_id;observacao";
+    const res = await this.api.post("/data/import", {
+      headers: { ...this.headers, "Content-Type": "text/csv" },
+      data: `\ufeff${[header, ...rows].join("\r\n")}\r\n`,
+    });
+    await this.unwrap<unknown>(res, "POST /data/import");
+  }
+
   // -------------------------------------------------- consultas consolidadas
   async queryRevenues(c: Competence): Promise<RevenueQueryDto> {
     const res = await this.api.get("/revenues", {

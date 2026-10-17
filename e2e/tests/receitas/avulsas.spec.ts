@@ -1,121 +1,59 @@
 import { expect, test } from "../../src/fixtures/test.js";
-import { brl, monthShort } from "../../src/support/format.js";
-import { dialog, fillCompetence, goto } from "../../src/support/ui.js";
+import { brl, monthTitle } from "../../src/support/format.js";
+import { dialog, ficha, goto } from "../../src/support/ui.js";
 
 test.describe("receitas avulsas", () => {
-  test("estado vazio informa que não há receitas avulsas", async ({ page }) => {
+  test("cria uma avulsa pelo assistente e ela entra no grupo e no total", async ({
+    page,
+    seed,
+    competence,
+  }) => {
     await goto(page, "/receitas");
+    await expect(page.getByRole("heading", { name: monthTitle(competence.current) })).toBeVisible();
 
-    await expect(page.getByText("Nenhuma receita avulsa cadastrada.")).toBeVisible();
+    await page.getByRole("button", { name: "Nova receita" }).click();
+    await expect(dialog(page)).toContainText("Essa receita entra uma vez ou durante um período?");
+    await dialog(page).getByRole("button", { name: "Continuar" }).click();
+    await dialog(page).getByLabel("Descrição").fill("Freelance");
+    await dialog(page)
+      .getByLabel(/^Valor/)
+      .fill("800");
+    await dialog(page).getByRole("button", { name: "Continuar" }).click();
+    await dialog(page).getByRole("button", { name: "Confirmar receita" }).click();
+
+    await expect(page.getByText("Receita adicionada")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Avulsas" })).toContainText("Freelance");
+    await expect(page.getByRole("region", { name: "Resumo do mês" })).toContainText(brl(800));
+    const { oneTimeRevenues } = await seed.queryRevenues(competence.current);
+    expect(oneTimeRevenues.map((r) => r.amount)).toEqual([800]);
   });
 
-  test("cria uma receita avulsa na competência vigente", async ({ page, competence }) => {
-    await goto(page, "/receitas");
-
-    await page.getByRole("button", { name: "Nova receita avulsa" }).click();
-    const modal = dialog(page);
-    await modal.getByPlaceholder("Ex: Freelance, bônus...").fill("Freelance de site");
-    await modal.getByLabel("Valor (R$)").fill("1500,00");
-    await fillCompetence(modal, "Competência", competence.current);
-    await modal.getByRole("button", { name: "Adicionar receita" }).click();
-
-    const row = page.getByRole("row").filter({ hasText: "Freelance de site" });
-    await expect(row).toHaveCount(1);
-    await expect(row).toContainText(monthShort(competence.current));
-    await expect(row).toContainText(brl(1500));
-  });
-
-  test("edita uma receita avulsa existente", async ({ page, seed, competence }) => {
-    await seed.createOneTimeRevenue({
-      description: "Freelance",
-      amount: 1000,
-      competence: competence.current,
-    });
-    await goto(page, "/receitas");
-
-    await page.getByRole("button", { name: "Editar" }).click();
-    const modal = dialog(page);
-    await modal.getByLabel("Descrição").fill("Freelance revisado");
-    await modal.getByLabel("Valor (R$)").fill("1250,50");
-    await modal.getByRole("button", { name: "Salvar alterações" }).click();
-
-    const row = page.getByRole("row").filter({ hasText: "Freelance revisado" });
-    await expect(row).toContainText(brl(1250.5));
-  });
-
-  test("exclui uma receita avulsa após confirmação", async ({ page, seed, competence }) => {
+  test("edita e remove uma avulsa do mês corrente", async ({ page, seed, competence }) => {
     await seed.createOneTimeRevenue({
       description: "Bônus",
-      amount: 800,
-      competence: competence.current,
-    });
-    await goto(page, "/receitas");
-
-    await page.getByRole("button", { name: "Excluir" }).click();
-
-    await expect(
-      dialog(page).getByText('Tem certeza que deseja excluir a receita "Bônus"?'),
-    ).toBeVisible();
-    await dialog(page).getByRole("button", { name: "Excluir" }).click();
-
-    await expect(page.getByText("Nenhuma receita avulsa cadastrada.")).toBeVisible();
-  });
-
-  test("bloqueia a criação em competência passada", async ({ page, competence }) => {
-    await goto(page, "/receitas");
-
-    await page.getByRole("button", { name: "Nova receita avulsa" }).click();
-    const modal = dialog(page);
-    await modal.getByLabel("Descrição").fill("Receita retroativa");
-    await modal.getByLabel("Valor (R$)").fill("100");
-    // `selectableYears()` oferece de ano-1 a ano+3, então o ano passado é alcançável.
-    await fillCompetence(modal, "Competência", {
-      year: competence.current.year - 1,
-      month: competence.current.month,
-    });
-    await modal.getByRole("button", { name: "Adicionar receita" }).click();
-
-    await expect(
-      modal.getByText("Não é permitido criar receitas em competências passadas."),
-    ).toBeVisible();
-    await expect(page.getByText("Nenhuma receita avulsa cadastrada.")).toBeVisible();
-  });
-
-  test("recusa valor não numérico", async ({ page }) => {
-    await goto(page, "/receitas");
-
-    await page.getByRole("button", { name: "Nova receita avulsa" }).click();
-    const modal = dialog(page);
-    await modal.getByLabel("Descrição").fill("Receita inválida");
-    await modal.getByLabel("Valor (R$)").fill("abc");
-    await modal.getByRole("button", { name: "Adicionar receita" }).click();
-
-    await expect(modal.getByText("Valor inválido. Use número positivo.")).toBeVisible();
-  });
-
-  test("ordena a tabela por competência decrescente", async ({ page, seed, competence }) => {
-    await seed.createOneTimeRevenue({
-      description: "Receita do mês vigente",
-      amount: 100,
-      competence: competence.current,
-    });
-    await seed.createOneTimeRevenue({
-      description: "Receita de daqui a dois meses",
       amount: 300,
-      competence: competence.in2,
+      competence: competence.current,
     });
-    await seed.createOneTimeRevenue({
-      description: "Receita do mês seguinte",
-      amount: 200,
-      competence: competence.next,
-    });
-
     await goto(page, "/receitas");
 
-    await expect(page.locator("tbody tr")).toHaveText([
-      /Receita de daqui a dois meses/,
-      /Receita do mês seguinte/,
-      /Receita do mês vigente/,
-    ]);
+    await page.getByRole("button", { name: /Bônus/ }).click();
+    await ficha(page, "Bônus").getByRole("button", { name: "Editar" }).click();
+    await dialog(page)
+      .getByLabel(/^Valor/)
+      .fill("350");
+    await dialog(page).getByRole("button", { name: "Continuar" }).click();
+    await dialog(page).getByRole("button", { name: "Salvar alterações" }).click();
+    await expect(page.getByText("Receita atualizada")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Bônus/ })).toContainText(brl(350));
+
+    await page.getByRole("button", { name: /Bônus/ }).click();
+    await ficha(page, "Bônus").getByRole("button", { name: "Remover" }).click();
+    await page
+      .getByRole("dialog", { name: "Remover receita?" })
+      .getByRole("button", { name: "Remover" })
+      .click();
+
+    await expect(page.getByText("Receita removida")).toBeVisible();
+    await expect(page.getByText("Receitas fixas aparecem aqui automaticamente.")).toBeVisible();
   });
 });

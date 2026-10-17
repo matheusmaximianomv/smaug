@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { RevenueQueryService } from "@src/application/services/revenue-query.service";
 import type { OneTimeRevenueRepository } from "@src/domain/ports/one-time-revenue.repository";
 import type { FixedRevenueRepository } from "@src/domain/ports/fixed-revenue.repository";
@@ -96,5 +96,100 @@ describe("RevenueQueryService", () => {
     expect(result.oneTimeRevenues).toEqual([]);
     expect(result.fixedRevenues).toEqual([]);
     expect(fixedRepository.findVersionForMonth).not.toHaveBeenCalled();
+  });
+
+  describe("read API additions", () => {
+    const salary = buildFixed("fixed-1");
+    const version = (amount: number, effectiveMonth: number) =>
+      FixedRevenueVersion.create({
+        fixedRevenueId: salary.id,
+        description: "Salário",
+        amount,
+        effectiveMonth,
+        effectiveYear: 2026,
+      });
+    const v1 = version(5000, 1);
+    const v2 = version(5500, 5);
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-04-10T12:00:00.000Z"));
+      oneTimeRepository.findByUserAndCompetence.mockResolvedValue([]);
+      fixedRepository.findActiveForCompetence.mockResolvedValue([salary]);
+      fixedRepository.findVersionForMonth.mockImplementation((_id: string, month: number) =>
+        Promise.resolve(month >= 5 ? v2 : v1),
+      );
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should report the competence status and the server reference month", async () => {
+      const past = await service.getConsolidatedRevenues("user-1", 2026, 3);
+      const current = await service.getConsolidatedRevenues("user-1", 2026, 4);
+      const future = await service.getConsolidatedRevenues("user-1", 2026, 5);
+
+      expect([past, current, future].map((r) => r.competenceStatus)).toEqual([
+        "PAST",
+        "CURRENT",
+        "FUTURE",
+      ]);
+      expect(current.reference).toEqual({ year: 2026, month: 4 });
+    });
+
+    it("should return no previous amount for the only version in its first month", async () => {
+      const result = await service.getConsolidatedRevenues("user-1", 2026, 1);
+
+      expect(result.fixedRevenues[0]!.previousAmount).toBeNull();
+      expect(fixedRepository.findVersionForMonth).toHaveBeenCalledTimes(1);
+    });
+
+    it("should return the previous amount in the month the new version starts", async () => {
+      const result = await service.getConsolidatedRevenues("user-1", 2026, 5);
+
+      expect(result.fixedRevenues[0]!.currentVersion.amount).toBe(5500);
+      expect(result.fixedRevenues[0]!.previousAmount).toBe(5000);
+      expect(fixedRepository.findVersionForMonth).toHaveBeenCalledWith(salary.id, 4, 2026);
+    });
+
+    it("should return no previous amount after the adjustment month", async () => {
+      const result = await service.getConsolidatedRevenues("user-1", 2026, 6);
+
+      expect(result.fixedRevenues[0]!.previousAmount).toBeNull();
+    });
+
+    it("should return no previous amount when the previous month has no version", async () => {
+      fixedRepository.findVersionForMonth.mockResolvedValueOnce(v2).mockResolvedValueOnce(null);
+
+      const result = await service.getConsolidatedRevenues("user-1", 2026, 5);
+
+      expect(result.fixedRevenues[0]!.previousAmount).toBeNull();
+    });
+
+    it("should summarize the 12 months with the same totals as the monthly query", async () => {
+      oneTimeRepository.findByUserAndCompetence.mockImplementation(
+        (_user: string, _year: number, month: number) =>
+          Promise.resolve(month === 2 ? [buildOneTime(300.2, "rev-1")] : []),
+      );
+
+      const summary = await service.getYearSummary("user-1", 2026);
+      const monthly = await Promise.all(
+        Array.from({ length: 12 }, (_, i) =>
+          service.getConsolidatedRevenues("user-1", 2026, i + 1),
+        ),
+      );
+
+      expect(summary.year).toBe(2026);
+      expect(summary.reference).toEqual({ year: 2026, month: 4 });
+      expect(summary.months).toHaveLength(12);
+      expect(summary.months.map((m) => m.totals)).toEqual(monthly.map((m) => m.totals));
+      expect(summary.months[1]!.totals).toEqual({
+        oneTimeTotal: 300.2,
+        fixedTotal: 5000,
+        total: 5300.2,
+      });
+      expect(summary.months[3]!.competenceStatus).toBe("CURRENT");
+    });
   });
 });

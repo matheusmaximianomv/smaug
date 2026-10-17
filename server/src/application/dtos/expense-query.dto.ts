@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { CompetenceStatus } from "@src/domain/value-objects/monthly-competence.value-object";
+import type { ReferenceCompetenceDto } from "@src/application/dtos/competence.dto";
 
 export const expenseQuerySchema = z.object({
   competenceYear: z.coerce
@@ -47,6 +49,9 @@ export interface InstallmentExpenseItemDto extends BaseExpenseItemDto {
   totalAmount: number;
   startYear: number;
   startMonth: number;
+  /** Competência da última parcela do plano (início + quantidade − 1). */
+  endYear: number;
+  endMonth: number;
 }
 
 export interface RecurringExpenseItemDto extends BaseExpenseItemDto {
@@ -59,6 +64,8 @@ export interface RecurringExpenseItemDto extends BaseExpenseItemDto {
   effectiveYear: number;
   effectiveMonth: number;
   versionId: string;
+  /** Valor da versão anterior quando a vigente começa neste mês; `null` nos demais casos. */
+  previousAmount: number | null;
 }
 
 export type ExpenseQueryItemDto =
@@ -66,14 +73,28 @@ export type ExpenseQueryItemDto =
   | InstallmentExpenseItemDto
   | RecurringExpenseItemDto;
 
+export interface ExpenseTotalsDto {
+  oneTime: number;
+  installment: number;
+  recurring: number;
+  total: number;
+}
+
 export interface ExpenseQueryResponseDto {
   competenceYear: number;
   competenceMonth: number;
+  competenceStatus: CompetenceStatus;
+  reference: ReferenceCompetenceDto;
   expenses: ExpenseQueryItemDto[];
-  totals: {
-    oneTime: number;
-    installment: number;
-    recurring: number;
-    total: number;
-  };
+  totals: ExpenseTotalsDto;
+}
+
+export interface ExpenseYearSummaryResponseDto {
+  year: number;
+  reference: ReferenceCompetenceDto;
+  months: Array<{
+    month: number;
+    competenceStatus: CompetenceStatus;
+    totals: ExpenseTotalsDto;
+  }>;
 }

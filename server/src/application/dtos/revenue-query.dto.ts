@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { OneTimeRevenueResponseDto } from "@src/application/dtos/one-time-revenue.dto";
-import { FixedRevenueResponseDto, FixedRevenueVersionResponseDto } from "@src/application/dtos/fixed-revenue.dto";
+import {
+  FixedRevenueResponseDto,
+  FixedRevenueVersionResponseDto,
+} from "@src/application/dtos/fixed-revenue.dto";
+import type { ReferenceCompetenceDto } from "@src/application/dtos/competence.dto";
+import type { CompetenceStatus } from "@src/domain/value-objects/monthly-competence.value-object";
 
 export const revenueQuerySchema = z.object({
   competenceYear: z.coerce
@@ -18,16 +23,32 @@ export type RevenueQueryDto = z.infer<typeof revenueQuerySchema>;
 
 export interface FixedRevenueWithVersionDto extends FixedRevenueResponseDto {
   currentVersion: FixedRevenueVersionResponseDto;
+  /** Valor da versão anterior quando a vigente começa neste mês; `null` nos demais casos. */
+  previousAmount: number | null;
+}
+
+export interface RevenueTotalsDto {
+  oneTimeTotal: number;
+  fixedTotal: number;
+  total: number;
 }
 
 export interface ConsolidatedRevenueResponseDto {
   competenceYear: number;
   competenceMonth: number;
+  competenceStatus: CompetenceStatus;
+  reference: ReferenceCompetenceDto;
   oneTimeRevenues: OneTimeRevenueResponseDto[];
   fixedRevenues: FixedRevenueWithVersionDto[];
-  totals: {
-    oneTimeTotal: number;
-    fixedTotal: number;
-    total: number;
-  };
+  totals: RevenueTotalsDto;
+}
+
+export interface RevenueYearSummaryResponseDto {
+  year: number;
+  reference: ReferenceCompetenceDto;
+  months: Array<{
+    month: number;
+    competenceStatus: CompetenceStatus;
+    totals: RevenueTotalsDto;
+  }>;
 }

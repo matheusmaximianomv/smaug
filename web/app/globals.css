@@ -10,3 +10,23 @@
     @apply bg-bg text-text font-sans;
   }
 }
+
+/*
+ * Prévias da Ficha (protótipo v3, `.lx-tc.new`/`.lx-tc.cut`): listra branca sobre
+ * a cor do tipo para "nova versão" e hachura neutra para "deixa de existir".
+ * Ficam aqui porque o gradiente com vírgulas não cabe numa classe arbitrária
+ * legível do Tailwind. A cor de fundo vem por `backgroundColor` inline, que não
+ * sobrescreve o `background-image` destas classes.
+ */
+@layer utilities {
+  .bg-stripes {
+    background-image: repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.4) 0 4px,
+      transparent 4px 8px
+    );
+  }
+  .bg-hatch {
+    background-image: repeating-linear-gradient(135deg, #e9e3dd 0 4px, #f8f6f4 4px 8px);
+  }
+}

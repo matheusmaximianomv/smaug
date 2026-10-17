@@ -50,3 +50,10 @@ e2e/blob-report/
 
 # Playwright
 .playwright-mcp
+
+# Specs
+docs/
+openspec/
+
+# Prototipos
+layouts/
