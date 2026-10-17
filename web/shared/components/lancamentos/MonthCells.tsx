@@ -69,7 +69,9 @@ export function MonthCells({ label, cells, trailing }: MonthCellsProps) {
                 "flex h-[30px] w-full items-center justify-center rounded-[5px]",
                 BLOCK[cell.state],
                 cell.state === "normal" && !cell.color && "border border-border bg-bg",
-                cell.isReference && "outline outline-2 outline-offset-2 outline-text",
+                // `[outline-style:solid]`, não `outline`: o tailwind-merge do `cn()` põe
+                // `outline` e `outline-2` no mesmo grupo e descartaria o estilo.
+                cell.isReference && "[outline-style:solid] outline-2 outline-offset-2 outline-text",
               )}
               style={
                 cell.color && cell.state !== "cut" ? { backgroundColor: cell.color } : undefined
