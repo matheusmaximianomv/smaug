@@ -105,6 +105,8 @@ describe("Modal aberto", () => {
     ["sm", "max-w-sm"],
     ["md", "max-w-lg"],
     ["lg", "max-w-2xl"],
+    ["xl", "max-w-[680px]"],
+    ["2xl", "max-w-[760px]"],
   ] as const)('aplica a largura "%s"', (width, expected) => {
     render(
       <Modal isOpen onClose={vi.fn()} title="Nova categoria" width={width}>
@@ -133,5 +135,57 @@ describe("Modal aberto", () => {
     );
 
     expect(screen.getByRole("dialog")).toHaveClass("border-2");
+  });
+});
+
+describe("Modal com cabeçalho customizado", () => {
+  it("renderiza o header no lugar do título visível, mantendo o título como nome acessível", () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} title="Aluguel" header={<div>Cabeçalho rico</div>}>
+        <p>Conteúdo</p>
+      </Modal>,
+    );
+
+    expect(screen.getByRole("dialog", { name: "Aluguel" })).toBeInTheDocument();
+    expect(screen.getByText("Cabeçalho rico")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fechar" })).toBeInTheDocument();
+  });
+
+  it('usa "Janela" como nome acessível quando há header sem título', () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} header={<div>Cabeçalho</div>}>
+        <p>Conteúdo</p>
+      </Modal>,
+    );
+
+    expect(screen.getByRole("dialog", { name: "Janela" })).toBeInTheDocument();
+  });
+});
+
+describe("Modal camadas e folha inferior", () => {
+  it("usa a camada base por padrão e top quando pedido", () => {
+    const { rerender } = render(
+      <Modal isOpen onClose={vi.fn()} title="Ficha">
+        <p>Conteúdo</p>
+      </Modal>,
+    );
+    expect(screen.getByRole("dialog")).toHaveClass("z-50");
+
+    rerender(
+      <Modal isOpen onClose={vi.fn()} title="Ficha" layer="top">
+        <p>Conteúdo</p>
+      </Modal>,
+    );
+    expect(screen.getByRole("dialog")).toHaveClass("z-[60]");
+  });
+
+  it("ancora na base da tela até 768 px", () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} title="Ficha">
+        <p>Conteúdo</p>
+      </Modal>,
+    );
+
+    expect(screen.getByRole("dialog")).toHaveClass("max-md:top-auto", "max-md:bottom-2.5");
   });
 });

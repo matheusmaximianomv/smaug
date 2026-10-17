@@ -26,6 +26,13 @@ export default {
           DEFAULT: "#1a7a4a",
           light: "#f0faf5",
         },
+        // Identidade por tipo de lançamento (PRD 6.1): cor do ponto/legenda e fundo do selo.
+        tipo: {
+          avulsa: { DEFAULT: "#3b5bdb", light: "#f0f4ff" },
+          parcelada: { DEFAULT: "#c2660a", light: "#fff7ed" },
+          recorrente: { DEFAULT: "#6841c7", light: "#f5f0ff" },
+          fixa: { DEFAULT: "#2d7a4a", light: "#f0fdf4" },
+        },
       },
       fontFamily: {
         sans: ["Plus Jakarta Sans", "sans-serif"],

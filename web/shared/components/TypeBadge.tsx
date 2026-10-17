@@ -1,28 +1,21 @@
 import { cn } from "../lib/utils";
+import { ENTRY_KIND, type EntryKind } from "../lib/entry-types";
 
 /**
  * Tipos de lançamento exibidos como pílula. As chaves em MAIÚSCULAS vêm da API;
- * as minúsculas são usadas pelos cards que já conhecem o próprio tipo.
+ * as minúsculas são usadas pelos componentes que já conhecem o próprio tipo.
  */
-export type EntryType =
-  | "ONE_TIME"
-  | "FIXED"
-  | "INSTALLMENT"
-  | "RECURRING"
-  | "avulsa"
-  | "fixa"
-  | "parcelada"
-  | "recorrente";
+export type EntryType = "ONE_TIME" | "FIXED" | "INSTALLMENT" | "RECURRING" | EntryKind;
 
-const STYLES: Record<EntryType, { label: string; cls: string }> = {
-  ONE_TIME: { label: "Avulsa", cls: "bg-bg border border-border text-text-muted" },
-  avulsa: { label: "Avulsa", cls: "bg-bg border border-border text-text-muted" },
-  FIXED: { label: "Fixa", cls: "bg-green-light text-green" },
-  fixa: { label: "Fixa", cls: "bg-green-light text-green" },
-  INSTALLMENT: { label: "Parcelada", cls: "bg-[#fff7ed] text-[#c2660a]" },
-  parcelada: { label: "Parcelada", cls: "bg-[#fff7ed] text-[#c2660a]" },
-  RECURRING: { label: "Recorrente", cls: "bg-[#f5f0ff] text-[#6841c7]" },
-  recorrente: { label: "Recorrente", cls: "bg-[#f5f0ff] text-[#6841c7]" },
+const KIND_OF: Record<EntryType, EntryKind> = {
+  ONE_TIME: "avulsa",
+  FIXED: "fixa",
+  INSTALLMENT: "parcelada",
+  RECURRING: "recorrente",
+  avulsa: "avulsa",
+  fixa: "fixa",
+  parcelada: "parcelada",
+  recorrente: "recorrente",
 };
 
 interface TypeBadgeProps {
@@ -31,18 +24,25 @@ interface TypeBadgeProps {
 }
 
 export function TypeBadge({ type, className }: TypeBadgeProps) {
-  const style = STYLES[type];
-  if (!style) return null;
+  const kind = KIND_OF[type];
+  if (!kind) return null;
+  const { label, badgeCls, icon: Icon } = ENTRY_KIND[kind];
 
   return (
     <span
       className={cn(
-        "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold",
-        style.cls,
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-full py-0.5 pl-1.5 pr-2 text-[11px] font-semibold",
+        badgeCls,
         className,
       )}
     >
-      {style.label}
+      <Icon
+        size={12}
+        strokeWidth={2.5}
+        aria-hidden
+        className={kind === "avulsa" ? "fill-current" : undefined}
+      />
+      {label}
     </span>
   );
 }
