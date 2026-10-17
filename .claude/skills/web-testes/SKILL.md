@@ -12,7 +12,7 @@ Ao escrever qualquer teste em `web/` — unitário, de componente, de hook, de s
 ## Onde o teste mora
 
 - **Unitário, de componente e de hook: ao lado do fonte** — `shared/components/Modal.test.tsx`,
-  `features/despesas/hooks/useInstallments.test.tsx`.
+  `features/despesas/hooks/useExpenseMutations.test.tsx`.
 - **Integração de página: `web/tests/integration/<pagina>-page.test.tsx`** — porque importa de mais
   de uma feature, o que dentro de uma feature violaria a proibição de import cross-feature.
 
@@ -40,13 +40,13 @@ Aberturas mais usadas: `usa`, `não`, `fecha`, `devolve`, `mostra`, `exibe`, `re
 
 `describe` por tipo de teste, **sempre irmãos, nunca aninhados**:
 
-| Tipo       | Padrão                  | Exemplo                                                         |
-| ---------- | ----------------------- | --------------------------------------------------------------- |
-| Componente | `<Componente> <estado>` | `describe("Modal fechado")`, `describe("DataTable com linhas")` |
-| Hook       | `<useHook>: <operação>` | `describe("useInstallments: create")`                           |
-| Service    | `<Service>.<método>`    | `describe("CategoriasService.getAll")`                          |
-| Página     | `página de <x>: <fase>` | `describe("página de categorias: exclusão")`                    |
-| Harness    | `harness: <camada>`     | `describe("harness: axios + MSW + jsdom")`                      |
+| Tipo       | Padrão                  | Exemplo                                                                    |
+| ---------- | ----------------------- | -------------------------------------------------------------------------- |
+| Componente | `<Componente> <estado>` | `describe("Modal fechado")`, `describe("Modal com cabeçalho customizado")` |
+| Hook       | `<useHook>: <operação>` | `describe("useExpenseMutations: create")`                                  |
+| Service    | `<Service>.<método>`    | `describe("CategoriasService.getAll")`                                     |
+| Página     | `página de <x>: <fase>` | `describe("página de categorias: exclusão")`                               |
+| Harness    | `harness: <camada>`     | `describe("harness: axios + MSW + jsdom")`                                 |
 
 ## O harness (`web/tests/`)
 
@@ -120,12 +120,14 @@ function setup() {
   const queryClient = createTestQueryClient();
   const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
   const toast = spyOnToast();
-  const rendered = renderHookWithProviders(() => useInstallments(), { queryClient });
+  const rendered = renderHookWithProviders(() => useCategories(), { queryClient });
   return { ...rendered, queryClient, invalidateQueries, toast };
 }
 ```
 
 O teste também **redeclara o `QK` esperado** e o asserta — é assim que a query key vira contrato.
+Hook que recebe `onSuccess` (`useExpenseMutations({ onSuccess })`) cria o `vi.fn()` no `setup()` e
+asserta a `action` recebida, inclusive depois do "Tentar novamente".
 
 ## MSW
 
@@ -135,6 +137,11 @@ O teste também **redeclara o `QK` esperado** e o asserta — é assim que a que
 - **Erro**: `mockApiError(method, path, status, body)`, `mockNetworkError(method, path)`,
   `mockPending(method, path)`.
 - **`server.use(http.get(...))` cru** só quando a resposta precisa variar a cada requisição.
+- **O que o servidor calcula, o handler calcula**: as consultas de Receitas/Despesas montam
+  `competenceStatus`, `reference`, `previousAmount`, situação das parcelas, `canDelete`/`canTerminate`
+  e `isExpired` a partir do `db`, usando `serverReference()` de `tests/msw/base.ts` (mês
+  corrente em UTC do relógio — congele com `freezeDateOnly`). Para testar outra situação, semeie
+  dados em outra competência — não edite o campo calculado.
 - Os handlers reproduzem os códigos de erro reais do server (`EXPENSE_CATEGORY_NAME_ALREADY_EXISTS`
   409, `VERSION_CONFLICT` 409, `*_NOT_FOUND` 404) e devolvem as **fixtures**.
 
@@ -170,6 +177,8 @@ Título que registra a armadilha: `it("faz PUT em /expenses/categories/:id (não
   ```
 - Mutation de hook dispara dentro de `act`: `act(() => result.current.create.mutate(PAYLOAD));`
 - `within(dialog())` escopa consultas ao portal do Radix, com `const dialog = () => screen.getByRole("dialog");`
+- Com uma confirmação aberta sobre a Ficha, o Radix marca a Ficha com `aria-hidden`: para provar que
+  ela continua aberta, use `screen.getAllByRole("dialog", { hidden: true })`.
 - **Sempre `screen`, nunca `container`** — a única exceção é contar skeleton, que não tem papel:
   `expect(container.querySelectorAll(".animate-pulse")).toHaveLength(4)`.
 

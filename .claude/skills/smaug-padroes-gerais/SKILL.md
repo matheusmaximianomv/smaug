@@ -102,7 +102,7 @@ de `server/package.json` é código morto — nada o invoca.
 Comentário **não descreve o que o código faz**; ele registra o _porquê_, nomeando a falha que foi
 observada de verdade e a alternativa que foi descartada. Exemplares a imitar:
 
-- `web/shared/lib/parseAmount.ts` — cita o bug do `parseFloat(v.replace(",", "."))` que virava `1.234`.
+- `web/shared/lib/money.ts` (`parseMoneyInput`) — cita o bug do `parseFloat(v.replace(",", "."))` que virava `1.234`.
 - `web/infra/api-client.ts` — "Só 401 encerra a sessão. Falha de rede ou 5xx são transitórios…".
 - `web/vitest.config.ts` — justifica o threshold relaxado de `app/**` e lista as duas alternativas rejeitadas.
 - `e2e/src/support/ui.ts` — `waitForHydration` descreve a corrida real (submit nativo virando `GET /login?userId=…`).

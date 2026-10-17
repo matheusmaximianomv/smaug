@@ -40,7 +40,7 @@ Regras da porta:
 6. Vocabulário de método em uso: `findById`, `findAllByUser` / `listByUser`,
    `findByUserAndCompetence`, `findActiveForCompetence`, `findByCategoryId`, `findByIdWithVersions`,
    `create`, `update`, `delete`, `terminate`, `addVersion`, `findVersions`, `findVersionForMonth`,
-   `countLinkedExpenses`, `hasPastInstallments`, `deleteFutureInstallments`,
+   `countLinkedExpenses`, `deleteFutureInstallments`,
    `findInstallmentsByExpense`, `findInstallmentsByCompetence`.
 7. JSDoc só quando o nome não basta, e **em português**:
    `/** Quantidade de despesas (avulsas, parceladas e versões de recorrentes) ligadas à categoria. */`

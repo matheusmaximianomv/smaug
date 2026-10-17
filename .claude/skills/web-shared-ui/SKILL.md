@@ -1,6 +1,6 @@
 ---
 name: web-shared-ui
-description: Como escrever primitivos de UI, hooks e libs compartilhadas em web/shared no Smaug — forwardRef só nos wrappers de elemento nativo, cn() + objeto clsx (não cva), wrappers Radix com JSDoc, DataTable genérico, toast como objeto e "agora" como parâmetro reference.
+description: Como escrever primitivos de UI, hooks e libs compartilhadas em web/shared no Smaug — forwardRef só nos wrappers de elemento nativo, cn() + objeto clsx (não cva), wrappers Radix com JSDoc, blocos de lançamentos em shared/components/lancamentos, toast como objeto e "agora" como parâmetro reference.
 ---
 
 # `shared/` — primitivos de UI, hooks e libs
@@ -71,7 +71,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 ```
 
-Os demais primitivos são `export function X(props: XProps)`: `Modal`, `ConfirmDialog`, `DataTable`,
+Os demais primitivos são `export function X(props: XProps)`: `Modal`, `ConfirmDialog`, `MonthYearSelect`,
 `EmptyState`, `Skeleton`, `Tabs`, `TypeBadge`, `MonthNavigator`, `ToastContainer`, `AppShell`,
 `Sidebar`, `BottomNav`. `ErrorBoundary` é o único componente de classe.
 
@@ -82,7 +82,13 @@ O mecanismo real de variante é o objeto `clsx` dentro do `cn()` (como no `Butto
 `Record<Uniao, string>` no módulo:
 
 ```tsx
-const WIDTHS = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl" };
+const WIDTHS = {
+  sm: "max-w-sm",
+  md: "max-w-lg",
+  lg: "max-w-2xl",
+  xl: "max-w-[680px]",
+  "2xl": "max-w-[760px]",
+};
 ```
 
 **Não introduza `cva` em componente novo.**
@@ -90,7 +96,7 @@ const WIDTHS = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl" };
 ### Regra 3: vocabulário de props
 
 `variant: "default" | "outline" | "ghost" | "danger"`, `size: "sm" | "md" | "lg"`,
-`width: "sm" | "md" | "lg"`, booleanos com prefixo `is` (`isLoading`, `isDanger`, `isOpen`).
+`width: "sm" | "md" | "lg" | "xl" | "2xl"`, `layer: "base" | "top"`, booleanos com prefixo `is` (`isLoading`, `isDanger`, `isOpen`).
 Props opcionais recebem **default na desestruturação, com literal em pt-BR**:
 
 ```tsx
@@ -106,6 +112,11 @@ export function ConfirmDialog({
 ```
 
 `ConfirmDialog` **compõe** `Modal` em vez de reimplementar — é o padrão para diálogos novos.
+
+`Modal` aceita os slots `header` (cabeçalho visível rico; `title` continua obrigatório como nome
+acessível) e `footer`, e vira folha ancorada na base até 768 px. `ConfirmDialog` abre sempre com
+`layer="top"` (acima de uma Ficha) e mostra ícone de lixeira quando `isDanger`. O "Esc fecha só a
+confirmação, não a Ficha" vem do aninhamento de diálogos Radix — não trate Esc à mão.
 
 ### Regra 4: Radix com JSDoc justificando
 
@@ -124,30 +135,24 @@ português explicando por que o Radix substituiu a versão manual**:
 O Radix exige título acessível mesmo sem cabeçalho visível — daí o
 `<Dialog.Title className="sr-only">Janela</Dialog.Title>` no ramo sem `title`.
 
-### Regra 5: genéricos no `DataTable`
+### Regra 5: blocos de lançamentos em `shared/components/lancamentos/`
 
-```tsx
-export interface Column<T> {
-  key: string;
-  label: string;
-  align?: "left" | "right" | "center";
-  render?: (row: T) => React.ReactNode;
-}
+Receitas e Despesas compartilham extrato, assistente e Ficha. As peças comuns ficam aqui,
+**apresentacionais e tipadas sem tipo de feature** (só `Competence`, `EntryKind`, `Tone`,
+`LedgerRow<T>` de `shared/lib`):
 
-interface DataTableProps<T extends { id: string }> {
-  columns: Column<T>[];
-  rows: T[];
-  onEdit?: (row: T) => void;
-  onDelete?: (row: T) => void;
-  emptyMessage?: string;
-}
+| Grupo      | Componentes                                                                                                                                                     |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Extrato    | `LedgerLayout`, `MonthHeader`, `MonthStrip`, `MonthSummary`, `EntryGroup`, `EntryRow`, `LedgerEmptyState`, `ErrorNotice`                                        |
+| Assistente | `WizardShell`, `StepIndicator`, `ChoiceCard(Group)`, `MiniGrid`, `MoneyField`, `Stepper`, `CompetenceSelect`, `AffectedMonths`                                  |
+| Ficha      | `OneTimeFicha`, `SeriesFicha`, `FichaPlaceholder`, `EntryDetailHeader`, `FactGrid`, `ProgressBar`, `MonthCells`, `Legend`, `VersionChips`, `VersionHistoryList` |
 
-export function DataTable<T extends { id: string }>({ ... }: DataTableProps<T>) {
-```
-
-`Column<T>` é exportado (o consumidor tipa o array de colunas); `DataTableProps<T>` não. A restrição
-`T extends { id: string }` torna `key={row.id}` seguro. A coluna de ações é acrescentada
-automaticamente quando há `onEdit || onDelete`, com `title` + `aria-label` em pt-BR.
+- O que varia entre as naturezas entra por prop: textos (`noun`, `emptyHint`), `tone`
+  (`"expense"` vermelho / `"revenue"` verde) e `children` para os modais.
+- Estado permitido aqui é só de UI (`useId`, confirmação aberta). Dados e mutations chegam prontos:
+  `SeriesFicha` recebe o `SeriesActions` de `useSeriesActions` criado pela Ficha da feature.
+- Cor, ícone e rótulo de cada tipo vêm de `ENTRY_KIND` (`shared/lib/entry-types.ts`); `TypeBadge`
+  usa o mesmo mapa, inclusive no Dashboard.
 
 ### Quando promover um componente para `shared/`
 
@@ -175,19 +180,28 @@ Quando **duas features** precisarem dele. Ele entra em `shared/components/`, com
 - **`useMediaQuery.ts`** — `useMediaQuery(query: string): boolean` e `useIsMobile()`
   (`"(max-width: 768px)"`).
 - **`useDebounce.ts`** — `useDebounce<T>(value: T, delay = 500): T`.
+- **`useCompetenceNavigation.ts`** — navegação por mês do Dashboard, Receitas e Despesas;
+  `persistKey` opcional grava em `sessionStorage` (com `try/catch`, lido por
+  `useSyncExternalStore` para não quebrar a hidratação). `useLedgerNavigation()` é a versão das
+  telas de lançamentos (chave `LEDGER_COMPETENCE_KEY`, `adoptReference`).
+- **`useSeriesActions.ts`** — modo, abas, formulários e prévia da Ficha de série; recebe os schemas da
+  feature por parâmetro.
 
 ## `shared/lib/`
 
 Um arquivo por função ou por conceito, **sem barril**:
 
-| Arquivo             | API                                                                                                                                                                    |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `utils.ts`          | `cn(...inputs: ClassValue[])` = `twMerge(clsx(inputs))`                                                                                                                |
-| `formatCurrency.ts` | `formatCurrency(value: number): string` (`Intl` pt-BR/BRL)                                                                                                             |
-| `parseAmount.ts`    | `parseAmount(input: string): number` — devolve `NaN` para lixo                                                                                                         |
-| `competence.ts`     | `Competence`, `CompetenceStatus`, `compareCompetences`, `addMonths`, `getCurrentCompetence`, `getCompetenceStatus`, `isEligible`, `isBeforeOrEqual`, `selectableYears` |
-| `dateUtils.ts`      | `MONTH_NAMES_FULL`, `formatMonthYear(year, month)` → `"Set/26"`                                                                                                        |
-| `type-guards.ts`    | `isString`, `isNumber`, `isObject`, `hasProperty`, `isApiError`                                                                                                        |
+| Arquivo             | API                                                                                                                                                                                                                                                                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `utils.ts`          | `cn(...inputs: ClassValue[])` = `twMerge(clsx(inputs))`                                                                                                                                                                                                                                                   |
+| `formatCurrency.ts` | `formatCurrency(value: number): string` (`Intl` pt-BR/BRL)                                                                                                                                                                                                                                                |
+| `money.ts`          | `parseMoneyInput` (texto → número, `NaN` para lixo), `isValidMoneyInput`, `toMoneyInput`, `formatCompactCurrency` (`"3.420"`)                                                                                                                                                                             |
+| `competence.ts`     | `Competence`, `CompetenceStatus`, `ApiCompetenceStatus`, `fromApiStatus`, `sameCompetence`, `compareCompetences`, `addMonths`, `diffMonths`, `monthRange`, `getCurrentCompetence`, `getCompetenceStatus`, `selectableYears`, `formatCompetenceShort` (`"Mai/26"`), `formatCompetenceLong` (`"Maio 2026"`) |
+| `preview.ts`        | `splitInstallments`, `affectedMonths`, `seriesSpan`, `seriesTimeline` — prévias puras que espelham o domínio do servidor                                                                                                                                                                                  |
+| `ledger.ts`         | `LedgerRow<T>`, `LedgerGroup<T>`, `groupRows`, `totalLabel`, `seriesPeriod`, `seriesRange`, `buildStripCells`                                                                                                                                                                                             |
+| `entry-types.ts`    | `EntryKind`, `ENTRY_KIND` (cor, classe do selo, ícone), `versionTint`, `Tone`, `TONE_TEXT`                                                                                                                                                                                                                |
+| `dateUtils.ts`      | `MONTH_NAMES_FULL`, `formatMonthYear(year, month)` → `"Set/26"`                                                                                                                                                                                                                                           |
+| `type-guards.ts`    | `isString`, `isNumber`, `isObject`, `hasProperty`, `isApiError`                                                                                                                                                                                                                                           |
 
 **Regra que atravessa todo o `shared/lib`: "agora" é um parâmetro opcional com default, nunca lido
 implicitamente.**
@@ -197,16 +211,16 @@ export function getCompetenceStatus(
   competence: Competence,
   reference: Competence = getCurrentCompetence(),
 ): CompetenceStatus;
-export function isEligible(
-  competence: Competence,
-  reference: Competence = getCurrentCompetence(),
-): boolean;
+export function selectableYears(reference: Competence = getCurrentCompetence()): number[];
 ```
+
+Em Receitas e Despesas o `reference` vem do servidor (campo `reference` das respostas) e é passado
+explicitamente; o default local fica para o Dashboard e o `MonthYearSelect` da área de Dados.
 
 É o que torna essas funções 100% testáveis sem fake timers — e o `web/vitest.config.ts` exige
 exatamente 100% de cobertura em `shared/lib/**`.
 
-`parseAmount.ts` é o **exemplar do padrão de comentário do projeto**: 20 linhas de JSDoc citando o
+`parseMoneyInput` (em `money.ts`) é o **exemplar do padrão de comentário do projeto**: JSDoc citando o
 bug que ele substituiu (`parseFloat(v.replace(",", "."))` transformando `"1.234,56"` em `1.234`).
 Imite esse estilo quando escrever uma lib nova.
 
@@ -218,12 +232,12 @@ Imite esse estilo quando escrever uma lib nova.
 - [ ] Wrapper de biblioteca com JSDoc em pt-BR justificando a escolha.
 - [ ] Nada importado de `features/`.
 - [ ] Função de lib com "agora" como parâmetro `reference` default.
-- [ ] Teste ao lado, com 100% de cobertura (`shared/**` é gate fechado).
+- [ ] Teste ao lado, cobrindo os thresholds de `shared/**` em `web/vitest.config.ts`.
 
 ## Não faça
 
 - Não use `cva`.
-- Não importe de `@/features/...` dentro de `shared/` (o `MonthStatus` em `MonthNavigator.tsx` é
+- Não importe de `@/features/...` dentro de `shared/` (o `useAuth` em `AppShell`/`Sidebar` é
   dívida, não precedente).
 - Não leia `new Date()` dentro de uma função de `shared/lib`.
 - Não crie `shared/lib/index.ts` nem `shared/components/index.ts`.
