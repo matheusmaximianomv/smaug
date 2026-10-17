@@ -3,486 +3,404 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ReceitasPage from "@/app/(app)/receitas/page";
 import { renderWithProviders } from "../render";
-import { db, mockPending, seedDb } from "../msw";
+import { db, mockApiError, seedDb } from "../msw";
 import { makeFixedRevenue, makeFixedRevenueVersion, makeOneTimeRevenue } from "../fixtures";
+import { recordRequests } from "../requests";
 import { freezeDateOnly, unfreezeTime } from "../time";
 
+const LEDGER_KEY = "smaug:competencia-lancamentos";
+
 beforeEach(() => {
-  freezeDateOnly(new Date("2026-09-13T00:00:00Z"));
+  freezeDateOnly(new Date("2026-09-13T12:00:00Z"));
 });
 
 afterEach(() => {
   unfreezeTime();
+  sessionStorage.clear();
 });
 
 function renderPage() {
-  return renderWithProviders(<ReceitasPage />, { pathname: "/receitas" });
+  return renderWithProviders(<ReceitasPage />, { pathname: "/receitas", withToasts: true });
 }
 
-const tab = (name: RegExp | string) => screen.getByRole("tab", { name });
+const ficha = (name: string) => screen.getByRole("dialog", { name });
+const settled = () => screen.findByRole("heading", { name: "Setembro 2026" });
+const confirmIn = (name: string, button: string) =>
+  userEvent.click(
+    within(screen.getByRole("dialog", { name })).getByRole("button", { name: button }),
+  );
 
-describe("página de receitas: abas", () => {
-  it('abre em "Avulsas" com o botão de criação correspondente', async () => {
-    renderPage();
-
-    await waitFor(() => expect(tab(/Avulsas/)).toHaveAttribute("aria-selected", "true"));
-    expect(screen.getByRole("button", { name: /Nova receita avulsa/ })).toBeInTheDocument();
+function salary(o: { modality?: "ALTERABLE" | "UNALTERABLE"; endMonth?: number } = {}) {
+  const version = makeFixedRevenueVersion({
+    description: "Salário",
+    amount: 5000,
+    effectiveYear: 2026,
+    effectiveMonth: 1,
   });
+  return makeFixedRevenue({
+    modality: o.modality ?? "ALTERABLE",
+    startYear: 2026,
+    startMonth: 1,
+    endYear: o.endMonth ? 2026 : null,
+    endMonth: o.endMonth ?? null,
+    currentVersion: version,
+    versions: [version],
+  });
+}
 
-  it("mostra a contagem de cada aba nos badges", async () => {
+async function openSalary() {
+  await userEvent.click(await screen.findByRole("button", { name: /Salário/ }));
+  const dialog = await screen.findByRole("dialog", { name: "Salário" });
+  await within(dialog).findByRole("tab", { name: "Linha do tempo" });
+  return dialog;
+}
+
+describe("página de receitas: estrutura", () => {
+  it("abre no mês corrente com o botão único e os grupos Fixas · Avulsas", async () => {
     seedDb({
-      oneTimeRevenues: [makeOneTimeRevenue(), makeOneTimeRevenue()],
-      fixedRevenues: [makeFixedRevenue()],
+      oneTimeRevenues: [makeOneTimeRevenue({ description: "Freelance" })],
+      fixedRevenues: [salary()],
     });
     renderPage();
+    await settled();
 
-    await waitFor(() => expect(within(tab(/Avulsas/)).getByText("2")).toBeInTheDocument());
-    expect(within(tab(/Fixas/)).getByText("1")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Receitas", level: 1 })).toBeInTheDocument();
+    expect(screen.getByText("Avulsas e fixas de cada mês")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Nova receita/ })).toHaveLength(1);
+    const groups = await screen.findAllByRole("region", { name: /Fixas|Avulsas/ });
+    expect(groups.map((g) => g.getAttribute("aria-label"))).toEqual(["Fixas", "Avulsas"]);
+    expect(screen.getByText("Alterável · desde Jan/26 · sem término")).toBeInTheDocument();
+    expect(screen.getByText("Total previsto")).toBeInTheDocument();
   });
 
-  it("trocar de aba muda o conteúdo e o rótulo do botão", async () => {
-    seedDb({ fixedRevenues: [makeFixedRevenue()] });
+  it('usa "Total recebido" em mês passado', async () => {
+    seedDb({ oneTimeRevenues: [makeOneTimeRevenue({ competenceMonth: 8 })] });
+    sessionStorage.setItem(LEDGER_KEY, JSON.stringify({ year: 2026, month: 8 }));
     renderPage();
-    await screen.findByText("Nenhuma receita avulsa cadastrada.");
 
-    await userEvent.click(tab(/Fixas/));
+    expect(await screen.findByText("Total recebido")).toBeInTheDocument();
+  });
 
-    expect(screen.getByRole("button", { name: /Nova receita fixa/ })).toBeInTheDocument();
-    expect(screen.getByTestId("fixed-revenue-card")).toBeInTheDocument();
-    expect(screen.queryByText("Nenhuma receita avulsa cadastrada.")).not.toBeInTheDocument();
+  it("lê o mês persistido por Despesas (mesma chave de sessão)", async () => {
+    sessionStorage.setItem(LEDGER_KEY, JSON.stringify({ year: 2026, month: 7 }));
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Julho 2026" })).toBeInTheDocument();
   });
 });
 
-describe("página de receitas: avulsas", () => {
-  it("mostra o estado vazio da tabela", async () => {
+describe("página de receitas: estado vazio e erro", () => {
+  it("em mês passado vazio não oferece botão", async () => {
+    sessionStorage.setItem(LEDGER_KEY, JSON.stringify({ year: 2026, month: 2 }));
     renderPage();
 
-    expect(await screen.findByText("Nenhuma receita avulsa cadastrada.")).toBeInTheDocument();
+    expect(await screen.findByText("Nenhuma receita em fevereiro 2026")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Adicionar receita" })).not.toBeInTheDocument();
   });
 
-  it("ordena as avulsas em ordem decrescente de competência", async () => {
-    seedDb({
-      oneTimeRevenues: [
-        makeOneTimeRevenue({ description: "Antiga", competenceYear: 2026, competenceMonth: 2 }),
-        makeOneTimeRevenue({ description: "Recente", competenceYear: 2026, competenceMonth: 11 }),
-        makeOneTimeRevenue({ description: "Meio", competenceYear: 2026, competenceMonth: 7 }),
-        makeOneTimeRevenue({
-          description: "Ano anterior",
-          competenceYear: 2025,
-          competenceMonth: 12,
-        }),
-      ],
-    });
+  it("em mês futuro vazio oferece adicionar receita", async () => {
+    sessionStorage.setItem(LEDGER_KEY, JSON.stringify({ year: 2026, month: 12 }));
     renderPage();
-    await screen.findByText("Recente");
-
-    const descriptions = screen
-      .getAllByRole("row")
-      .slice(1)
-      .map((row) => row.querySelector("td")?.textContent);
-    expect(descriptions).toEqual(["Recente", "Meio", "Antiga", "Ano anterior"]);
-  });
-
-  it("exclui uma avulsa pelo ConfirmDialog", async () => {
-    seedDb({ oneTimeRevenues: [makeOneTimeRevenue({ description: "Freelance" })] });
-    renderPage();
-    await screen.findByText("Freelance");
-
-    await userEvent.click(screen.getByRole("button", { name: "Excluir" }));
-    expect(
-      screen.getByText('Tem certeza que deseja excluir a receita "Freelance"?'),
-    ).toBeInTheDocument();
-    await userEvent.click(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "Excluir" }),
-    );
-
-    await waitFor(() => expect(db.oneTimeRevenues).toHaveLength(0));
-  });
-});
-
-describe("página de receitas: fixas", () => {
-  it("mostra o estado vazio com a ação de criar a primeira", async () => {
-    renderPage();
-    await screen.findByText("Nenhuma receita avulsa cadastrada.");
-
-    await userEvent.click(tab(/Fixas/));
-
-    expect(screen.getByText("Nenhuma receita fixa cadastrada.")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "+ Criar primeira receita fixa" }),
-    ).toBeInTheDocument();
-  });
-
-  it('"Nova versão" aparece numa ALTERABLE e abre o formulário de versão', async () => {
-    const version = makeFixedRevenueVersion({ description: "Salário" });
-    seedDb({
-      fixedRevenues: [
-        makeFixedRevenue({ modality: "ALTERABLE", currentVersion: version, versions: [version] }),
-      ],
-    });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(await screen.findByRole("button", { name: /Nova versão/ }));
-
-    expect(screen.getByText("Nova versão da receita fixa")).toBeInTheDocument();
-    expect(screen.getByLabelText("Nova descrição")).toBeInTheDocument();
-  });
-
-  it('"Nova versão" NÃO aparece numa UNALTERABLE', async () => {
-    seedDb({ fixedRevenues: [makeFixedRevenue({ modality: "UNALTERABLE" })] });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await screen.findByTestId("fixed-revenue-card");
-    expect(screen.queryByRole("button", { name: /Nova versão/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Encerrar/ })).toBeInTheDocument();
-  });
-
-  it("encerra a receita fixa pela competência escolhida", async () => {
-    seedDb({ fixedRevenues: [makeFixedRevenue()] });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(await screen.findByRole("button", { name: /Encerrar/ }));
-    expect(
-      screen.getByText("A receita fixa será encerrada ao final do mês selecionado."),
-    ).toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByLabelText("Mês de encerramento — mês"), "12");
-    await userEvent.click(screen.getByRole("button", { name: "Encerrar receita" }));
-
-    await waitFor(() => expect(db.fixedRevenues[0].endMonth).toBe(12));
-    expect(db.fixedRevenues[0].endYear).toBe(2026);
-  });
-
-  it('"Ver histórico" lista as versões em ordem decrescente', async () => {
-    const older = makeFixedRevenueVersion({
-      description: "Salário",
-      effectiveYear: 2026,
-      effectiveMonth: 1,
-    });
-    const newer = makeFixedRevenueVersion({
-      description: "Salário reajustado",
-      effectiveYear: 2026,
-      effectiveMonth: 10,
-    });
-    seedDb({
-      fixedRevenues: [makeFixedRevenue({ currentVersion: newer, versions: [older, newer] })],
-    });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(await screen.findByRole("button", { name: /Ver histórico/ }));
-
-    const labels = screen.getAllByText(/A partir de/).map((el) => el.textContent);
-    expect(labels).toEqual(["A partir de Out/26", "A partir de Jan/26"]);
-  });
-
-  it("exclui a receita fixa com a mensagem própria de confirmação", async () => {
-    seedDb({ fixedRevenues: [makeFixedRevenue()] });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-    await screen.findByTestId("fixed-revenue-card");
-
-    const actions = screen.getAllByRole("button");
-    await userEvent.click(actions[actions.length - 1]);
 
     expect(
-      screen.getByText("Tem certeza que deseja excluir permanentemente esta receita fixa?"),
+      await screen.findByText("Receitas fixas aparecem aqui automaticamente."),
     ).toBeInTheDocument();
-
-    await userEvent.click(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "Excluir" }),
-    );
-
-    await waitFor(() => expect(db.fixedRevenues).toHaveLength(0));
-  });
-});
-
-describe("página de receitas: criação e edição", () => {
-  it("cria uma receita avulsa e fecha o modal", async () => {
-    renderPage();
-    await screen.findByText("Nenhuma receita avulsa cadastrada.");
-
-    await userEvent.click(screen.getByRole("button", { name: /Nova receita avulsa/ }));
-    await userEvent.type(screen.getByLabelText("Descrição"), "Freelance");
-    await userEvent.type(screen.getByLabelText("Valor (R$)"), "1500");
     await userEvent.click(screen.getByRole("button", { name: "Adicionar receita" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(await screen.findByText("Freelance")).toBeInTheDocument();
-    expect(db.oneTimeRevenues).toHaveLength(1);
+    expect(screen.getByRole("dialog", { name: "Nova receita" })).toBeInTheDocument();
   });
 
-  it("edita uma receita avulsa existente", async () => {
-    seedDb({ oneTimeRevenues: [makeOneTimeRevenue({ description: "Freelance", amount: 1500 })] });
+  it("mostra a mensagem pt-BR do erro e repete", async () => {
+    mockApiError("get", "/revenues", 500, { error: "UNAUTHORIZED" });
+    const calls = recordRequests();
     renderPage();
-    await screen.findByText("Freelance");
 
-    await userEvent.click(screen.getByRole("button", { name: "Editar" }));
+    expect(await screen.findByText("Sessão inválida. Faça login novamente.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await waitFor(() => expect(calls.filter((c) => c.path === "/revenues")).toHaveLength(2));
+  });
+});
+
+describe("página de receitas: assistente", () => {
+  it("cria uma receita fixa inalterável com término padrão", async () => {
+    renderPage();
+    await settled();
+
+    await userEvent.click(screen.getByRole("button", { name: /Nova receita/ }));
     expect(
-      within(screen.getByRole("dialog")).getByText("Editar receita avulsa"),
+      screen.getByText("Essa receita entra uma vez ou durante um período?"),
     ).toBeInTheDocument();
-    await userEvent.clear(screen.getByLabelText("Descrição"));
-    await userEvent.type(screen.getByLabelText("Descrição"), "Consultoria");
-    await userEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+    await userEvent.click(screen.getByRole("radio", { name: /Fixa \(com vigência\)/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
 
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(await screen.findByText("Consultoria")).toBeInTheDocument();
-  });
-
-  it("cria uma receita fixa pela aba Fixas", async () => {
-    renderPage();
-    await screen.findByText("Nenhuma receita avulsa cadastrada.");
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(screen.getByRole("button", { name: /Nova receita fixa/ }));
-    await userEvent.type(screen.getByLabelText("Descrição"), "Salário");
-    await userEvent.type(screen.getByLabelText("Valor mensal (R$)"), "8000");
-    await userEvent.click(screen.getByRole("button", { name: "Criar receita fixa" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(await screen.findByTestId("fixed-revenue-card")).toHaveTextContent("Salário");
-  });
-
-  it("cria uma nova versão da receita fixa", async () => {
-    const version = makeFixedRevenueVersion({ description: "Salário", effectiveMonth: 9 });
-    seedDb({
-      fixedRevenues: [makeFixedRevenue({ currentVersion: version, versions: [version] })],
-    });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-    await userEvent.click(await screen.findByRole("button", { name: /Nova versão/ }));
-
-    await userEvent.type(screen.getByLabelText("Nova descrição"), "Salário reajustado");
-    await userEvent.type(screen.getByLabelText("Novo valor (R$)"), "9000");
-    await userEvent.selectOptions(screen.getByLabelText("Vigência a partir de — mês"), "10");
-    await userEvent.click(screen.getByRole("button", { name: "Criar nova versão" }));
-
-    await waitFor(() => expect(db.fixedRevenues[0].versions).toHaveLength(2));
-    expect(db.fixedRevenues[0].currentVersion.amount).toBe(9000);
-  });
-});
-
-/**
- * Cancelar não estava coberto nem aqui nem no E2E. O risco real não é o modal
- * deixar de fechar — é estado da PÁGINA sobrevivendo ao fechamento e vazando
- * para a próxima abertura, que foi exatamente o caso de `endMonth`/`endYear`.
- */
-describe("página de receitas: cancelar", () => {
-  it("fecha a criação de avulsa sem enviar nada", async () => {
-    renderPage();
-    await userEvent.click(await screen.findByRole("button", { name: /Nova receita avulsa/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(db.oneTimeRevenues).toHaveLength(0);
-  });
-
-  it("fecha a criação de avulsa pelo X", async () => {
-    renderPage();
-    await userEvent.click(await screen.findByRole("button", { name: /Nova receita avulsa/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Fechar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  });
-
-  it("fecha a edição de avulsa sem alterar", async () => {
-    seedDb({ oneTimeRevenues: [makeOneTimeRevenue({ description: "Freelance" })] });
-    renderPage();
-    await screen.findByText("Freelance");
-
-    await userEvent.click(screen.getByRole("button", { name: "Editar" }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(db.oneTimeRevenues[0].description).toBe("Freelance");
-  });
-
-  it("não vaza a avulsa editada para a criação aberta em seguida", async () => {
-    seedDb({ oneTimeRevenues: [makeOneTimeRevenue({ description: "Freelance" })] });
-    renderPage();
-    await screen.findByText("Freelance");
-
-    await userEvent.click(screen.getByRole("button", { name: "Editar" }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-
-    await userEvent.click(screen.getByRole("button", { name: /Nova receita avulsa/ }));
-
-    expect(screen.getByPlaceholderText("Ex: Freelance, bônus...")).toHaveValue("");
-  });
-
-  it("fecha o ConfirmDialog de exclusão de avulsa sem excluir", async () => {
-    seedDb({ oneTimeRevenues: [makeOneTimeRevenue({ description: "Freelance" })] });
-    renderPage();
-    await screen.findByText("Freelance");
-
-    await userEvent.click(screen.getByRole("button", { name: "Excluir" }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(db.oneTimeRevenues).toHaveLength(1);
-  });
-
-  it("fecha a criação de fixa sem enviar nada", async () => {
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-    await userEvent.click(await screen.findByRole("button", { name: /Nova receita fixa/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(db.fixedRevenues).toHaveLength(0);
-  });
-
-  it("fecha a criação de nova versão sem enviar nada", async () => {
-    const version = makeFixedRevenueVersion();
-    seedDb({
-      fixedRevenues: [
-        makeFixedRevenue({ modality: "ALTERABLE", currentVersion: version, versions: [version] }),
-      ],
-    });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(await screen.findByRole("button", { name: /Nova versão/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(db.fixedRevenues[0].versions ?? []).toHaveLength(1);
-  });
-
-  it("fecha o encerramento sem encerrar", async () => {
-    seedDb({ fixedRevenues: [makeFixedRevenue()] });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(await screen.findByRole("button", { name: /Encerrar/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(db.fixedRevenues[0].endMonth).toBeNull();
-  });
-
-  /** Regressão: `endMonth`/`endYear` são estado da página e vazavam entre aberturas. */
-  it("descarta o mês de encerramento escolhido ao cancelar", async () => {
-    seedDb({ fixedRevenues: [makeFixedRevenue()] });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(await screen.findByRole("button", { name: /Encerrar/ }));
-    await userEvent.selectOptions(screen.getByLabelText("Mês de encerramento — mês"), "12");
-    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-
-    await userEvent.click(screen.getByRole("button", { name: /Encerrar/ }));
-
-    expect(screen.getByLabelText("Mês de encerramento — mês")).toHaveValue("9");
-  });
-
-  it("fecha o histórico de versões pelo Fechar", async () => {
-    const version = makeFixedRevenueVersion({ description: "Salário" });
-    seedDb({
-      fixedRevenues: [makeFixedRevenue({ currentVersion: version, versions: [version] })],
-    });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(await screen.findByRole("button", { name: /Ver histórico/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Fechar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  });
-
-  it("fecha o ConfirmDialog de exclusão de fixa sem excluir", async () => {
-    seedDb({ fixedRevenues: [makeFixedRevenue()] });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(await screen.findByRole("button", { name: /Excluir/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(db.fixedRevenues).toHaveLength(1);
-  });
-});
-
-/**
- * O `onClose` do <Modal> (X, Escape, overlay) é uma função distinta do
- * "Cancelar" do formulário, que chama o `onClose` passado ao form. Os dois
- * caminhos fecham o modal, mas por callbacks diferentes.
- */
-describe("página de receitas: fechar pelo X e CTAs de estado vazio", () => {
-  it('o CTA "+ Criar primeira receita fixa" abre o formulário', async () => {
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(
-      await screen.findByRole("button", { name: "+ Criar primeira receita fixa" }),
+    expect(screen.getByLabelText(/Fim da vigência/)).toHaveDisplayValue("Agosto 2027");
+    expect(screen.getByRole("radio", { name: /pode mudar/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
     );
+    await userEvent.type(screen.getByLabelText("Descrição"), "Aluguel recebido");
+    await userEvent.type(screen.getByLabelText(/Valor mensal/), "1200");
+    await userEvent.click(screen.getByRole("radio", { name: /fica fixo/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
 
-    expect(within(screen.getByRole("dialog")).getByText("Nova receita fixa")).toBeInTheDocument();
-  });
+    expect(
+      screen.getByText("Valor travado. Para mudar, encerre esta receita e crie outra."),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Set\/26 a Ago\/27/)).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("Inalterável")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar receita" }));
 
-  it("fecha a edição de avulsa pelo X", async () => {
-    seedDb({ oneTimeRevenues: [makeOneTimeRevenue({ description: "Freelance" })] });
-    renderPage();
-    await screen.findByText("Freelance");
-
-    await userEvent.click(screen.getByRole("button", { name: "Editar" }));
-    await userEvent.click(screen.getByRole("button", { name: "Fechar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  });
-
-  it("fecha a criação de fixa pelo X", async () => {
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(await screen.findByRole("button", { name: /Nova receita fixa/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Fechar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  });
-
-  it("fecha a nova versão pelo X", async () => {
-    const version = makeFixedRevenueVersion();
-    seedDb({
-      fixedRevenues: [
-        makeFixedRevenue({ modality: "ALTERABLE", currentVersion: version, versions: [version] }),
-      ],
+    expect(await screen.findByText("Receita fixa criada")).toBeInTheDocument();
+    expect(db.fixedRevenues[0]).toMatchObject({
+      modality: "UNALTERABLE",
+      endYear: 2027,
+      endMonth: 8,
     });
-    renderPage();
-    await userEvent.click(tab(/Fixas/));
-
-    await userEvent.click(await screen.findByRole("button", { name: /Nova versão/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Fechar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("fecha o encerramento pelo X", async () => {
-    seedDb({ fixedRevenues: [makeFixedRevenue()] });
+  it("revisa uma fixa alterável sem término e uma avulsa", async () => {
     renderPage();
-    await userEvent.click(tab(/Fixas/));
+    await settled();
 
-    await userEvent.click(await screen.findByRole("button", { name: /Encerrar/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    await userEvent.click(screen.getByRole("button", { name: /Nova receita/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Fixa/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await userEvent.type(screen.getByLabelText("Descrição"), "Salário");
+    await userEvent.type(screen.getByLabelText(/Valor mensal/), "5000");
+    await userEvent.click(screen.getByRole("checkbox", { name: "Sem data de término" }));
+    expect(screen.getByLabelText("Fim da vigência")).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
 
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(db.fixedRevenues[0].endMonth).toBeNull();
+    expect(screen.getByText(/desde Set\/26, sem término/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Reajustes futuros serão registrados como nova versão/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("continua…")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    await userEvent.click(screen.getByRole("button", { name: "trocar" }));
+    await userEvent.click(screen.getByRole("radio", { name: /Avulsa/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(screen.getByLabelText(/^Competência/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(screen.getByText(/em setembro 2026/, { selector: "small" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar receita" }));
+
+    expect(await screen.findByText("Receita adicionada")).toBeInTheDocument();
+  });
+
+  it("valida o fim da vigência antes do início", async () => {
+    renderPage();
+    await settled();
+
+    await userEvent.click(screen.getByRole("button", { name: /Nova receita/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Fixa/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await userEvent.type(screen.getByLabelText("Descrição"), "Salário");
+    await userEvent.type(screen.getByLabelText(/Valor mensal/), "5000");
+    await userEvent.selectOptions(screen.getByLabelText(/Início da vigência/), "Dezembro 2027");
+    await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(await screen.findByText("Deve ser igual ou posterior ao início")).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText(/Fim da vigência/), "Março 2028");
+    expect(screen.getByLabelText(/Fim da vigência/)).toHaveDisplayValue("Março 2028");
+  });
+
+  it("mantém o assistente aberto quando o servidor recusa", async () => {
+    mockApiError("post", "/revenues/one-time", 409, { error: "PAST_COMPETENCE" });
+    renderPage();
+    await settled();
+
+    await userEvent.click(screen.getByRole("button", { name: /Nova receita/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await userEvent.type(screen.getByLabelText("Descrição"), "Freelance");
+    await userEvent.type(screen.getByLabelText(/^Valor/), "800");
+    await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar receita" }));
+
+    expect(
+      await screen.findByText("Não é possível alterar lançamentos de competências passadas."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Nova receita" })).toBeInTheDocument();
   });
 });
 
-describe("página de receitas: ramo de carregamento", () => {
-  it("mostra esqueletos na aba Fixas enquanto a consulta não responde", async () => {
-    mockPending("get", "/revenues/fixed");
-    const { container } = renderPage();
+describe("página de receitas: Ficha de avulsa", () => {
+  it("avulsa passada não oferece Editar nem Remover", async () => {
+    seedDb({
+      oneTimeRevenues: [makeOneTimeRevenue({ description: "Freelance", competenceMonth: 8 })],
+    });
+    sessionStorage.setItem(LEDGER_KEY, JSON.stringify({ year: 2026, month: 8 }));
+    renderPage();
 
-    await userEvent.click(tab(/Fixas/));
+    await userEvent.click(await screen.findByRole("button", { name: /Freelance/ }));
+
+    expect(within(ficha("Freelance")).getByText("Recebida")).toBeInTheDocument();
+    expect(within(ficha("Freelance")).queryByRole("button", { name: "Editar" })).toBeNull();
+    expect(within(ficha("Freelance")).queryByRole("button", { name: "Remover" })).toBeNull();
+  });
+
+  it("edita e remove a avulsa do mês corrente", async () => {
+    const revenue = makeOneTimeRevenue({ description: "Freelance", amount: 800 });
+    seedDb({ oneTimeRevenues: [revenue] });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Freelance/ }));
+    expect(within(ficha("Freelance")).getByText("Prevista")).toBeInTheDocument();
+    await userEvent.click(within(ficha("Freelance")).getByRole("button", { name: "Editar" }));
+    expect(screen.getByText("O tipo não muda depois do cadastro.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+    expect(await screen.findByText("Receita atualizada")).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Freelance/ }));
+    await userEvent.click(within(ficha("Freelance")).getByRole("button", { name: "Remover" }));
+    expect(screen.getByRole("dialog", { name: "Remover receita?" })).toHaveTextContent(
+      'Tem certeza que deseja excluir a receita "Freelance"? Esta ação não pode ser desfeita.',
+    );
+    await confirmIn("Remover receita?", "Remover");
+    expect(await screen.findByText("Receita removida")).toBeInTheDocument();
+  });
+});
+
+describe("página de receitas: Ficha de fixa", () => {
+  it("fixa inalterável não oferece Nova versão e mostra a nota", async () => {
+    seedDb({ fixedRevenues: [salary({ modality: "UNALTERABLE" })] });
+    renderPage();
+
+    const dialog = await openSalary();
+
+    expect(within(dialog).queryByRole("button", { name: "Nova versão" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Encerrar" })).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Receita inalterável: o valor fica igual até o encerramento. Por isso não há Nova versão.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Inalterável")).toBeInTheDocument();
+  });
+
+  it("fixa encerrada só consulta", async () => {
+    seedDb({ fixedRevenues: [salary({ endMonth: 8 })] });
+    sessionStorage.setItem(LEDGER_KEY, JSON.stringify({ year: 2026, month: 8 }));
+    renderPage();
+
+    const dialog = await openSalary();
+
+    expect(
+      within(dialog).getByText("Encerrada em Ago/26 — apenas consulta do histórico."),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Encerrar" })).toBeNull();
+    expect(within(dialog).getAllByRole("button", { name: "Fechar" })).toHaveLength(2);
+  });
+
+  it("cria nova versão: a Ficha recarrega a série e volta à visualização", async () => {
+    seedDb({ fixedRevenues: [salary()] });
+    renderPage();
+
+    const dialog = await openSalary();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Nova versão" }));
+    expect(
+      within(dialog).getByText(
+        "A nova versão será aplicada a partir do mês selecionado. Meses anteriores preservam o valor antigo.",
+      ),
+    ).toBeInTheDocument();
+    const amount = within(dialog).getByLabelText(/Novo valor mensal/);
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "5500");
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText(/Vigência a partir de/),
+      "Novembro 2026",
+    );
+    await userEvent.click(within(dialog).getByRole("button", { name: "Criar nova versão" }));
+
+    expect(await screen.findByText("Nova versão criada")).toBeInTheDocument();
+    expect(
+      await within(ficha("Salário")).findByRole("tab", { name: "Histórico (2)" }),
+    ).toBeInTheDocument();
+  });
+
+  it("valida a vigência passada e mostra os erros pt-BR da API", async () => {
+    const revenue = salary();
+    seedDb({ fixedRevenues: [revenue] });
+    renderPage();
+
+    const dialog = await openSalary();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Nova versão" }));
+    await userEvent.clear(within(dialog).getByLabelText("Nova descrição"));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Criar nova versão" }));
+    expect(within(dialog).getByText("Obrigatório")).toBeInTheDocument();
+
+    await userEvent.type(within(dialog).getByLabelText("Nova descrição"), "Salário");
+    mockApiError("patch", `/revenues/fixed/${revenue.id}`, 422, { error: "UNALTERABLE_REVENUE" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Criar nova versão" }));
+    expect(
+      await screen.findByText("Esta receita é inalterável: só é possível encerrá-la."),
+    ).toBeInTheDocument();
+  });
+
+  it("encerra a fixa", async () => {
+    const revenue = salary();
+    seedDb({ fixedRevenues: [revenue] });
+    renderPage();
+
+    const dialog = await openSalary();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Encerrar" }));
+    expect(within(dialog).getByLabelText(/Mês de encerramento/)).toHaveDisplayValue(
+      "Setembro 2026",
+    );
+    await userEvent.click(within(dialog).getByRole("button", { name: "Encerrar receita" }));
+
+    expect(await screen.findByText("Receita encerrada")).toBeInTheDocument();
+    expect(db.fixedRevenues[0]).toMatchObject({ endYear: 2026, endMonth: 9 });
+  });
+
+  it("mostra o erro pt-BR do encerramento recusado", async () => {
+    const revenue = salary();
+    seedDb({ fixedRevenues: [revenue] });
+    mockApiError("patch", `/revenues/fixed/${revenue.id}/terminate`, 409, {
+      error: "ALREADY_EXPIRED",
+    });
+    renderPage();
+
+    const dialog = await openSalary();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Encerrar" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Encerrar receita" }));
+
+    expect(await screen.findByText("Este lançamento já está encerrado.")).toBeInTheDocument();
+  });
+
+  it("remove a fixa e fecha a Ficha", async () => {
+    seedDb({ fixedRevenues: [salary()] });
+    renderPage();
+
+    const dialog = await openSalary();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Remover" }));
+    expect(screen.getByRole("dialog", { name: "Remover receita?" })).toHaveTextContent(
+      'Tem certeza que deseja excluir permanentemente a receita fixa "Salário"?',
+    );
+    await confirmIn("Remover receita?", "Remover");
+
+    expect(await screen.findByText("Receita removida")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("mostra o erro de leitura da fixa e repete", async () => {
+    const revenue = salary();
+    seedDb({ fixedRevenues: [revenue] });
+    mockApiError("get", `/revenues/fixed/${revenue.id}`, 404, { error: "FIXED_REVENUE_NOT_FOUND" });
+    const calls = recordRequests();
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Salário/ }));
+    expect(
+      await within(ficha("Salário")).findByText("Receita fixa não encontrada."),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      within(ficha("Salário")).getByRole("button", { name: "Tentar novamente" }),
+    );
 
     await waitFor(() =>
-      expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0),
+      expect(calls.filter((c) => c.path === `/revenues/fixed/${revenue.id}`)).toHaveLength(2),
     );
   });
 });

@@ -1,13 +1,27 @@
 import { apiClient } from "@/infra/api-client";
-import type { OneTimeRevenue, FixedRevenue, FixedRevenueVersion } from "../types";
+import type { Competence } from "@/shared/lib/competence";
+import type {
+  OneTimeRevenue,
+  FixedRevenue,
+  FixedRevenueVersion,
+  RevenueMonth,
+  RevenueYearSummary,
+} from "../types";
 
 export const ReceitasService = {
-  // One-time revenues
-  getOneTime: async (): Promise<OneTimeRevenue[]> => {
-    const { data } = await apiClient.get("/revenues/one-time");
+  // Consultas da tela
+  getMonth: async ({ year, month }: Competence): Promise<RevenueMonth> => {
+    const { data } = await apiClient.get("/revenues", {
+      params: { competenceYear: year, competenceMonth: month },
+    });
+    return data;
+  },
+  getYearSummary: async (year: number): Promise<RevenueYearSummary> => {
+    const { data } = await apiClient.get("/revenues/summary", { params: { year } });
     return data;
   },
 
+  // One-time revenues
   createOneTime: async (payload: {
     description: string;
     amount: number;
@@ -36,8 +50,8 @@ export const ReceitasService = {
   },
 
   // Fixed revenues
-  getFixed: async (): Promise<FixedRevenue[]> => {
-    const { data } = await apiClient.get("/revenues/fixed");
+  getFixed: async (id: string): Promise<FixedRevenue> => {
+    const { data } = await apiClient.get(`/revenues/fixed/${id}`);
     return data;
   },
 
