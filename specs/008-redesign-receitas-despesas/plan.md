@@ -168,8 +168,14 @@ e2e/tests/{despesas,receitas,lancamentos,responsive}/
 
 ## Known Issues
 
-- **Contorno do mês corrente na linha do tempo da Ficha**: em `shared/components/lancamentos/MonthCells.tsx`,
-  `cn("outline outline-2 …")` passa por `tailwind-merge` v3, que trata `outline` e `outline-2` como o
-  mesmo grupo e descarta `outline`; sem o estilo, o contorno não aparece. Afeta o FR-034 ("mês corrente
-  contornado"); a marcação acessível (`aria-current="date"`) e o destaque do rótulo seguem corretos.
-  Correção pendente de decisão.
+O `cn()` passa as classes pelo `tailwind-merge` 3.x, que segue as regras do Tailwind 4 e trata
+`outline` e `outline-N` como o mesmo grupo: no Tailwind 3 do projeto, isso descarta o
+`outline-style: solid` e o contorno não aparece.
+
+- **Contorno do mês corrente nas Fichas (FR-034)** — **corrigido**: `MonthCells.tsx` usa
+  `[outline-style:solid]` no lugar de `outline`, com asserção em `MonthCells.test.tsx`.
+- **Anel de foco das linhas do extrato (FR-016, acesso por teclado)** — **aberto**: `EntryRow.tsx` tem
+  `focus-visible:outline focus-visible:outline-2 …` e perde o estilo pelo mesmo motivo. A linha
+  continua focável e acionável por Enter; só o anel visual não aparece. Será resolvido pela change
+  OpenSpec `upgrade-tailwind-v4`, que leva o projeto ao Tailwind 4 (onde `outline-2` já é sólido) e
+  remove o contorno manual do `MonthCells`.

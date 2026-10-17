@@ -116,5 +116,5 @@ description: "Task list for the Receitas e Despesas redesign"
 
 ## Pendência conhecida (fora das tarefas)
 
-- Contorno do mês corrente na linha do tempo da Ficha descartado pelo `tailwind-merge` — ver
-  [plan.md § Known Issues](./plan.md#known-issues).
+- Anel de foco das linhas do extrato descartado pelo `tailwind-merge` (o contorno do mês corrente das
+  Fichas já foi corrigido) — ver [plan.md § Known Issues](./plan.md#known-issues).

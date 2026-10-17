@@ -39,5 +39,5 @@
   cenários). As decisões que seriam clarificações foram fechadas no PRD e registradas em
   _Clarifications_.
 - **Feature Readiness**: os 12 critérios de aceite do PRD §8 são os SC-001–SC-012, verificados pela
-  integração de página do web e pelo E2E (T040). Exceção registrada: o contorno visual do mês corrente
-  da linha do tempo (FR-034), em [plan.md § Known Issues](../plan.md#known-issues).
+  integração de página do web e pelo E2E (T040). Exceção registrada: o anel de foco visual das linhas do
+  extrato (FR-016), em [plan.md § Known Issues](../plan.md#known-issues).
