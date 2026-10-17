@@ -64,13 +64,12 @@ export default defineConfig({
       //   100/95/100/100 em features/*/hooks
       //   piso global 90/85/90/90
       thresholds: {
-        // Piso global. Funções e linhas estão em 100%; statements e branches
-        // ficam ligeiramente abaixo por causa de um único idioma defensivo nas
-        // três páginas de CRUD — ver o comentário de `app/**` abaixo.
+        // Piso global. Só branches fica abaixo de 100%, por causa de um único
+        // idioma defensivo na página de Categorias — ver o comentário de `app/**`.
         lines: 100,
         functions: 100,
-        branches: 98,
-        statements: 99,
+        branches: 99,
+        statements: 100,
 
         // Tudo abaixo está em 100% nas quatro métricas e deve permanecer.
         "shared/lib/**": { lines: 100, functions: 100, branches: 100, statements: 100 },
@@ -87,22 +86,21 @@ export default defineConfig({
           statements: 100,
         },
 
-        // As três páginas de CRUD retêm 13 ramos falsos inalcançáveis, todos do
-        // MESMO idioma: uma guarda de nulo sobre estado que a condição de render
-        // já garante preenchido. Exemplos:
+        // A página de Categorias retém 2 ramos falsos inalcançáveis, do idioma
+        // de guarda de nulo sobre estado que a condição de render já garante
+        // preenchido:
         //
         //   <ConfirmDialog isOpen={!!deleteTarget}
         //     onConfirm={() => { if (deleteTarget) … }} />
         //
         // O diálogo (e portanto o botão) só existe quando `deleteTarget` é
-        // verdadeiro, então o ramo falso nunca executa. O mesmo vale para
-        // `if (!selectedFixed) return` e `modal === "edit" && selected`.
-        //
-        // Deliberadamente NÃO removemos essas guardas: sem elas o TypeScript
-        // exigiria `!` em cada uso, trocando uma checagem barata por uma
-        // asserção que silencia o compilador. Também não usamos `v8 ignore`,
-        // que espalharia 13 anotações pelo JSX. O número fica registrado aqui.
-        "app/**": { lines: 100, functions: 100, branches: 86, statements: 97 },
+        // verdadeiro, então o ramo falso nunca executa. Deliberadamente NÃO
+        // removemos a guarda: sem ela o TypeScript exigiria `!`, trocando uma
+        // checagem barata por uma asserção que silencia o compilador. Também
+        // não usamos `v8 ignore`. Receitas e Despesas, que repetiam o idioma,
+        // passaram a renderizar só a tela da feature (redesign v3), onde os
+        // modais são montados sob a condição e a guarda deixou de existir.
+        "app/**": { lines: 100, functions: 100, branches: 96, statements: 100 },
       },
     },
   },
