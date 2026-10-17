@@ -29,7 +29,6 @@ describe("TerminateInstallmentExpenseUseCase", () => {
       updateInstallments: vi.fn(),
       delete: vi.fn(),
       deleteFutureInstallments: vi.fn(),
-      hasPastInstallments: vi.fn(),
       findInstallmentsByExpense: vi.fn(),
       findInstallmentsByCompetence: vi.fn(),
     };
@@ -147,7 +146,6 @@ describe("TerminateInstallmentExpenseUseCase installments in a future year", () 
       updateInstallments: vi.fn(),
       delete: vi.fn(),
       deleteFutureInstallments: vi.fn(),
-      hasPastInstallments: vi.fn(),
       findInstallmentsByExpense: vi.fn(),
       findInstallmentsByCompetence: vi.fn(),
     };

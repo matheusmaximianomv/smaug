@@ -30,8 +30,7 @@ export class TerminateRecurringExpenseUseCase {
       throw new RecurringExpenseNotFoundError(input.id);
     }
 
-    const existingEnd = expense.getEndCompetence();
-    if (existingEnd && existingEnd.isPastMonth()) {
+    if (expense.isExpiredAt()) {
       throw new RecurringExpenseAlreadyExpiredError();
     }
 

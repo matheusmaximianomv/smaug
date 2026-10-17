@@ -79,7 +79,10 @@ describe("InstallmentExpense", () => {
 
     vi.advanceTimersByTime(1);
 
-    const updated = expense.updateDetails({ description: "Notebook novo", categoryId: "category-2" });
+    const updated = expense.updateDetails({
+      description: "Notebook novo",
+      categoryId: "category-2",
+    });
 
     expect(updated.description).toBe("Notebook novo");
     expect(updated.categoryId).toBe("category-2");
@@ -133,5 +136,91 @@ describe("InstallmentExpense validation guards", () => {
     expect(() => InstallmentExpense.create({ ...props, installmentCount: 2.5 })).toThrow(
       "Installment count must be an integer",
     );
+  });
+});
+
+// Espelhados em web/shared/lib/preview.test.ts (splitInstallments): a prévia da
+// Revisão precisa dividir exatamente como o servidor grava.
+describe("InstallmentExpense cents split (mirrored by the web preview)", () => {
+  const build = (totalAmount: number, installmentCount: number) =>
+    InstallmentExpense.create({
+      userId: "user-1",
+      categoryId: "category-1",
+      description: "Compra",
+      totalAmount,
+      installmentCount,
+      startMonth: 1,
+      startYear: 2030,
+    })
+      .calculateInstallments()
+      .map((installment) => installment.amount);
+
+  it.each([
+    [100, 3, [33.34, 33.33, 33.33]],
+    [0.1, 3, [0.04, 0.03, 0.03]],
+    [4800, 12, Array(12).fill(400)],
+  ])("should split %s into %s installments as %j", (total, count, expected) => {
+    expect(build(total, count)).toEqual(expected);
+  });
+
+  it("should split 1.00 into 72 installments putting the remainder on the first", () => {
+    const amounts = build(1, 72);
+    expect(amounts).toHaveLength(72);
+    expect(amounts[0]).toBe(0.29);
+    expect(amounts.slice(1).every((amount) => amount === 0.01)).toBe(true);
+  });
+});
+
+describe("InstallmentExpense rule predicates", () => {
+  const ref = new Date("2026-04-15T12:00:00.000Z");
+  const startingIn = (startMonth: number, startYear = 2026, installmentCount = 3) =>
+    InstallmentExpense.create({
+      userId: "user-1",
+      categoryId: "category-1",
+      description: "Notebook",
+      totalAmount: 100,
+      installmentCount,
+      startMonth,
+      startYear,
+    });
+
+  it("should compute the end competence as start + count - 1, crossing the year", () => {
+    expect(startingIn(6, 2026, 12).getEndCompetence().toString()).toBe("2027-05");
+    expect(startingIn(6, 2026, 1).getEndCompetence().toString()).toBe("2026-06");
+  });
+
+  it("should report past and future installments relative to the reference", () => {
+    const running = startingIn(3).calculateInstallments();
+
+    expect(running.map((installment) => installment.statusAt(ref))).toEqual([
+      "PAST",
+      "CURRENT",
+      "FUTURE",
+    ]);
+    expect(InstallmentExpense.hasPastInstallments(running, ref)).toBe(true);
+    expect(InstallmentExpense.hasFutureInstallments(running, ref)).toBe(true);
+  });
+
+  it("should report no past installments when the plan starts now or later", () => {
+    const upcoming = startingIn(4).calculateInstallments();
+
+    expect(InstallmentExpense.hasPastInstallments(upcoming, ref)).toBe(false);
+    expect(InstallmentExpense.hasFutureInstallments(upcoming, ref)).toBe(true);
+  });
+
+  it("should report no future installments on the last one or after termination", () => {
+    const lastOne = startingIn(2).calculateInstallments();
+    const terminated = startingIn(3).calculateInstallments().slice(0, 2);
+
+    expect(InstallmentExpense.hasFutureInstallments(lastOne, ref)).toBe(false);
+    expect(InstallmentExpense.hasFutureInstallments(terminated, ref)).toBe(false);
+  });
+
+  it("should default the reference to the system clock", () => {
+    const installments = startingIn(1, 2000).calculateInstallments();
+
+    expect(InstallmentExpense.hasPastInstallments(installments)).toBe(true);
+    expect(InstallmentExpense.hasFutureInstallments(installments)).toBe(false);
+    expect(installments[0].statusAt()).toBe("PAST");
   });
 });

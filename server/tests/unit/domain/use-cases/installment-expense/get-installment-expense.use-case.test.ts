@@ -27,7 +27,6 @@ describe("GetInstallmentExpenseUseCase", () => {
       updateInstallments: vi.fn(),
       delete: vi.fn(),
       deleteFutureInstallments: vi.fn(),
-      hasPastInstallments: vi.fn(),
       findInstallmentsByExpense: vi.fn(),
       findInstallmentsByCompetence: vi.fn(),
     };

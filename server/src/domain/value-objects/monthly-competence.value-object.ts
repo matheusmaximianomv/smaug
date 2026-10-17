@@ -4,6 +4,9 @@ const MIN_YEAR = 2000;
 const MONTH_PAD_LENGTH = 2;
 const MONTHS_IN_YEAR = 12;
 
+/** Situação de uma competência em relação ao mês corrente (UTC). */
+export type CompetenceStatus = "PAST" | "CURRENT" | "FUTURE";
+
 export class MonthlyCompetence {
   public readonly month: number;
   public readonly year: number;
@@ -21,6 +24,17 @@ export class MonthlyCompetence {
       throw new Error("Year must be an integer >= 2000");
     }
     return new MonthlyCompetence(month, year);
+  }
+
+  /**
+   * Mês corrente em UTC — o mesmo relógio de `isPastMonth`, para que a situação
+   * exibida e a regra que bloqueia gravação nunca divirjam na virada do mês.
+   */
+  public static current(referenceDate: Date = new Date()): MonthlyCompetence {
+    return MonthlyCompetence.create(
+      referenceDate.getUTCMonth() + 1,
+      referenceDate.getUTCFullYear(),
+    );
   }
 
   /** Desloca a competência em `offset` meses; offset negativo anda para trás. */
@@ -54,6 +68,12 @@ export class MonthlyCompetence {
     if (this.year < refYear) return true;
     if (this.year === refYear && this.month < refMonth) return true;
     return false;
+  }
+
+  public statusAt(referenceDate: Date = new Date()): CompetenceStatus {
+    const current = MonthlyCompetence.current(referenceDate);
+    if (this.isBefore(current)) return "PAST";
+    return this.equals(current) ? "CURRENT" : "FUTURE";
   }
 
   public isFutureOrCurrent(referenceDate: Date = new Date()): boolean {

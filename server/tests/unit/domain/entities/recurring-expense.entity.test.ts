@@ -155,3 +155,33 @@ describe("RecurringExpense createForImport", () => {
     );
   });
 });
+
+describe("RecurringExpense.isExpiredAt", () => {
+  const ref = new Date("2026-04-15T12:00:00.000Z");
+  const build = (end: { endMonth?: number; endYear?: number }) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+    const entity = RecurringExpense.create({
+      userId: "user-1",
+      startMonth: 1,
+      startYear: 2026,
+      ...end,
+    });
+    vi.useRealTimers();
+    return entity;
+  };
+
+  it("should be expired when the end is before the reference month", () => {
+    expect(build({ endMonth: 3, endYear: 2026 }).isExpiredAt(ref)).toBe(true);
+  });
+
+  it("should not be expired when it ends in the reference month or later", () => {
+    expect(build({ endMonth: 4, endYear: 2026 }).isExpiredAt(ref)).toBe(false);
+    expect(build({ endMonth: 1, endYear: 2027 }).isExpiredAt(ref)).toBe(false);
+  });
+
+  it("should never be expired without an end", () => {
+    expect(build({}).isExpiredAt(ref)).toBe(false);
+    expect(build({}).isExpiredAt()).toBe(false);
+  });
+});

@@ -152,4 +152,12 @@ export class RecurringExpense {
     }
     return MonthlyCompetence.create(this.endMonth, this.endYear);
   }
+
+  /**
+   * Encerrada quando o término é anterior ao mês corrente — a mesma regra que
+   * bloqueia o encerramento e que esconde Nova versão/Encerrar na interface.
+   */
+  public isExpiredAt(referenceDate: Date = new Date()): boolean {
+    return this.getEndCompetence()?.isPastMonth(referenceDate) ?? false;
+  }
 }

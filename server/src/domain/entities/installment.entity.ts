@@ -1,5 +1,8 @@
 import { randomUUID } from "crypto";
-import { MonthlyCompetence } from "@src/domain/value-objects/monthly-competence.value-object";
+import {
+  CompetenceStatus,
+  MonthlyCompetence,
+} from "@src/domain/value-objects/monthly-competence.value-object";
 
 const MAX_DECIMAL_PLACES = 2;
 const MIN_INSTALLMENT_NUMBER = 1;
@@ -54,6 +57,10 @@ export class Installment {
 
   public getCompetence(): MonthlyCompetence {
     return MonthlyCompetence.create(this.competenceMonth, this.competenceYear);
+  }
+
+  public statusAt(referenceDate: Date = new Date()): CompetenceStatus {
+    return this.getCompetence().statusAt(referenceDate);
   }
 
   private static validateInstallmentNumber(installmentNumber: number): void {

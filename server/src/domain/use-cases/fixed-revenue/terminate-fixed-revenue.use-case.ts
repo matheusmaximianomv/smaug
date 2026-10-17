@@ -21,11 +21,8 @@ export class TerminateFixedRevenueUseCase {
       throw new FixedRevenueNotFoundError(input.id);
     }
 
-    if (revenue.endMonth != null && revenue.endYear != null) {
-      const currentEnd = MonthlyCompetence.create(revenue.endMonth, revenue.endYear);
-      if (currentEnd.isPastMonth()) {
-        throw new AlreadyExpiredError();
-      }
+    if (revenue.isExpiredAt()) {
+      throw new AlreadyExpiredError();
     }
 
     const newEnd = MonthlyCompetence.create(input.endMonth, input.endYear);

@@ -5,6 +5,7 @@ import {
   NoFutureInstallmentsError,
 } from "@src/domain/errors/domain-error";
 import { InstallmentExpenseRepository } from "@src/domain/ports/installment-expense.repository";
+import { MonthlyCompetence } from "@src/domain/value-objects/monthly-competence.value-object";
 
 export interface TerminateInstallmentExpenseInput {
   id: string;
@@ -28,22 +29,13 @@ export class TerminateInstallmentExpenseUseCase {
 
     const allInstallments = await this.repository.findInstallmentsByExpense(expense.id);
     const referenceDate = new Date();
-    const referenceYear = referenceDate.getUTCFullYear();
-    const referenceMonth = referenceDate.getUTCMonth() + 1;
 
-    const hasFutureInstallments = allInstallments.some((installment) => {
-      if (installment.competenceYear > referenceYear) return true;
-      if (installment.competenceYear === referenceYear && installment.competenceMonth > referenceMonth) {
-        return true;
-      }
-      return false;
-    });
-
-    if (!hasFutureInstallments) {
+    if (!InstallmentExpense.hasFutureInstallments(allInstallments, referenceDate)) {
       throw new NoFutureInstallmentsError();
     }
 
-    await this.repository.deleteFutureInstallments(expense.id, referenceMonth, referenceYear);
+    const current = MonthlyCompetence.current(referenceDate);
+    await this.repository.deleteFutureInstallments(expense.id, current.month, current.year);
 
     const updatedExpense = expense.updateDetails({});
     const persistedExpense = await this.repository.update(updatedExpense);

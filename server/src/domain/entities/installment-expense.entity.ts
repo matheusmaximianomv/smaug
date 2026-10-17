@@ -98,6 +98,32 @@ export class InstallmentExpense {
     return MonthlyCompetence.create(this.startMonth, this.startYear);
   }
 
+  /** Competência da última parcela do plano: início + quantidade − 1. */
+  public getEndCompetence(): MonthlyCompetence {
+    return MonthlyCompetence.addMonths(this.getStartCompetence(), this.installmentCount - 1);
+  }
+
+  /**
+   * Regra de remoção: parcelamento com parcela passada não pode ser removido.
+   * Recebe as parcelas persistidas (e não o plano de `calculateInstallments`)
+   * porque o encerramento apaga as futuras — o mesmo predicado alimenta o
+   * use case e o `canDelete` da resposta.
+   */
+  public static hasPastInstallments(
+    installments: Installment[],
+    referenceDate: Date = new Date(),
+  ): boolean {
+    return installments.some((installment) => installment.statusAt(referenceDate) === "PAST");
+  }
+
+  /** Regra de encerramento: só há o que encerrar se existe parcela futura. */
+  public static hasFutureInstallments(
+    installments: Installment[],
+    referenceDate: Date = new Date(),
+  ): boolean {
+    return installments.some((installment) => installment.statusAt(referenceDate) === "FUTURE");
+  }
+
   public calculateInstallments(): Installment[] {
     const totalCents = Math.round(this.totalAmount * 100);
     const baseCents = Math.floor(totalCents / this.installmentCount);
