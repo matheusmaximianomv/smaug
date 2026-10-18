@@ -22,8 +22,10 @@ import {
 
 const args = process.argv.slice(2);
 
-if (args.includes("--schema")) {
-  fail("Não passe --schema: o schema é escolhido por DATABASE_PROVIDER.");
+if (args.includes("--schema") || args.includes("--config")) {
+  fail(
+    "Não passe --schema nem --config: prisma/prisma.config.ts escolhe o schema por DATABASE_PROVIDER.",
+  );
 }
 if (args[0] === "migrate" && args[1] === "dev") {
   fail(
@@ -46,6 +48,4 @@ if (args.length === 0) {
 }
 
 console.log(`[prisma] provider: ${provider}`);
-// `migrate diff` não aceita --schema: os lados vêm nas próprias flags dele.
-const isDiff = args[0] === "migrate" && args[1] === "diff";
-process.exit(runPrisma(isDiff ? args : [...args, "--schema", schema]).status ?? 1);
+process.exit(runPrisma(provider, args).status ?? 1);

@@ -3,8 +3,10 @@
  *
  * `prisma/schema.prisma` é a fonte única dos models e nunca é reescrito. Cada
  * provider ganha uma cópia derivada em `prisma/<provider>/schema.prisma` (fora do
- * git) ao lado da sua pasta de migrations versionada — o Prisma 4 sempre procura
- * as migrations em `migrations/` junto do schema passado em `--schema`.
+ * git) ao lado da sua pasta de migrations versionada. O CLI recebe sempre
+ * `--config prisma/prisma.config.ts`, que aponta schema, migrations e URLs do
+ * provider em SMAUG_PRISMA_PROVIDER — o Prisma 7 não aceita mais `url` no schema
+ * nem `--url`/`--shadow-database-url` nos comandos que usamos.
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -19,6 +21,7 @@ export const SOURCE_SCHEMA = path.join(PRISMA_DIR, "schema.prisma");
 export const PROVIDERS = ["sqlite", "postgresql"];
 
 const PRISMA_CLI = path.join(SERVER_DIR, "node_modules", "prisma", "build", "index.js");
+const PRISMA_CONFIG = path.join(PRISMA_DIR, "prisma.config.ts");
 const ACCEPTED = ["postgresql", "sqlite", "memory"];
 const DATASOURCE_PROVIDER = /(datasource\s+\w+\s*\{[\s\S]*?provider\s*=\s*")[^"]+(")/m;
 
@@ -33,8 +36,9 @@ export function loadEnv() {
 }
 
 /**
- * Caminho SQLite relativo parte de server/ — não da pasta do schema derivado, que
- * é como o Prisma o resolveria. O runtime aplica a mesma regra em `env.ts`.
+ * Caminho SQLite relativo parte de server/ — não da pasta da config (`prisma/`), que
+ * é como o CLI do Prisma 7 o resolveria, nem do diretório corrente, que é como o
+ * `better-sqlite3` o abriria. O runtime aplica a mesma regra em `env.ts`.
  */
 export function resolveSqliteUrl(url) {
   if (!url.startsWith("file:")) return url;
@@ -84,12 +88,18 @@ export function writeProviderSchema(provider) {
   return target;
 }
 
-export function runPrisma(args, { capture = false } = {}) {
-  const result = spawnSync(process.execPath, [PRISMA_CLI, ...args], {
+export function runPrisma(provider, args, { capture = false, input, env = {} } = {}) {
+  const result = spawnSync(process.execPath, [PRISMA_CLI, ...args, "--config", PRISMA_CONFIG], {
     cwd: SERVER_DIR,
-    stdio: capture ? "pipe" : "inherit",
+    stdio: capture || input !== undefined ? "pipe" : "inherit",
+    input,
     encoding: "utf8",
-    env: { ...process.env, PRISMA_HIDE_UPDATE_MESSAGE: "1" },
+    env: {
+      ...process.env,
+      ...env,
+      SMAUG_PRISMA_PROVIDER: provider,
+      PRISMA_HIDE_UPDATE_MESSAGE: "1",
+    },
   });
   if (result.error) fail(`Falha ao executar o Prisma: ${result.error.message}`);
   return result;
@@ -160,15 +170,11 @@ function createPostgresDatabase(url) {
   maintenance.pathname = "/postgres";
   maintenance.search = "";
   console.log(`[prisma] criando o banco sombra "${name}"…`);
-  const result = spawnSync(
-    process.execPath,
-    [PRISMA_CLI, "db", "execute", "--url", maintenance.toString(), "--stdin"],
-    {
-      cwd: SERVER_DIR,
-      input: `CREATE DATABASE "${name.replaceAll('"', '""')}";`,
-      encoding: "utf8",
-    },
-  );
+  // O `db execute` do Prisma 7 não tem mais `--url`: a URL vem da config, via DATABASE_URL.
+  const result = runPrisma("postgresql", ["db", "execute", "--stdin"], {
+    input: `CREATE DATABASE "${name.replaceAll('"', '""')}";`,
+    env: { DATABASE_URL: maintenance.toString() },
+  });
   if (result.status !== 0) fail(`Não consegui criar o banco sombra "${name}":\n${result.stderr}`);
 }
 
@@ -180,18 +186,18 @@ export function diffMigrationsToSchema(provider) {
     "diff",
     "--from-migrations",
     migrationsDir(provider),
-    "--to-schema-datamodel",
+    "--to-schema",
     writeProviderSchema(provider),
-    "--shadow-database-url",
-    shadow,
     "--script",
     "--exit-code",
   ];
-  let result = runPrisma(args, { capture: true });
+  // O banco sombra vem da config (`shadowDatabaseUrl`): o Prisma 7 tirou a flag.
+  const options = { capture: true, env: { SMAUG_SHADOW_DATABASE_URL: shadow } };
+  let result = runPrisma(provider, args, options);
   // P1003: o banco não existe no servidor.
   if (provider === "postgresql" && result.status === 1 && result.stderr.includes("P1003")) {
     createPostgresDatabase(shadow);
-    result = runPrisma(args, { capture: true });
+    result = runPrisma(provider, args, options);
   }
   // --exit-code: 0 = sem diferença, 2 = há diferença, qualquer outro = erro.
   if (result.status !== 0 && result.status !== 2) {

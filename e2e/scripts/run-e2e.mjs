@@ -38,8 +38,8 @@ const pwArgs = argv.filter((a) => a !== "--keep-db");
 
 const TMP_DIR = process.env.E2E_TMP_DIR ?? path.join(E2E_DIR, ".tmp");
 const RUN_ID = `${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
-// Caminho ABSOLUTO de propósito: `file:./x.db` resolve relativo ao diretório do
-// schema.prisma para o CLI, mas relativo ao CWD para o client. Absoluto faz o
+// Caminho ABSOLUTO de propósito: `file:./x.db` resolve relativo à pasta da config
+// (server/prisma/) para o CLI, mas relativo ao CWD para o client. Absoluto faz o
 // CLI (rodando de e2e/), o servidor (de server/) e a limpeza verem o mesmo arquivo.
 const DB_FILE = path.join(TMP_DIR, `smaug-e2e-${RUN_ID}.db`);
 const DB_URL = `file:${DB_FILE}`;
@@ -99,22 +99,21 @@ for (const f of readdirSync(TMP_DIR)) {
 // --- 3. Cria o banco exclusivo do run ---------------------------------------
 // Pelo wrapper do server, que usa o schema derivado prisma/sqlite/schema.prisma.
 // DATABASE_PROVIDER e DATABASE_URL explícitos vencem o server/.env.
+// Sem `--force-reset`: o arquivo é novo por RUN_ID e os órfãos já foram podados, e
+// o CLI do Prisma 7 recusa o reset quando detecta um agente de IA no ambiente.
+// Sem `--skip-generate`: o Prisma 7 removeu a flag (o `db push` não gera mais o client).
 console.log(`[e2e] banco desta execução: ${DB_FILE}`);
-const push = spawnSync(
-  process.execPath,
-  [PRISMA_WRAPPER, "db", "push", "--force-reset", "--skip-generate"],
-  {
-    cwd: E2E_DIR,
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      DATABASE_URL: DB_URL,
-      DATABASE_PROVIDER: "sqlite",
-      PRISMA_HIDE_UPDATE_MESSAGE: "1",
-      CHECKPOINT_DISABLE: "1",
-    },
+const push = spawnSync(process.execPath, [PRISMA_WRAPPER, "db", "push"], {
+  cwd: E2E_DIR,
+  stdio: "inherit",
+  env: {
+    ...process.env,
+    DATABASE_URL: DB_URL,
+    DATABASE_PROVIDER: "sqlite",
+    PRISMA_HIDE_UPDATE_MESSAGE: "1",
+    CHECKPOINT_DISABLE: "1",
   },
-);
+});
 if (push.status !== 0) {
   cleanup();
   die("`prisma db push` falhou.");

@@ -1,12 +1,10 @@
-import path from "node:path";
 import request from "supertest";
 import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
-import { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import type { Express } from "express";
+import { sqliteTestDatabase } from "../../helpers/sqlite-test-database";
 
-// Absoluto: CLI, client do teste e app precisam abrir o mesmo arquivo.
-const TEST_DB_FILE = path.resolve("prisma/sqlite/test-user.db");
-const TEST_DB_URL = `file:${TEST_DB_FILE}`;
+const testDb = sqliteTestDatabase("user");
 
 describe("User Endpoints", () => {
   let prisma: PrismaClient;
@@ -16,22 +14,13 @@ describe("User Endpoints", () => {
     vi.resetModules();
 
     process.env.DATABASE_PROVIDER = "sqlite";
-    process.env.DATABASE_URL = TEST_DB_URL;
+    process.env.DATABASE_URL = testDb.url;
     process.env.NODE_ENV = "test";
     process.env.PORT = "3000";
     process.env.LOG_LEVEL = "error";
 
-    prisma = new PrismaClient({ datasources: { db: { url: TEST_DB_URL } } });
-
-    // Push schema to test DB
-    const { execSync } = await import("child_process");
-    execSync(
-      `DATABASE_URL=${TEST_DB_URL} npx prisma db push --schema prisma/sqlite/schema.prisma --force-reset --skip-generate`,
-      {
-        cwd: process.cwd(),
-        stdio: "pipe",
-      },
-    );
+    testDb.push();
+    prisma = testDb.client();
 
     // Dynamic import so PrismaClient in container picks up the test DATABASE_URL
     const { createHttpServer } = await import("@src/infrastructure/http/server");
@@ -40,9 +29,7 @@ describe("User Endpoints", () => {
 
   afterAll(async () => {
     await prisma.$disconnect();
-    // Clean up test DB
-    const { unlinkSync, existsSync } = await import("fs");
-    if (existsSync(TEST_DB_FILE)) unlinkSync(TEST_DB_FILE);
+    testDb.remove();
   });
 
   describe("POST /users", () => {

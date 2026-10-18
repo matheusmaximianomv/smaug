@@ -1,17 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 import { env } from "@src/infrastructure/config/env.ts";
+import { createPrismaAdapter } from "@src/infrastructure/database/prisma-adapter.ts";
 
 let prismaClient: PrismaClient | null = null;
 
 export function getPrismaClient(): PrismaClient {
   if (!prismaClient) {
-    prismaClient = new PrismaClient({
-      datasources: {
-        db: {
-          url: env.DATABASE_URL,
-        },
-      },
-    });
+    // `memory` não tem banco, mas o container monta os repositórios Prisma mesmo assim;
+    // o adapter SQLite só abre o arquivo na primeira query.
+    const provider = env.DATABASE_PROVIDER === "postgresql" ? "postgresql" : "sqlite";
+    prismaClient = new PrismaClient({ adapter: createPrismaAdapter(provider, env.DATABASE_URL) });
   }
   return prismaClient;
 }
