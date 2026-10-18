@@ -8,12 +8,12 @@ mensagens de commit e textos da UI são em português.
 
 ## Tech Stack
 
-| Camada      | Tecnologias                                                                                                                       |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Server**  | Node.js 22 (ESM), TypeScript 5 strict, Express 5, Prisma 4 (SQLite em dev, PostgreSQL-ready), tsyringe, Zod 4, Pino, tsup         |
-| **Web**     | Next.js 15 (App Router), React 19 RC, Tailwind 3, TanStack Query 5, axios, React Hook Form + Zod, lucide-react, Radix dialog/tabs |
-| **Testes**  | Vitest 4 (server e web), Supertest, Testing Library, MSW 2, Playwright                                                            |
-| **Tooling** | ESLint 10, Prettier, Husky, lint-staged, dependency-cruiser 17                                                                    |
+| Camada      | Tecnologias                                                                                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Server**  | Node.js 24 (ESM), TypeScript 5 strict, Express 5, Prisma 7 (SQLite em dev, PostgreSQL-ready), tsyringe, Zod 4, Pino, tsup                                   |
+| **Web**     | Next.js 16 (App Router), React 19, Tailwind 4 (CSS-first) + tw-animate-css, TanStack Query 5, axios, React Hook Form + Zod, lucide-react, Radix dialog/tabs |
+| **Testes**  | Vitest 4 (server e web), Supertest, Testing Library, MSW 2, Playwright                                                                                      |
+| **Tooling** | ESLint 10, Prettier, Husky, lint-staged, dependency-cruiser 17                                                                                              |
 
 ## Estrutura do Projeto
 
@@ -25,7 +25,7 @@ server/                 # API em Clean Architecture
   Dockerfile  docker-compose.yml
   package.json
 
-web/                    # Next.js 15 (App Router)
+web/                    # Next.js 16 (App Router)
   app/                  # (auth)/{login,cadastro}  (app)/{dashboard,receitas,despesas,categorias,historico}
   features/             # auth, dashboard, receitas, despesas, categorias, historico
   shared/               # primitivos de UI, hooks e libs
@@ -72,11 +72,10 @@ npm run dev
 Nenhuma variável precisa ser exportada no terminal: os scripts do Prisma leem o
 ambiente e, na falta, o `server/.env` — a mesma regra do server em runtime.
 
-> ⚠️ **`web/` exige `--legacy-peer-deps`.** O React está fixado num prerelease
-> (`19.0.0-rc-…`) e `^19.0.0` não casa com prerelease no semver do npm. Sem a
-> flag o npm instala uma árvore **sem os peers** — foi assim que
-> `@testing-library/dom` e `jest-dom` sumiram e quebraram o `vitest.setup.ts`.
-> Já está fixado em `web/.npmrc`; não instale em `web/` contornando esse arquivo.
+> O `web/` instala com `npm ci` estrito, como o `server/` e o `e2e/`: com o React 19
+> estável todos os peers casam, e não há mais `web/.npmrc` nem flag para relaxar a
+> resolução de peers. Não volte a relaxá-la — isso esconde justamente a árvore sem
+> peers que já quebrou o `vitest.setup.ts` no passado.
 
 ## Desenvolvimento
 
@@ -96,7 +95,7 @@ As portas são fixas: `web/package.json` roda `next dev -p 3001` e
 Next **inlina em tempo de build** — um `next build` precisa já ter o valor certo.
 
 Rotas da aplicação: `/login` e `/cadastro` (públicas); `/dashboard`, `/receitas`,
-`/despesas`, `/categorias` e `/historico` (protegidas pelo `web/middleware.ts`).
+`/despesas`, `/categorias` e `/historico` (protegidas pelo `web/proxy.ts`).
 
 ## Testes
 
@@ -131,7 +130,7 @@ npm run build:web
 
 ```bash
 npm run validate:deps            # regras de arquitetura (server, web e e2e)
-npm run lint                     # eslint (server) + next lint (web)
+npm run lint                     # eslint (server) + eslint 9 flat config (web)
 npm run format                   # prettier no repositório
 npm run --prefix server typecheck
 npm run --prefix web typecheck
@@ -157,6 +156,7 @@ Cada provider tem uma pasta própria:
 ```
 server/prisma/
 ├── schema.prisma             # fonte (versionado)
+├── prisma.config.ts          # config do CLI do Prisma 7, passada pelos scripts (versionado)
 ├── sqlite/
 │   ├── schema.prisma         # derivado (fora do git)
 │   └── migrations/           # dialeto SQLite (versionado)
@@ -202,7 +202,7 @@ não reproduzirem o schema de origem, e é o que o CI roda.
 
 > **Caminho do SQLite.** Um caminho relativo em `DATABASE_URL` parte de `server/`, a
 > pasta do `.env`: `file:./prisma/sqlite/dev.db` é `server/prisma/sqlite/dev.db`.
-> O próprio Prisma resolveria a partir da pasta do schema derivado; os scripts e o
+> O CLI do Prisma resolveria a partir da pasta da config, `prisma/`; os scripts e o
 > `env.ts` tornam o caminho absoluto antes. Um banco criado por `db push` (sem a
 > tabela `_prisma_migrations`) precisa ser marcado uma vez, com
 > `npm run --prefix server prisma -- migrate resolve --applied <migration>` para
@@ -235,13 +235,14 @@ No commit, o Husky executa o lint-staged da raiz (`.lintstagedrc.js`):
 | Padrão                 | Ação                                                         |
 | ---------------------- | ------------------------------------------------------------ |
 | `server/**/*.{ts,tsx}` | `npm run --prefix server lint -- --fix` + `prettier --write` |
-| `web/**/*.{ts,tsx}`    | `npm run --prefix web lint` + `prettier --write`             |
+| `web/**/*.{ts,tsx}`    | `eslint --config web/eslint.config.mjs` + `prettier --write` |
 | `e2e/**/*.ts`          | `prettier --write`                                           |
 | `*.{json,md}`          | `prettier --write`                                           |
 
-> O comando do `web/` roda **sem `--fix`** e sem receber os arquivos
-> individualmente: `next lint` não aceita caminhos com parênteses, como
-> `app/(app)` e `app/(auth)`.
+> O comando do `web/` roda **sem `--fix`** e só sobre os arquivos staged (cada
+> caminho vai entre aspas, por causa de `app/(app)` e `app/(auth)`). O `--config`
+> explícito é necessário porque o ESLint 9 do `web/` resolve a configuração a partir
+> do cwd — a raiz, que tem a própria config do ESLint 10.
 
 ## Documentação
 

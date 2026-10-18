@@ -261,12 +261,12 @@ MSW.
 ## Cobertura (`web/vitest.config.ts`)
 
 Piso global `lines 100 / functions 100 / branches 98 / statements 99`, e gates por glob em 100% para
-`shared/lib/**`, `infra/**`, `middleware.ts`, `shared/hooks/**`, `shared/components/**`,
+`shared/lib/**`, `infra/**`, `proxy.ts`, `shared/hooks/**`, `shared/components/**`,
 `features/*/services/**`, `features/*/hooks/**`, `features/*/components/**`.
 `app/**` é a exceção justificada (`branches: 86, statements: 97`), por causa dos 13 ramos falsos
 inalcançáveis do idioma `isOpen={!!deleteTarget}` + `if (deleteTarget)`.
 Excluídos por política: `**/*.test.*`, `**/types/index.ts`, `app/layout.tsx`, `app/page.tsx`,
-`app/providers.tsx`, `next.config.ts`, `tailwind.config.ts`.
+`app/providers.tsx`, `next.config.ts`.
 
 ## Armadilhas verificadas (não redescubra)
 
@@ -277,8 +277,7 @@ Excluídos por política: `**/*.test.*`, `**/types/index.ts`, `app/layout.tsx`, 
 | `useToast` tem fila global sem reset                    | `spyOnToast()` por padrão; fake timers só nos dois testes do próprio toast                                     |
 | `infra/query-client.ts` é singleton com `retry: 3`      | Sempre `createTestQueryClient()`; nunca `app/providers.tsx`                                                    |
 | `NEXT_PUBLIC_API_URL` é lido na avaliação do módulo     | Já fixado em `test.env` no `vitest.config.ts`; `vi.stubEnv` dentro do teste chega tarde                        |
-| Instalar dependência em `web/`                          | **Sempre** `--legacy-peer-deps` (React 19 RC), já fixado em `web/.npmrc`                                       |
-| `tests/router.tsx` usa deep imports internos do Next    | Estão presos à versão `next@15.0.3`; se o Next subir, é o primeiro lugar a quebrar                             |
+| `tests/router.tsx` usa deep imports internos do Next    | Estão presos à versão `next@16.4.2`; se o Next subir, é o primeiro lugar a quebrar                             |
 
 ## Checklist
 

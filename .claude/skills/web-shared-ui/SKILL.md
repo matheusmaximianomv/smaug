@@ -41,13 +41,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         className={cn(
           "inline-flex items-center justify-center rounded-lg font-medium transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+          "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red focus-visible:ring-offset-2",
           "disabled:pointer-events-none disabled:opacity-50",
           {
-            "bg-red text-white hover:bg-red/90 focus-visible:ring-red": variant === "default",
+            "bg-red text-white hover:bg-red/90": variant === "default" || variant === "danger",
             "border border-border bg-surface hover:bg-bg": variant === "outline",
             "hover:bg-bg": variant === "ghost",
-            "bg-red text-white hover:bg-red/90": variant === "danger",
           },
           {
             "h-8 px-3 text-sm": size === "sm",
@@ -117,6 +116,16 @@ export function ConfirmDialog({
 acessível) e `footer`, e vira folha ancorada na base até 768 px. `ConfirmDialog` abre sempre com
 `layer="top"` (acima de uma Ficha) e mostra ícone de lixeira quando `isDanger`. O "Esc fecha só a
 confirmação, não a Ficha" vem do aninhamento de diálogos Radix — não trate Esc à mão.
+
+Entrada/saída animadas de `Modal` e `ToastContainer` vêm da `tw-animate-css` (`animate-in`,
+`fade-in`, `zoom-in-95`, `slide-in-from-bottom-*`…), sempre sob `motion-safe:` e, no `Modal`, por
+`data-[state=open|closed]:` do Radix. Não escreva `@keyframes` próprios nem regra global de
+movimento reduzido (congelaria `animate-spin`/`animate-pulse`).
+
+Tela que abre Ficha/assistente **não** os monta só enquanto abertos: envolve-os em `ModalGate`
+(`shared/components/Modal.tsx`) com `isOpen`, a `origin` do foco e uma `key` por abertura, como
+`DespesasScreen`. Desmontar ao fechar mata a animação de saída. O `Modal` devolve o foco a quem o
+abriu — não trate foco à mão.
 
 ### Regra 4: Radix com JSDoc justificando
 

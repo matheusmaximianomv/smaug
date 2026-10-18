@@ -28,7 +28,7 @@ npm run test:e2e                          # Playwright: cria um SQLite exclusivo
 npm run e2e:install-browsers              # uma vez por máquina
 
 npm run build            # tsup (server) then next build (web)
-npm run lint             # eslint (server) + next lint (web)
+npm run lint             # eslint (server) + eslint 9 flat config (web)
 npm run format           # prettier across the repo
 npm run --prefix server typecheck         # also `--prefix web`, `--prefix e2e`
 npm run validate:deps    # dependency-cruiser architecture rules — run from ROOT only
@@ -36,7 +36,7 @@ npm run validate:deps    # dependency-cruiser architecture rules — run from RO
 
 `npm run --prefix server validate:deps` is broken: it points at a `server/.dependency-cruiser.cjs` that does not exist. Use the root script, which validates all three packages (`server web e2e`).
 
-Husky + lint-staged run the **root** `.lintstagedrc.js` at commit time: `server/**/*.{ts,tsx}` → `eslint --fix` + prettier; `web/**/*.{ts,tsx}` → `next lint` **without `--fix`**, wrapped in a function because `next lint` chokes on paths containing parens (`app/(app)`, `app/(auth)`); `e2e/**/*.ts` and `*.{json,md}` → prettier only. (The `lint-staged` block inside `server/package.json` is dead — nothing invokes it.)
+Husky + lint-staged run the **root** `.lintstagedrc.js` at commit time: `server/**/*.{ts,tsx}` → `eslint --fix` + prettier; `web/**/*.{ts,tsx}` → `npm --prefix web exec -- eslint --config web/eslint.config.mjs <staged files>` **without `--fix`** + prettier (the explicit `--config` is needed because ESLint 9 resolves its config from the cwd — the root, which has its own ESLint 10 config — and each path is quoted to survive `app/(app)`/`app/(auth)`); `e2e/**/*.ts` and `*.{json,md}` → prettier only. (The `lint-staged` block inside `server/package.json` is dead — nothing invokes it.)
 
 ### Prisma
 
@@ -48,22 +48,41 @@ npm run --prefix server migrate:check     # parity + fidelity of both folders (C
 npm run --prefix server prisma -- <any prisma CLI args>
 ```
 
-`server/prisma/schema.prisma` is the **single source** of the models and is never rewritten. Every
-command goes through `server/scripts/prisma.mjs`, which resolves `DATABASE_PROVIDER` /
-`DATABASE_URL` from the system env first and `server/.env` second (same precedence as `env.ts`),
-**fails** when the provider is missing or invalid (no default; `memory` → `sqlite`), writes the
-derived, gitignored `prisma/<provider>/schema.prisma` and passes it as `--schema`. Prisma 4 looks for
-migrations next to that schema, so each provider has its own tracked `prisma/<provider>/migrations/`
-— same folder names, same order, one dialect each. `migrate dev` is blocked (it would create the
-migration in one dialect only); `migrate:new` diffs both folders against the source schema instead.
-`migrate:new`/`migrate:check` need a **throwaway** Postgres in `POSTGRES_SHADOW_DATABASE_URL` (it is
-wiped on every run; created if missing). The generated client targets one provider at a time — switch
-provider, regenerate.
+`server/prisma/schema.prisma` is the **single source** of the models and is never rewritten (its
+datasource has no `url`: Prisma 7 rejects it). Every command goes through `server/scripts/prisma.mjs`,
+which resolves `DATABASE_PROVIDER` / `DATABASE_URL` from the system env first and `server/.env` second
+(same precedence as `env.ts`), **fails** when the provider is missing or invalid (no default;
+`memory` → `sqlite`), writes the derived, gitignored `prisma/<provider>/schema.prisma` and runs the CLI
+with `--config prisma/prisma.config.ts` — that config (in `prisma/`, not in `server/`, so the Docker
+`runner` stage copies it) reads the provider from `SMAUG_PRISMA_PROVIDER`, set by the wrapper, and points
+at that provider's schema, `prisma/<provider>/migrations/` and URLs; run outside the wrapper it throws.
+The wrapper refuses `--schema` and `--config`. Each provider has its own tracked
+`prisma/<provider>/migrations/` — same folder names, same order, one dialect each. `migrate dev` is
+blocked (it would create the migration in one dialect only); `migrate:new` diffs both folders against
+the source schema instead. `migrate:new`/`migrate:check` need a **throwaway** Postgres in
+`POSTGRES_SHADOW_DATABASE_URL` (it is wiped on every run; created if missing).
+
+At runtime Prisma 7 needs a **driver adapter**: `infrastructure/database/prisma-adapter.ts`
+(`createPrismaAdapter`) picks `@prisma/adapter-pg` or `@prisma/adapter-better-sqlite3` by provider, with
+two settings that keep the behaviour of the old Rust engine — `connectionTimeoutMillis: 5_000` on `pg` (otherwise
+`/health` hangs > 30 s on an unreachable host instead of the 503 in ~5 s) and
+`timestampFormat: "unixepoch-ms"` on SQLite (the engine stored `DateTime` as INTEGER ms; the adapter
+default writes TEXT, and mixed formats break `orderBy`). The generator stays `prisma-client-js` (client
+in `node_modules/.prisma/client`). The generated client targets one provider at a time — switch
+provider, regenerate; a client/adapter mismatch fails at construction with
+`PrismaClientInitializationError` ("The Driver Adapter … is not compatible with the provider …").
 
 A relative SQLite path in `DATABASE_URL` is relative to `server/` (where `.env` lives):
-`file:./prisma/sqlite/dev.db` is `server/prisma/sqlite/dev.db`. Prisma itself would resolve it from
-the derived schema's folder, so both the wrapper and `env.ts` (via `config/sqlite-url.ts`) turn it absolute
-first; the whole app shares the single client from `infrastructure/database/config.ts`.
+`file:./prisma/sqlite/dev.db` is `server/prisma/sqlite/dev.db`. The Prisma 7 CLI would resolve it from
+the config's folder (`prisma/`) and `better-sqlite3` from the current directory, so both the wrapper
+and `env.ts` (via `config/sqlite-url.ts`) turn it absolute first; the whole app shares the single
+client from `infrastructure/database/config.ts`.
+
+The Prisma 7 CLI **refuses destructive actions** (`db push --force-reset`, `migrate reset`) when it
+detects an AI agent in the environment (`CLAUDECODE`, `AI_AGENT`, `CURSOR_AGENT`, …), demanding
+`PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION` with the user's consent. The test harness and
+`run-e2e.mjs` never reset (each run uses a fresh file); a manual reset asked of an agent needs the
+user's explicit consent.
 
 ## Architecture
 
@@ -121,14 +140,14 @@ features/   auth, dashboard, receitas, despesas, categorias, historico, dados
             each owns components/ hooks/ services/ types/
 shared/     UI primitives (Button, Modal, Toast, MonthNavigator, …), lancamentos/ (ledger, wizard and Ficha blocks shared by receitas/despesas), hooks, lib
 infra/      api-client, api-error, query-client, router-adapter, session, navigation
-middleware.ts
+proxy.ts    (route guard; the Next 16 name for middleware)
 ```
 
 **Layering is normative** (see the constitution below): `UI → hooks → services → infra`, one direction only. Components stay presentational; hooks hold business logic and state; services only talk to the outside world. Components must not call `apiClient` directly.
 
 **Cross-feature imports are forbidden, with one carve-out.** Share via `@/shared` or `@/infra` only. The exception the code actually makes is for **types** of a genuinely related domain (`despesas` importing `Category` from `@/features/categorias/types`; `historico` aggregating both) — a component, hook or service from another feature is never acceptable: when a second feature needs one, promote it to `shared/` (as was done with `MonthYearSelect`, now in `shared/components/`). Aliases: `@/` → `web/`, plus `@/features`, `@/shared`, `@/infra` (declared in both `tsconfig.json` and `vitest.config.ts`).
 
-**Next.js APIs are wrapped.** Business hooks must not call `useRouter`/`useSearchParams` from `next/navigation` directly — go through `infra/router-adapter.ts`. Likewise the session goes through `infra/session.ts` (`getUserId`/`setUserId`/`clearUserId`), where **the `userId` cookie is the single source of truth** — `middleware.ts` reads that same cookie server-side to gate `(app)` routes and bounce authenticated users away from `(auth)`. There is deliberately no `localStorage` copy: keeping two stores let them diverge, and a present cookie with empty `localStorage` put the app in an infinite `/login` ↔ `/dashboard` loop.
+**Next.js APIs are wrapped.** Business hooks must not call `useRouter`/`useSearchParams` from `next/navigation` directly — go through `infra/router-adapter.ts`. Likewise the session goes through `infra/session.ts` (`getUserId`/`setUserId`/`clearUserId`), where **the `userId` cookie is the single source of truth** — `proxy.ts` (the Next 16 name for middleware, exporting `proxy`) reads that same cookie server-side to gate `(app)` routes and bounce authenticated users away from `(auth)`. There is deliberately no `localStorage` copy: keeping two stores let them diverge, and a present cookie with empty `localStorage` put the app in an infinite `/login` ↔ `/dashboard` loop.
 
 **Server state is TanStack Query v5** (not SWR). Per-feature hooks follow a fixed shape: a module-level `const QK = [...]` query key, `useQuery` with `staleTime: 30_000`, and `useMutation`s that `qc.invalidateQueries({queryKey: QK})` plus fire a `toast` from `@/shared/hooks/useToast` on success/error — see `features/categorias/hooks/useCategories.ts`. Receitas/Despesas key everything under a `["revenues"]`/`["expenses"]` prefix and their mutations also invalidate `["dashboard"]`. Global defaults (retry/backoff, `gcTime`) live in `infra/query-client.ts`.
 
@@ -141,7 +160,7 @@ middleware.ts
 ## Testing
 
 - **Server unit** (`server/tests/unit/`, mirrors the layer structure): node env, in-memory repositories, no database.
-- **Server integration** (`server/tests/integration/presentation/`): Supertest against the real Express app over SQLite. Each test file shells out to `execSync("prisma db push --schema prisma/sqlite/schema.prisma --force-reset")` against **its own `.db` file** (an absolute path in `server/prisma/sqlite/`, removed in `afterAll` — the CLI, the test's own client and the app must all open the same file) and then dynamically imports the app so the container picks up the test URL — so a **SQLite** client from `DATABASE_PROVIDER=sqlite prisma:generate` is a prerequisite (it also writes the derived schema those commands point at).
+- **Server integration** (`server/tests/integration/presentation/`): Supertest against the real Express app over SQLite. Each test file gets **its own `.db` file** from `sqliteTestDatabase(name)` (`server/tests/helpers/sqlite-test-database.ts`): an absolute path in `server/prisma/sqlite/` (the CLI, the test's own client and the app must all open the same file); `push()` deletes the file and runs `db push` through the wrapper — **with no reset flag**, which the Prisma 7 CLI refuses under an AI agent (see Prisma above) and a fresh file makes unnecessary; `client()` builds a `PrismaClient` with the app's own adapter; `remove()` in `afterAll` also drops `-journal`/`-wal`/`-shm`. The test then dynamically imports the app so the container picks up the test URL — so a **SQLite** client from `DATABASE_PROVIDER=sqlite prisma:generate` is a prerequisite (it also writes the derived schema those commands point at).
 - `server/tests/helpers/` is shared harness: `controller-contract.ts` exposes `describeControllerContract`, which generates the standard happy-path / mapped-domain-error / `next(err)` battery — use it when adding a controller instead of rewriting those cases.
 - `server/vitest.config.ts` supplies the `@src` alias and 100% coverage thresholds. The `test:unit` / `test:integration` scripts filter **by path** (`vitest run tests/unit`), not by project. It is the only Vitest config in `server/`.
 - **Web unit/component/integration**: Vitest + jsdom + `@testing-library/react`, with **MSW** intercepting HTTP so the real axios interceptors are exercised. `web/vitest.setup.ts` handles the jsdom 29 gaps (`matchMedia`, `ResizeObserver`, pointer capture), the MSW lifecycle and the global `afterEach`. Unit and component tests sit **next to the source**; page-level integration tests go in `web/tests/integration/`, because they import from more than one feature — which inside a feature would breach the cross-feature import ban.
@@ -174,7 +193,6 @@ middleware.ts
 | `useToast` has a global queue with no reset                   | `spyOnToast()` by default; fake timers only in the two toast tests themselves                                            |
 | `infra/query-client.ts` is a singleton with `retry: 3`        | Always `createTestQueryClient()`; never `app/providers.tsx`                                                              |
 | `NEXT_PUBLIC_API_URL` is read at module-evaluation time       | Pinned in `test.env` in `vitest.config.ts`; `vi.stubEnv` inside a test arrives too late                                  |
-| Installing deps in `web/`                                     | **Always** `--legacy-peer-deps` (React 19 RC). Already pinned in `web/.npmrc`                                            |
 
 ## Skills (`.claude/skills/`)
 
@@ -196,8 +214,8 @@ CI: `.github/workflows/ci.yml` runs lint, typecheck, `validate:deps` and the Vit
 
 ## Tech Stack
 
-| Layer   | Key technologies                                                                                                                                        |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server  | Node 22, TypeScript 5 strict ESM, Express 5, Prisma 4 (SQLite dev, PostgreSQL in Docker), tsyringe 4, Zod 4, Pino, tsup                                 |
-| Web     | Next.js 15 App Router, React 19 RC, Tailwind 3, TanStack Query 5, axios, React Hook Form + Zod, lucide-react                                            |
-| Tooling | separate npm packages (no workspaces), ESLint 10, Prettier, Husky, lint-staged, dependency-cruiser 17, Vitest 4 (server + web), MSW 2, Playwright (e2e) |
+| Layer   | Key technologies                                                                                                                                                        |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server  | Node 24, TypeScript 5 strict ESM, Express 5, Prisma 7 (driver adapters: pg / better-sqlite3; SQLite dev, PostgreSQL in Docker), tsyringe 4, Zod 4, Pino, tsup           |
+| Web     | Next.js 16 App Router, React 19, Tailwind 4 (CSS-first, `@theme` em `app/globals.css`) + `tw-animate-css`, TanStack Query 5, axios, React Hook Form + Zod, lucide-react |
+| Tooling | separate npm packages (no workspaces), ESLint 10, Prettier, Husky, lint-staged, dependency-cruiser 17, Vitest 4 (server + web), MSW 2, Playwright (e2e)                 |
