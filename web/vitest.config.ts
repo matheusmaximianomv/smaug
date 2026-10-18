@@ -56,7 +56,6 @@ export default defineConfig({
         "app/page.tsx", // RSC: um único redirect("/login"), coberto pelo proxy
         "app/providers.tsx", // monta o singleton de produção + devtools
         "next.config.ts",
-        "tailwind.config.ts",
       ],
       // `thresholds` entra por fase junto com os testes (catraca), para que
       // `test:coverage` fique verde em todo commit. Alvos finais:
