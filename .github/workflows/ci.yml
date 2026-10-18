@@ -23,7 +23,7 @@ jobs:
       # precisa invalidar quando qualquer um deles mudar.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -32,7 +32,7 @@ jobs:
             e2e/package-lock.json
 
       - name: Instalar dependências (raiz, server, web e e2e)
-        run: npm run install:all
+        run: npm ci && npm ci --prefix server && npm ci --prefix web && npm ci --prefix e2e
 
       # Lint, typecheck e testes rodam contra o client SQLite.
       - name: Gerar o client do Prisma (SQLite)
@@ -89,7 +89,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: server/package-lock.json
 
