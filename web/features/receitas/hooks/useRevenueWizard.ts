@@ -70,6 +70,8 @@ export function useRevenueWizard(options: RevenueWizardOptions) {
   });
   const mutations = useRevenueMutations({ onSuccess: onDone });
 
+  // O projeto não liga o React Compiler; `watch()` só faz o hook ser pulado por ele.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const values = form.watch();
   const amount = parseMoneyInput(values.amount);
   const safeAmount = Number.isFinite(amount) ? amount : 0;

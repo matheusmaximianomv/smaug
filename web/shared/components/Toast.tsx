@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
+import { CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useToastState } from "../hooks/useToast";
 
