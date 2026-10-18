@@ -16,9 +16,8 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     environmentOptions: {
-      // Origem do app, deliberadamente DIFERENTE da origem da API
-      // (http://localhost:3000), para que asserções sobre
-      // window.location.pathname tenham significado.
+      // Origem do app. O api-client usa `baseURL: "/api"` (mesma origem), então
+      // o MSW casa `http://localhost:3001/api/*` (`tests/msw/base.ts`).
       jsdom: { url: "http://localhost:3001/" },
     },
     setupFiles: ["./vitest.setup.ts"],
@@ -30,12 +29,8 @@ export default defineConfig({
     ],
     exclude: ["node_modules/**", ".next/**", "out/**", "coverage/**"],
     // Aplicado no worker ANTES de qualquer módulo de teste carregar.
-    // Precisa ser aqui, e não no setup: infra/api-client.ts lê
-    // NEXT_PUBLIC_API_URL em tempo de avaliação do módulo, então vi.stubEnv
-    // dentro de um teste chegaria tarde demais para mudar o baseURL.
     env: {
       TZ: "UTC",
-      NEXT_PUBLIC_API_URL: "http://localhost:3000",
     },
     clearMocks: true,
     restoreMocks: true,

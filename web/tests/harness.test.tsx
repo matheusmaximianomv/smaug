@@ -9,9 +9,12 @@ import { Button } from "@/shared/components/Button";
 import { apiClient } from "@/infra/api-client";
 import { useCategories } from "@/features/categorias/hooks/useCategories";
 import { renderHookWithProviders, renderWithProviders } from "./render";
-import { db, mockApiError, seedDb } from "./msw";
-import { makeCategoryWithCount } from "./fixtures";
-import { loginAs } from "./session";
+import { getAccessToken, hasSessionHint } from "@/infra/session";
+import { http, HttpResponse } from "msw";
+import { API, db, mockApiError, seedDb, server, url } from "./msw";
+import { makeCategoryWithCount, makeUser } from "./fixtures";
+import { loginAs, logout } from "./session";
+import { recordRequests, signatures } from "./requests";
 
 describe("harness: RTL + jest-dom", () => {
   it("renderiza um componente e aplica os matchers do jest-dom", () => {
@@ -31,23 +34,25 @@ describe("harness: axios + MSW + jsdom", () => {
     expect(data[0].name).toBe("Moradia");
   });
 
-  it("injeta X-User-Id a partir do cookie de sessão", async () => {
-    const userId = loginAs();
-    seedDb({ categories: [] });
+  it("casa as rotas na origem do jsdom com o prefixo /api do repasse", () => {
+    expect(API).toBe(`${window.location.origin}/api`);
+  });
 
-    let seen: string | null = null;
-    const { server, url } = await import("./msw");
-    const { http, HttpResponse } = await import("msw");
-    server.use(
-      http.get(url("/expenses/categories"), ({ request }) => {
-        seen = request.headers.get("x-user-id");
-        return HttpResponse.json([]);
-      }),
-    );
+  it("grava o caminho da API sem o prefixo /api", async () => {
+    const calls = recordRequests();
 
     await apiClient.get("/expenses/categories");
 
-    expect(seen).toBe(userId);
+    expect(signatures(calls)).toEqual(["GET /expenses/categories"]);
+  });
+
+  it("injeta o Bearer semeado por loginAs", async () => {
+    loginAs();
+    const calls = recordRequests();
+
+    await apiClient.get("/expenses/categories");
+
+    expect(calls[0].headers.get("authorization")).toBe(`Bearer ${getAccessToken()}`);
   });
 
   it("propaga o código de erro de negócio da API", async () => {
@@ -58,6 +63,176 @@ describe("harness: axios + MSW + jsdom", () => {
     await expect(apiClient.get("/expenses/categories")).rejects.toMatchObject({
       response: { status: 409 },
     });
+  });
+});
+
+describe("harness: sessão", () => {
+  it("loginAs semeia o token em memória, o indicador e o refresh do servidor", () => {
+    const user = loginAs();
+
+    expect(getAccessToken()).toMatch(/^access-/);
+    expect(hasSessionHint()).toBe(true);
+    expect(db.users).toEqual([user]);
+    expect(db.session).toEqual({ userId: user.id });
+  });
+
+  it("loginAs não duplica um usuário já semeado", () => {
+    const user = makeUser();
+    seedDb({ users: [user] });
+
+    loginAs(user);
+
+    expect(db.users).toHaveLength(1);
+  });
+
+  it("logout limpa a aba e o refresh do servidor", () => {
+    loginAs();
+
+    logout();
+
+    expect(getAccessToken()).toBeNull();
+    expect(hasSessionHint()).toBe(false);
+    expect(db.session).toBeNull();
+  });
+
+  it("isola a sessão entre testes", () => {
+    // O afterEach global chamou clearSession() e resetDb().
+    expect(getAccessToken()).toBeNull();
+    expect(hasSessionHint()).toBe(false);
+    expect(db.session).toBeNull();
+  });
+
+  it("renova o token em um 401 e refaz a chamada contra o MSW", async () => {
+    loginAs();
+    const before = getAccessToken();
+    server.use(
+      http.get(
+        url("/expenses/categories"),
+        () => HttpResponse.json({ error: "UNAUTHORIZED" }, { status: 401 }),
+        { once: true },
+      ),
+    );
+    const calls = recordRequests();
+
+    const { data } = await apiClient.get("/expenses/categories");
+
+    expect(data).toEqual([]);
+    expect(signatures(calls)).toEqual([
+      "GET /expenses/categories",
+      "POST /auth/refresh",
+      "GET /expenses/categories",
+    ]);
+    expect(getAccessToken()).not.toBe(before);
+  });
+});
+
+describe("harness: handlers de autenticação", () => {
+  it("cadastra, abre a sessão e responde /users/me com o Bearer", async () => {
+    const { data: session } = await apiClient.post("/auth/register", {
+      name: "Ana",
+      email: "ana@example.com",
+      password: "senha-bem-longa",
+    });
+
+    expect(session).toMatchObject({ tokenType: "Bearer", expiresIn: 600 });
+    expect(session.user).toMatchObject({ name: "Ana", email: "ana@example.com" });
+    expect(db.session).toEqual({ userId: session.user.id });
+
+    const { data: me } = await apiClient.get("/users/me", {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    });
+    expect(me).toEqual(session.user);
+  });
+
+  it("recusa cadastro com e-mail repetido", async () => {
+    seedDb({ users: [makeUser({ email: "ana@example.com" })] });
+
+    await expect(
+      apiClient.post("/auth/register", { name: "Ana", email: "ana@example.com", password: "x" }),
+    ).rejects.toMatchObject({
+      response: { status: 409, data: { error: "EMAIL_ALREADY_EXISTS" } },
+    });
+  });
+
+  it("loga com a senha cadastrada e recusa a errada sem renovar", async () => {
+    const user = makeUser();
+    seedDb({ users: [user], passwords: { [user.id]: "senha-certa-123" } });
+    const calls = recordRequests();
+
+    const { data } = await apiClient.post("/auth/login", {
+      email: user.email,
+      password: "senha-certa-123",
+    });
+    expect(data.user).toEqual(user);
+
+    await expect(
+      apiClient.post("/auth/login", { email: user.email, password: "errada" }),
+    ).rejects.toMatchObject({ response: { status: 401, data: { error: "INVALID_CREDENTIALS" } } });
+    await expect(
+      apiClient.post("/auth/login", { email: "ninguem@example.com", password: "x" }),
+    ).rejects.toMatchObject({ response: { status: 401 } });
+    expect(signatures(calls)).toEqual(["POST /auth/login", "POST /auth/login", "POST /auth/login"]);
+  });
+
+  it("recusa a renovação sem refresh válido", async () => {
+    await expect(apiClient.post("/auth/refresh")).rejects.toMatchObject({
+      response: { status: 401, data: { error: "INVALID_REFRESH_TOKEN" } },
+    });
+  });
+
+  it("recusa a renovação quando o dono do refresh não existe mais", async () => {
+    seedDb({ session: { userId: "fantasma" } });
+
+    await expect(apiClient.post("/auth/refresh")).rejects.toMatchObject({
+      response: { status: 401 },
+    });
+    expect(db.session).toBeNull();
+  });
+
+  it("logout apaga o refresh do servidor", async () => {
+    loginAs();
+
+    const response = await apiClient.post("/auth/logout");
+
+    expect(response.status).toBe(204);
+    expect(db.session).toBeNull();
+  });
+
+  it("logout-all exige Bearer e apaga o refresh", async () => {
+    loginAs();
+
+    const response = await apiClient.post("/auth/logout-all");
+
+    expect(response.status).toBe(204);
+    expect(db.session).toBeNull();
+  });
+
+  // `fetch` direto: pelo apiClient, o 401 de `/users/me` dispararia a renovação.
+  it.each([
+    ["POST", "/auth/logout-all"],
+    ["GET", "/users/me"],
+  ])("%s %s responde 401 sem Bearer válido", async (method, path) => {
+    seedDb({ users: [makeUser()] });
+
+    for (const authorization of ["Bearer outro", "Bearer access-desconhecido-1", ""]) {
+      const response = await fetch(url(path), { method, headers: { authorization } });
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({
+        error: "UNAUTHORIZED",
+        message: "Authentication required",
+      });
+    }
+  });
+
+  it("não registra mais GET /users/:id", () => {
+    const routes = server
+      .listHandlers()
+      .flatMap((handler) =>
+        "info" in handler && "header" in handler.info ? [handler.info.header] : [],
+      );
+
+    expect(routes).toContain(`GET ${url("/users/me")}`);
+    expect(routes).not.toContain(`GET ${url("/users/:id")}`);
   });
 });
 

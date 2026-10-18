@@ -2,11 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import DespesasPage from "@/app/(app)/despesas/page";
-import { getUserId } from "@/infra/session";
+import { getAccessToken, hasSessionHint } from "@/infra/session";
 import { renderWithProviders } from "../render";
 import { db, mockApiError, mockNetworkError, seedDb } from "../msw";
 import {
-  fixtureUuid,
   makeCategoryWithCount,
   makeInstallmentExpense,
   makeOneTimeExpense,
@@ -155,14 +154,15 @@ describe("página de despesas: estado vazio e erro", () => {
   });
 
   it("em falha de rede mostra a mensagem offline, repete e mantém a sessão", async () => {
-    loginAs(fixtureUuid(1));
+    loginAs();
     mockNetworkError("get", "/expenses");
     renderPage();
 
     expect(
       await screen.findByText("Não foi possível falar com o servidor. Verifique sua conexão."),
     ).toBeInTheDocument();
-    expect(getUserId()).toBe(fixtureUuid(1));
+    expect(getAccessToken()).not.toBeNull();
+    expect(hasSessionHint()).toBe(true);
 
     mockApiError("get", "/expenses", 500, { error: "EXPENSE_CATEGORY_NOT_FOUND" });
     await userEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));

@@ -9,6 +9,12 @@ import { getApiErrorMessage, getImportRowMessage, isInvalidSessionError } from "
 const MESSAGES: Record<string, string> = {
   VALIDATION_ERROR: "Dados inválidos. Revise os campos e tente novamente.",
   UNAUTHORIZED: "Sessão inválida. Faça login novamente.",
+  ORIGIN_NOT_ALLOWED: "Origem da requisição não permitida. Recarregue a página e tente novamente.",
+  TOO_MANY_REQUESTS: "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+
+  INVALID_CREDENTIALS: "E-mail ou senha incorretos.",
+  INVALID_REFRESH_TOKEN: "Sua sessão expirou. Faça login novamente.",
+  REFRESH_TOKEN_CONFLICT: "Não foi possível renovar a sessão. Tente novamente.",
 
   USER_NOT_FOUND: "Usuário não encontrado.",
   EMAIL_ALREADY_EXISTS: "Já existe uma conta com este e-mail.",
@@ -61,13 +67,12 @@ describe("isInvalidSessionError", () => {
     expect(isInvalidSessionError(withBody({}, 401))).toBe(true);
   });
 
-  it("considera 404 sessão inválida", () => {
-    expect(isInvalidSessionError(withBody({}, 404))).toBe(true);
-  });
-
-  it.each([400, 409, 422, 500, 503])("não considera %i sessão inválida", (status) => {
-    expect(isInvalidSessionError(withBody({}, status))).toBe(false);
-  });
+  it.each([400, 403, 404, 409, 422, 429, 500, 503])(
+    "não considera %i sessão inválida",
+    (status) => {
+      expect(isInvalidSessionError(withBody({}, status))).toBe(false);
+    },
+  );
 
   it("não considera falha de rede (sem response) sessão inválida", () => {
     expect(isInvalidSessionError(axiosLike({ response: undefined }))).toBe(false);
