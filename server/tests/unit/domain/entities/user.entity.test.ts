@@ -66,9 +66,7 @@ describe("User Entity", () => {
 
   describe("email validation", () => {
     it("should throw error when email format is invalid", () => {
-      expect(() => User.create({ name: "Test", email: "invalid" })).toThrow(
-        "Invalid email format",
-      );
+      expect(() => User.create({ name: "Test", email: "invalid" })).toThrow("Invalid email format");
     });
 
     it("should throw error when email has no @ symbol", () => {
@@ -78,8 +76,13 @@ describe("User Entity", () => {
     });
 
     it("should throw error when email has no domain", () => {
-      expect(() => User.create({ name: "Test", email: "test@" })).toThrow(
-        "Invalid email format",
+      expect(() => User.create({ name: "Test", email: "test@" })).toThrow("Invalid email format");
+    });
+
+    it("should throw error when email exceeds 254 characters", () => {
+      const email = `${"a".repeat(243)}@example.com`;
+      expect(() => User.create({ name: "Test", email })).toThrow(
+        "Email must be at most 254 characters",
       );
     });
 

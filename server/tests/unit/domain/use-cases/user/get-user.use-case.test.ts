@@ -17,7 +17,7 @@ class InMemoryUserRepository implements UserRepository {
     return null;
   }
 
-  async create(user: User): Promise<User> {
+  async createWithPasswordCredential(user: User): Promise<User> {
     this.users.set(user.id, user);
     return user;
   }
@@ -34,7 +34,7 @@ describe("GetUserUseCase", () => {
 
   it("should return user when user exists in repository", async () => {
     const created = User.create({ name: "João", email: "joao@example.com" });
-    await repository.create(created);
+    await repository.createWithPasswordCredential(created);
 
     const found = await useCase.execute(created.id);
     expect(found.id).toBe(created.id);

@@ -208,3 +208,39 @@ export class ImportNoValidRowsError extends DomainError {
     this.name = "ImportNoValidRowsError";
   }
 }
+
+export class InvalidCredentialsError extends DomainError {
+  public readonly code = "INVALID_CREDENTIALS";
+
+  public constructor() {
+    super("Invalid email or password");
+    this.name = "InvalidCredentialsError";
+  }
+}
+
+export class InvalidRefreshTokenError extends DomainError {
+  public readonly code = "INVALID_REFRESH_TOKEN";
+
+  public constructor() {
+    super("Refresh token is invalid, expired or revoked");
+    this.name = "InvalidRefreshTokenError";
+  }
+}
+
+export class RefreshTokenConflictError extends DomainError {
+  public readonly code = "REFRESH_TOKEN_CONFLICT";
+
+  public constructor() {
+    super("Refresh token was already rotated by a concurrent request");
+    this.name = "RefreshTokenConflictError";
+  }
+}
+
+export class EmailAlreadyExistsError extends DomainError {
+  public readonly code = "EMAIL_ALREADY_EXISTS";
+
+  constructor(email: string) {
+    super(`A user with email "${email}" already exists`);
+    this.name = "EmailAlreadyExistsError";
+  }
+}
