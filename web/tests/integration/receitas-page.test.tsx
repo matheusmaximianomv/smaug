@@ -157,6 +157,7 @@ describe("página de receitas: assistente", () => {
     });
   });
 
+  // Percorre o assistente inteiro duas vezes; sob carga, o limite padrão de 5 s estoura.
   it("revisa uma fixa alterável sem término e uma avulsa", async () => {
     renderPage();
     await settled();
@@ -186,7 +187,7 @@ describe("página de receitas: assistente", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirmar receita" }));
 
     expect(await screen.findByText("Receita adicionada")).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("valida o fim da vigência antes do início", async () => {
     renderPage();
