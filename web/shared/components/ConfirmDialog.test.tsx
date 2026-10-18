@@ -79,6 +79,26 @@ describe("ConfirmDialog", () => {
     expect(screen.getByRole("button", { name: "Cancelar" })).toHaveClass("focus-visible:ring-red");
   });
 
+  it("desabilita Cancelar e põe Confirmar em loading enquanto isLoading", () => {
+    render(
+      <ConfirmDialog isOpen onClose={vi.fn()} onConfirm={vi.fn()} message={MESSAGE} isLoading />,
+    );
+
+    expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Confirmar" })).toBeDisabled();
+  });
+
+  it("não dispara onConfirm enquanto isLoading", async () => {
+    const onConfirm = vi.fn();
+    render(
+      <ConfirmDialog isOpen onClose={vi.fn()} onConfirm={onConfirm} message={MESSAGE} isLoading />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
   it("mostra o ícone de lixeira na variante danger", () => {
     const { rerender } = render(
       <ConfirmDialog isOpen onClose={vi.fn()} onConfirm={vi.fn()} message={MESSAGE} />,
