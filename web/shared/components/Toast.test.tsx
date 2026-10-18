@@ -52,6 +52,18 @@ describe("ToastContainer", () => {
     },
   );
 
+  it("entra esmaecendo e subindo, só sem preferência por movimento reduzido", () => {
+    render(<ToastContainer />);
+
+    show(() => toast.success("Despesa adicionada"));
+
+    expect(screen.getByText("Despesa adicionada").parentElement).toHaveClass(
+      "motion-safe:animate-in",
+      "motion-safe:fade-in",
+      "motion-safe:slide-in-from-bottom-2",
+    );
+  });
+
   it("renderiza o botão da action e dispara o onClick", async () => {
     const onClick = vi.fn();
     render(<ToastContainer />);
