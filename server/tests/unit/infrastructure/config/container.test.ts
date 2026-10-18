@@ -26,6 +26,8 @@ describe("dependency container", () => {
 
     const controllers = [
       "userController",
+      "authController",
+      "authenticateRequestUseCase",
       "oneTimeRevenueController",
       "fixedRevenueController",
       "revenueQueryController",

@@ -26,6 +26,7 @@ export function createRequestMock(overrides: Partial<Request> = {}): Request {
     method: "GET",
     originalUrl: "/",
     userId: "user-1",
+    sessionId: "session-1",
     ...overrides,
   } as unknown as Request;
 }

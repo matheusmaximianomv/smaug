@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { healthController } from "@src/presentation/controllers/health.controller.ts";
 import {
+  container,
+  authController,
+  authenticateRequestUseCase,
   userController,
-  userRepository,
   oneTimeRevenueController,
   oneTimeExpenseController,
   installmentExpenseController,
@@ -13,6 +15,9 @@ import {
   expenseCategoryController,
   dataController,
 } from "@src/infrastructure/config/container";
+import { authConfig, env } from "@src/infrastructure/config/env.ts";
+import { Logger } from "@src/application/ports/logger.interface.ts";
+import { createAuthRoutes } from "@src/presentation/routes/auth.routes";
 import { createUserRoutes } from "@src/presentation/routes/user.routes";
 import { createOneTimeRevenueRoutes } from "@src/presentation/routes/one-time-revenue.routes";
 import { createOneTimeExpenseRoutes } from "@src/presentation/routes/one-time-expense.routes";
@@ -23,52 +28,61 @@ import { createRevenueQueryRoutes } from "@src/presentation/routes/revenue-query
 import { createExpenseCategoryRoutes } from "@src/presentation/routes/expense-category.routes";
 import { createExpenseQueryRoutes } from "@src/presentation/routes/expense-query.routes";
 import { createDataRoutes } from "@src/presentation/routes/data.routes";
-import { extractUser } from "@src/presentation/middlewares/extract-user.middleware";
+import {
+  authenticate,
+  authenticateIfPresent,
+} from "@src/presentation/middlewares/authenticate.middleware";
+import { createAuthRateLimiters } from "@src/presentation/middlewares/rate-limit.middleware";
 
 const router = Router();
+const authenticateMiddleware = authenticate(authenticateRequestUseCase);
 
 router.get("/health", healthController);
-router.use("/users", createUserRoutes(userController));
+router.use(
+  "/auth",
+  createAuthRoutes(authController, {
+    authenticate: authenticateMiddleware,
+    authenticateIfPresent: authenticateIfPresent(authenticateRequestUseCase),
+    trustedOrigin: env.CORS_ORIGIN,
+    rateLimiters: createAuthRateLimiters(
+      container.resolve<Logger>("Logger"),
+      authConfig.rateLimits,
+    ),
+  }),
+);
+router.use("/users", authenticateMiddleware, createUserRoutes(userController));
 router.use(
   "/expenses/categories",
-  extractUser(userRepository),
+  authenticateMiddleware,
   createExpenseCategoryRoutes(expenseCategoryController),
 );
 router.use(
   "/expenses/one-time",
-  extractUser(userRepository),
+  authenticateMiddleware,
   createOneTimeExpenseRoutes(oneTimeExpenseController),
 );
 router.use(
   "/expenses/installment",
-  extractUser(userRepository),
+  authenticateMiddleware,
   createInstallmentExpenseRoutes(installmentExpenseController),
 );
 router.use(
   "/expenses/recurring",
-  extractUser(userRepository),
+  authenticateMiddleware,
   createRecurringExpenseRoutes(recurringExpenseController),
 );
 router.use(
   "/revenues/one-time",
-  extractUser(userRepository),
+  authenticateMiddleware,
   createOneTimeRevenueRoutes(oneTimeRevenueController),
 );
 router.use(
   "/revenues/fixed",
-  extractUser(userRepository),
+  authenticateMiddleware,
   createFixedRevenueRoutes(fixedRevenueController),
 );
-router.use("/data", extractUser(userRepository), createDataRoutes(dataController));
-router.use(
-  "/revenues",
-  extractUser(userRepository),
-  createRevenueQueryRoutes(revenueQueryController),
-);
-router.use(
-  "/expenses",
-  extractUser(userRepository),
-  createExpenseQueryRoutes(expenseQueryController),
-);
+router.use("/data", authenticateMiddleware, createDataRoutes(dataController));
+router.use("/revenues", authenticateMiddleware, createRevenueQueryRoutes(revenueQueryController));
+router.use("/expenses", authenticateMiddleware, createExpenseQueryRoutes(expenseQueryController));
 
 export default router;

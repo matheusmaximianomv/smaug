@@ -26,6 +26,8 @@ export interface MethodContract {
   successStatus: number;
   /** Retorno do service; `undefined` significa resposta sem corpo (`res.send()`). */
   successResult?: unknown;
+  /** Corpo esperado quando o controller não devolve o retorno do service inteiro. */
+  successBody?: unknown;
   /** Erros de domínio tratados pelo controller e o status que produzem. */
   mappedErrors?: Array<{ error: Error & { code?: string }; status: number }>;
 }
@@ -36,7 +38,12 @@ export interface MethodContract {
  */
 export function describeControllerContract(
   title: string,
-  setup: () => { controller: ControllerMock; service: ServiceMock },
+  setup: () => {
+    controller: ControllerMock;
+    service: ServiceMock;
+    /** Acrescenta ao `res` o que o controller usa além de `status`/`json`/`send` (ex.: `cookie`). */
+    decorateResponse?: (res: ResponseMock) => void;
+  },
   contracts: MethodContract[],
 ): void {
   describe(title, () => {
@@ -46,8 +53,10 @@ export function describeControllerContract(
     let next: NextFunction;
 
     beforeEach(() => {
-      ({ controller, service } = setup());
+      const built = setup();
+      ({ controller, service } = built);
       res = createResponseMock();
+      built.decorateResponse?.(res);
       next = vi.fn();
     });
 
@@ -67,7 +76,7 @@ export function describeControllerContract(
           if (contract.successResult === undefined) {
             expect(res.send).toHaveBeenCalled();
           } else {
-            expect(res.json).toHaveBeenCalledWith(contract.successResult);
+            expect(res.json).toHaveBeenCalledWith(contract.successBody ?? contract.successResult);
           }
           expect(next).not.toHaveBeenCalled();
         });
