@@ -256,5 +256,4 @@ Nenhuma entidade de domínio nova ou alterada. A única mudança no schema do Pr
   do Prisma 7 (typed SQL, extensions) e do Tailwind 4 (container queries, `@starting-style`).
 - Animação de saída de toasts; modo escuro; troca de tokens; adoção de `cva`.
 - Regressão visual automatizada no Playwright.
-- Limpeza dos 9 avisos de lint.
 - Node 26 (Active LTS só a partir de 2026-10-28).

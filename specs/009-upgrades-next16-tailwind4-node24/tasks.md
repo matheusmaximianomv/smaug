@@ -131,6 +131,7 @@ verdes.
 - [x] T068 [US4] Docker (fora do escopo): imagem do `Dockerfile` inalterado construída e testada offline (666 MB)
 - [x] T069 Escrever esta pasta de spec no formato Spec Kit, com o Constitution Check e a seção de deploy
 - [x] T071 [US4] `npm audit fix` sem `--force` na raiz, em `web/`, `server/` e `e2e/` (só lockfiles, mais `vitest`/`@vitest/coverage-v8` `^4.1.12` no server); raiz, server e e2e com 0 achados; no web resta só o `braces` de desenvolvimento, sem correção, aceito
+- [x] T072 [US4] Zerar os 9 avisos de lint do web (A4) e atualizar as actions do CI para as majors em `node24`, com runner fixo em `ubuntu-24.04`
 - [ ] T070 [US4] Abrir o PR e acompanhar os workflows: `ci.yml` (jobs principal e `migrations`) e `e2e.yml` verdes, com o log do `setup-node` resolvendo Node 24.x
 
 **Checkpoint**: tudo verde localmente; falta só o CI do PR.

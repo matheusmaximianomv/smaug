@@ -65,7 +65,7 @@ curl -sI localhost:3001/dashboard | head -1   # 307 (sem cookie → /login)
 ## 6. Validar
 
 ```bash
-npm run lint                               # 0 erros, 9 avisos (web, pré-existentes)
+npm run lint                               # 0 erros, 0 avisos
 npm run validate:deps                      # sem violações
 npm run --prefix server typecheck && npm run --prefix web typecheck && npm run --prefix e2e typecheck
 npm run --prefix server test:coverage      # 101 arquivos, 925 testes, 100%

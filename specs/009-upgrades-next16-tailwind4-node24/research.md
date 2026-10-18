@@ -383,6 +383,24 @@ openssl`), que no Prisma 4 fazia o `migrate:deploy` baixar engine e falhar offli
   estourava o limite padrão de 5 s. A instabilidade já existia antes das três etapas e não envolve
   código tocado.
 
+### A4 — Zerar os avisos de lint e atualizar as actions do CI
+
+- **Decisão**: os 9 avisos de lint do web, que apareciam como anotações no CI, foram eliminados:
+  - imports e variáveis sem uso removidos (`vi` em `useImportFlow.test.tsx`, `X` em `Toast.tsx`,
+    `currentYear`/`currentMonth` em `DashboardService.ts`);
+  - `ignoreRestSiblings` no `no-unused-vars` dos testes, para o `const { versions: _omit, ...rest }`
+    do handler MSW de receitas;
+  - supressões comentadas onde o aviso não se aplica: `no-page-custom-font` no `app/layout.tsx`
+    (a regra mira o `pages/_document`; no App Router o layout raiz vale para todas as páginas),
+    `no-location-assign-relative-destination` no `redirectToLogin` (a troca de documento é proposital)
+    e `react-hooks/incompatible-library` no `form.watch()` dos dois assistentes (o projeto não liga o
+    React Compiler).
+- **Decisão**: actions do CI nas majors em `node24` e runner fixo em `ubuntu-24.04`.
+- **Alternativas rejeitadas**: trocar a fonte para `next/font` (muda como a fonte carrega e põe rede
+  no build); trocar `form.watch()` por `useWatch` (o tipo de retorno vira `DeepPartial` e espalha
+  ajustes pelos assistentes sem ganho, já que o React Compiler não está ligado); manter
+  `ubuntu-latest` (a troca para o Ubuntu 26 pode quebrar o `--with-deps` do Playwright).
+
 ## Riscos aceitos
 
 - **Docker em `node:22-alpine`** com local/CI em 24 — paridade de runtime temporariamente quebrada; o

@@ -220,8 +220,12 @@ PostgreSQL continua aceito (o `pg` o ignora; o schema padrão já é `public`).
 
 ### CI
 
-- `actions/setup-node@v4` lê `node-version-file: .nvmrc` nos três jobs (`ci.yml` principal e
+- `actions/setup-node` lê `node-version-file: .nvmrc` nos três jobs (`ci.yml` principal e
   `migrations`, `e2e.yml`).
+- Actions nas majors que rodam em `node24` (`checkout@v7`, `setup-node@v7`, `cache@v6`,
+  `upload-artifact@v7`), sem mudança de inputs; as `@v4` rodavam em `node20`, que o GitHub depreciou
+  e forçava para o 24 com aviso. Runner fixado em `ubuntu-24.04`: o `ubuntu-latest` passa ao Ubuntu 26
+  em 2026-10-19, e o `playwright install --with-deps` do E2E depende da distro suportada.
 - Instalação com `npm ci` por pacote no lugar de `npm run install:all`: o CI agora falha se um lock
   commitado estiver fora de sincronia com o `package.json`.
 - `npm run lint` passa a rodar o ESLint CLI no web. `prisma:generate` (SQLite, sem `DATABASE_URL`) e
@@ -263,7 +267,7 @@ Node 24.22.0 / npm 11.19.1, client do Prisma gerado para SQLite.
 | `npm run --prefix server test:coverage`                            | 101 arquivos, **925 testes**, 100% nas quatro métricas                                                                                                                                                            |
 | `npm run --prefix web test:coverage`                               | 123 arquivos, **1250 testes**, thresholds por glob verdes (`proxy.ts` 100%)                                                                                                                                       |
 | `npm run test:e2e` (modo `build`)                                  | **96/96**; na etapa Next também 96/96 em modo `dev`                                                                                                                                                               |
-| `npm run lint`                                                     | **0 erros, 9 avisos** — todos do web e já existentes antes das três etapas (8 surgiram quando o lint passou a varrer o web todo + 1 antigo)                                                                       |
+| `npm run lint`                                                     | **0 erros, 0 avisos** — os 9 avisos antigos do web foram corrigidos (ver A4 em `research.md`)                                                                                                                     |
 | `npm run validate:deps`                                            | sem violações                                                                                                                                                                                                     |
 | `typecheck` server / web / e2e                                     | verdes                                                                                                                                                                                                            |
 | `npm run build` (`NEXT_PUBLIC_API_URL=http://localhost:3000`)      | verde; 10 rotas estáticas + "Proxy (Middleware)"; `git status` limpo após um segundo build                                                                                                                        |
@@ -390,8 +394,6 @@ ou a camada exigem.
 - Antes de qualquer Prisma 8: conferir se o `prisma-client-js` ainda existe.
 - Declarar `allowScripts` (npm 11/12) em `server/` e `web/` quando o npm 12 fixar o bloqueio, com
   `better-sqlite3` obrigatório.
-- Opcional: limpar os 9 avisos de lint (inclusive `react-hooks/incompatible-library` em `form.watch()`
-  dos assistentes).
 - Opcional: reescrever `useMediaQuery` com `useSyncExternalStore`, com teste em ambiente `node`.
 - Opcional: aviso `MODULE_TYPELESS_PACKAGE_JSON` do `eslint.config.js` da raiz; `shell: true` só-Windows
   de `e2e/scripts/run-e2e.mjs` (DEP0190).
