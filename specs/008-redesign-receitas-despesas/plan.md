@@ -169,13 +169,14 @@ e2e/tests/{despesas,receitas,lancamentos,responsive}/
 ## Known Issues
 
 O `cn()` passa as classes pelo `tailwind-merge` 3.x, que segue as regras do Tailwind 4 e trata
-`outline` e `outline-N` como o mesmo grupo: no Tailwind 3 do projeto, isso descarta o
-`outline-style: solid` e o contorno não aparece.
+`outline` e `outline-N` como o mesmo grupo: no Tailwind 3 do projeto, isso descartava o
+`outline-style: solid` e o contorno não aparecia. Os dois casos foram resolvidos pela feature
+`009-upgrades-next16-tailwind4-node24`, que levou o projeto ao Tailwind 4 (onde `outline-2` já é
+sólido).
 
-- **Contorno do mês corrente nas Fichas (FR-034)** — **corrigido**: `MonthCells.tsx` usa
-  `[outline-style:solid]` no lugar de `outline`, com asserção em `MonthCells.test.tsx`.
-- **Anel de foco das linhas do extrato (FR-016, acesso por teclado)** — **aberto**: `EntryRow.tsx` tem
-  `focus-visible:outline focus-visible:outline-2 …` e perde o estilo pelo mesmo motivo. A linha
-  continua focável e acionável por Enter; só o anel visual não aparece. Será resolvido pela change
-  OpenSpec `upgrade-tailwind-v4`, que leva o projeto ao Tailwind 4 (onde `outline-2` já é sólido) e
-  remove o contorno manual do `MonthCells`.
+- **Contorno do mês corrente nas Fichas (FR-034)** — **corrigido**: primeiro com
+  `[outline-style:solid]` no `MonthCells.tsx`; desde a 009, só com `outline-2`, com asserção em
+  `MonthCells.test.tsx`.
+- **Anel de foco das linhas do extrato (FR-016, acesso por teclado)** — **corrigido na 009**:
+  `EntryRow.tsx` usa `focus-visible:outline-2` e exibe o contorno vermelho sólido de 2 px; ver o
+  requisito de foco visível em `specs/009-upgrades-next16-tailwind4-node24/spec.md`.
