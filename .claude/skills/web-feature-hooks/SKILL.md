@@ -1,6 +1,6 @@
 ---
 name: web-feature-hooks
-description: Como escrever hooks de feature no web do Smaug com TanStack Query v5 — query key em const de módulo, staleTime 30_000, mutations create/update/remove, invalidateQueries + toast.success, onError com getApiErrorMessage e ação "Tentar novamente", e as variantes de Receitas/Despesas (hook de leitura com view-model, hook de mutations agrupadas com onSuccess(action), hook de assistente com React Hook Form).
+description: Como escrever hooks de feature no web do Smaug com TanStack Query v5 — query key em const de módulo, staleTime 30_000, mutations create/update/remove, invalidateQueries + toast.success, onError com getApiErrorMessage e ação "Tentar novamente", e as variantes de Receitas/Despesas (hook de leitura com view-model, hook de mutations agrupadas com onSuccess(action), hook de assistente com React Hook Form) e os hooks de sessão useAuth/useRegister (bootstrap, safeDestination, logout).
 ---
 
 # Hook de feature (TanStack Query)
@@ -218,21 +218,62 @@ return {
 ## Outras exceções legítimas
 
 - **`useDashboard`** — só query, devolve `useQuery` direto.
-- **`useRegister`** — mutation nua, **sem toast e sem invalidação**: o formulário renderiza o erro
-  inline.
+- **`useRegister`** — mutation **sem toast e sem invalidação** (o formulário renderiza o erro
+  inline). O cadastro já abre a sessão: `onSuccess` faz `setSession(session.accessToken)` e
+  `router.push("/dashboard")`. Devolve `{ ...mutation, isEmailTaken }`, derivado do código
+  `EMAIL_ALREADY_EXISTS`, para o formulário oferecer o link "Entrar".
 - **`useVersionHistory`** — desestrutura a query e deriva no cliente, devolvendo um nome de domínio
   (`groups`) em vez de `data`.
-- **`useAuth`** — não usa TanStack Query: `useState` + `useEffect`, porque o bootstrap de sessão não
-  pode ser cacheado. Guarda a regra mais importante do tratamento de erro do front:
+- **`useAuth`** (`features/auth/hooks/useAuth.ts`) — não usa TanStack Query: `useState` +
+  `useEffect`, porque o bootstrap de sessão não pode ser cacheado. Roda no layout de `(app)` e no
+  `LoginForm`. Devolve `{ user, isAuthenticated, isLoading, error, login, logout, logoutAll }`.
+
+  **Bootstrap** — retoma a sessão ao abrir o app:
+
   ```ts
-  if (isInvalidSessionError(err)) {
-    clearUserId();
-    setAuthState({ user: null, userId: null, isAuthenticated: false });
-    return;
+  async function resumeSession(): Promise<User | null> {
+    if (getAccessToken()) return AuthService.getMe();
+    if (hasSessionHint()) return (await refreshSession()).user;
+    return null;
   }
-  // Falha transitória (rede fora, 5xx): a sessão continua válida — perdemos
-  // apenas os dados do perfil, que voltam no próximo carregamento.
   ```
+
+  e guarda a regra mais importante do tratamento de erro do front:
+
+  ```ts
+  .catch((err) => {
+    // Renovação recusada (401): `refreshSession` já apagou o indicador e mandou para o login.
+    if (isInvalidSessionError(err)) {
+      setAuthState({ user: null, isAuthenticated: false });
+      return;
+    }
+    // Falha transitória (rede fora, 5xx): a sessão continua válida — perdemos
+    // apenas os dados do perfil, que voltam no próximo carregamento.
+    setAuthState({ user: null, isAuthenticated: true });
+    setError("Não foi possível carregar seu perfil. Tente novamente em instantes.");
+  })
+  ```
+
+  **`login(input, next = null)`** — `AuthService.login` → `setSession(session.accessToken)` →
+  `router.push(safeDestination(next))`. O `next` chega **por parâmetro**, não por
+  `useSearchParams`: no layout de `(app)` o hook de busca exigiria `<Suspense>`. `safeDestination`
+  é `export function` no mesmo arquivo (testável sem React) e é a defesa contra redirecionamento
+  aberto:
+
+  ```ts
+  export function safeDestination(next: string | null): string {
+    if (!next || !next.startsWith("/") || UNSAFE_CHARS.test(next)) return DEFAULT_DESTINATION;
+    const url = new URL(next, RESOLUTION_BASE);
+    if (url.origin !== RESOLUTION_BASE) return DEFAULT_DESTINATION;
+    return `${url.pathname}${url.search}${url.hash}`;
+  }
+  ```
+
+  **`logout` / `logoutAll`** — sair **nunca falha para o usuário**: chamam a API num `try/catch`
+  vazio e, no `finally`, `endLocalSession()` (`clearSession()` + estado vazio + `redirectToLogin()`,
+  cuja troca de documento descarta o cache do React Query). `logoutAll` passa por `/auth/*`, que o
+  `api-client` não renova; por isso, num 401, ele mesmo chama `refreshSession()` e repete **uma**
+  vez antes de desistir.
 
 ## Checklist
 
@@ -256,6 +297,9 @@ return {
 - Não escreva a mensagem de erro à mão: use `getApiErrorMessage` com fallback.
 - Não recalcule no cliente uma situação que o servidor já informa (competência, parcela, expiração).
 - Não passe o `onSuccess` que fecha modal no `.mutate()` — o "Tentar novamente" o perderia.
+- Não toque em sessão (`setSession`/`clearSession`/`refreshSession`) fora de `features/auth/hooks` —
+  o resto do app só vê o efeito pelo `apiClient`.
+- Não leia `?next=` com `useSearchParams` nem navegue para ele sem `safeDestination`.
 
 ## Inconsistências conhecidas
 

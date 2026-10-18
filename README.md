@@ -22,15 +22,16 @@ server/                 # API em Clean Architecture
   src/{domain,application,infrastructure,presentation}/
   prisma/               # schema, migrations
   tests/{unit,integration,helpers}/
-  Dockerfile  docker-compose.yml
+  Dockerfile  docker-compose.yml   # compose: api + web + postgres
   package.json
 
 web/                    # Next.js 16 (App Router)
-  app/                  # (auth)/{login,cadastro}  (app)/{dashboard,receitas,despesas,categorias,historico}
+  app/                  # (auth)/{login,cadastro}  (app)/{dashboard,receitas,despesas,categorias,historico}  api/[...path] (repasse)
   features/             # auth, dashboard, receitas, despesas, categorias, historico
   shared/               # primitivos de UI, hooks e libs
-  infra/                # api-client, session, router-adapter, query-client
+  infra/                # api-client, session, auth-refresh, router-adapter, query-client
   tests/                # harness do Vitest (MSW, fixtures, renderWithProviders)
+  Dockerfile
   package.json
 
 e2e/                    # Playwright (caixa-preta, fala só HTTP)
@@ -91,11 +92,20 @@ npm run dev:web          # só o Next.js
 | Web     | `3001` |
 
 As portas são fixas: `web/package.json` roda `next dev -p 3001` e
-`next start -p 3001`. A web fala com a API pela `NEXT_PUBLIC_API_URL`, que o
-Next **inlina em tempo de build** — um `next build` precisa já ter o valor certo.
+`next start -p 3001`. O navegador só fala com a origem do web: as chamadas vão para
+`/api/*`, que o route handler `web/app/api/[...path]/route.ts` repassa para
+`API_ORIGIN` (variável de **servidor**, lida a cada requisição — trocá-la não exige
+rebuild; sem ela o repasse responde 500). Em desenvolvimento, `API_ORIGIN=http://localhost:3000`.
+
+Autenticação por e-mail e senha: `/cadastro` cria a conta, `/login` abre a sessão. A
+API emite um access token curto (JWT, enviado como `Authorization: Bearer`, guardado
+só em memória no web) e um refresh token rotativo no cookie `httpOnly` `smaug_refresh`
+(`Path=/api/auth`). O `server/.env.example` traz segredos de exemplo (`JWT_SECRET`,
+`PASSWORD_PEPPERS`) só para desenvolvimento — gere os seus em qualquer outro ambiente.
 
 Rotas da aplicação: `/login` e `/cadastro` (públicas); `/dashboard`, `/receitas`,
-`/despesas`, `/categorias` e `/historico` (protegidas pelo `web/proxy.ts`).
+`/despesas`, `/categorias` e `/historico` (protegidas pelo `web/proxy.ts`, que decide a
+rota pelo cookie indicador `smaug_session` e manda para `/login?next=<rota>`).
 
 ## Testes
 
@@ -208,16 +218,39 @@ não reproduzirem o schema de origem, e é o que o CI roda.
 > `npm run --prefix server prisma -- migrate resolve --applied <migration>` para
 > cada migration.
 
-## Docker (Backend)
+## Docker
 
 ```bash
 cd server && docker compose up --build
 ```
 
-Sobe a API junto de um `postgres:16-alpine`, lendo `server/.env.docker`. A
-imagem é sempre PostgreSQL: gera o client e aplica as migrations de
-`prisma/postgresql/` antes de subir, e expõe um healthcheck em `/health`.
-Não há imagem para o `web/`.
+O `server/docker-compose.yml` sobe três serviços:
+
+| Serviço    | Imagem               | Exposição                                                        |
+| ---------- | -------------------- | ---------------------------------------------------------------- |
+| `web`      | `web/Dockerfile`     | `${SMAUG_WEB_BIND:-127.0.0.1}:${SMAUG_WEB_PORT:-8080}` → `3001`  |
+| `api`      | `server/Dockerfile`  | só na rede interna (`expose: 3000`); o web a alcança pelo `/api` |
+| `postgres` | `postgres:16-alpine` | `127.0.0.1:5432`, para operação (`psql`, `migrate:check`)        |
+
+- **Só o web é público.** Ele lê `web/.env.docker` (`API_ORIGIN=http://api:3000`) e
+  repassa `/api/*` para a API na rede do compose.
+- **A API** lê `server/.env.docker` (configuração não secreta, versionada) e
+  `server/.env.secrets` — **não versionado, permissão 600**, com `DATABASE_URL`,
+  `JWT_*` e `PASSWORD_PEPPER*`. Sem esse arquivo o compose não sobe. A imagem é sempre
+  PostgreSQL: aplica as migrations de `prisma/postgresql/` antes de subir e expõe um
+  healthcheck em `/health`.
+- **`SMAUG_PUBLIC_ORIGIN`** é a origem pública do web como o navegador a vê
+  (produção: `https://<domínio>`); vira o `CORS_ORIGIN` da API, conferido no `Origin`
+  das rotas `/auth`. Padrão: `http://localhost:${SMAUG_WEB_PORT:-8080}`.
+- **`TRUST_PROXY=10.250.0.0/24`** é a sub-rede fixa do compose (`networks.default`):
+  a API só confia no `X-Forwarded-For` vindo do web. Mudou a sub-rede, mude os dois.
+- **Exige um proxy reverso com TLS na frente do web**, que sobrescreva (não
+  acrescente) o `X-Forwarded-For`: o cookie do refresh é `Secure`, e com o
+  `next start` exposto direto o cliente forja o próprio IP e escapa do rate limit do
+  login. Proxy em outra máquina: `SMAUG_WEB_BIND=0.0.0.0` mais firewall.
+
+O passo a passo de publicação (gerar segredos, rotação de chaves, proxy reverso) fica
+num runbook mantido localmente, fora do repositório.
 
 ## CI
 

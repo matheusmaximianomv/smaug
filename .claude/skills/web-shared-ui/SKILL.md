@@ -1,6 +1,6 @@
 ---
 name: web-shared-ui
-description: Como escrever primitivos de UI, hooks e libs compartilhadas em web/shared no Smaug — forwardRef só nos wrappers de elemento nativo, cn() + objeto clsx (não cva), wrappers Radix com JSDoc, blocos de lançamentos em shared/components/lancamentos, toast como objeto e "agora" como parâmetro reference.
+description: Como escrever primitivos de UI, hooks e libs compartilhadas em web/shared no Smaug — forwardRef só nos wrappers de elemento nativo, cn() + objeto clsx (não cva), wrappers Radix com JSDoc, blocos de lançamentos em shared/components/lancamentos, AppShell/Sidebar sem auth (usuário e saídas por props), toast como objeto e "agora" como parâmetro reference.
 ---
 
 # `shared/` — primitivos de UI, hooks e libs
@@ -73,6 +73,27 @@ Button.displayName = "Button";
 Os demais primitivos são `export function X(props: XProps)`: `Modal`, `ConfirmDialog`, `MonthYearSelect`,
 `EmptyState`, `Skeleton`, `Tabs`, `TypeBadge`, `MonthNavigator`, `ToastContainer`, `AppShell`,
 `Sidebar`, `BottomNav`. `ErrorBoundary` é o único componente de classe.
+
+**O shell não conhece autenticação.** `AppShell` e `Sidebar` recebem quem está logado e as ações de
+saída por props; quem chama `useAuth()` é `app/(app)/layout.tsx` (skill `web-arquitetura`):
+
+```tsx
+/** O que o menu mostra de quem está logado; `null` enquanto o perfil não chegou. */
+export interface ShellUser {
+  name: string;
+}
+
+export interface SidebarProps {
+  user: ShellUser | null;
+  onLogout: () => void;
+  onLogoutAll: () => void;
+  className?: string;
+}
+```
+
+`AppShellProps` é `{ user, onLogout, onLogoutAll, children }` e repassa os três ao `Sidebar`
+(desktop e overlay mobile). `ShellUser` é um tipo **estrutural mínimo** do próprio `shared/` — não
+importe `User` de `@/features/auth/types`. As iniciais caem em `"?"` enquanto `user` é `null`.
 
 ### Regra 2: variantes por `cn()` + objeto `clsx`, **não** por `cva`
 
@@ -246,8 +267,8 @@ Imite esse estilo quando escrever uma lib nova.
 ## Não faça
 
 - Não use `cva`.
-- Não importe de `@/features/...` dentro de `shared/` (o `useAuth` em `AppShell`/`Sidebar` é
-  dívida, não precedente).
+- Não importe de `@/features/...` dentro de `shared/` — nem hook, nem tipo. Precisa de dado de
+  uma feature? Declare o tipo mínimo em `shared/` e receba por prop, como `ShellUser` no `Sidebar`.
 - Não leia `new Date()` dentro de uma função de `shared/lib`.
 - Não crie `shared/lib/index.ts` nem `shared/components/index.ts`.
 - Não use `shared/types/index.ts` como destino de tipo novo: ele já está morto (nada o importa) e

@@ -1,6 +1,6 @@
 ---
 name: web-testes
-description: Como escrever testes do web do Smaug — Vitest + Testing Library + MSW, títulos em pt-BR, harness de web/tests (renderWithProviders, createTestQueryClient, fixtures, spyOnToast), asserção de assinatura de requisição, thresholds por glob e as armadilhas já verificadas.
+description: Como escrever testes do web do Smaug — Vitest + Testing Library + MSW, títulos em pt-BR, harness de web/tests (renderWithProviders, createTestQueryClient, fixtures, spyOnToast, MSW em /api com auth simulada e loginAs), asserção de assinatura de requisição, thresholds por glob e as armadilhas já verificadas.
 ---
 
 # Testes do web
@@ -50,18 +50,19 @@ Aberturas mais usadas: `usa`, `não`, `fecha`, `devolve`, `mostra`, `exibe`, `re
 
 ## O harness (`web/tests/`)
 
-| Arquivo            | Papel                                                                                                    |
-| ------------------ | -------------------------------------------------------------------------------------------------------- |
-| `render.tsx`       | `renderWithProviders`, `renderHookWithProviders`, `createTestQueryClient`                                |
-| `router.tsx`       | contextos reais do Next + `routerAdapterMock` / `searchParamsMock`                                       |
-| `msw/`             | `server`, `db` (store em memória), handlers por recurso, `mockApiError`/`mockNetworkError`/`mockPending` |
-| `requests.ts`      | `recordRequests`, `signatures`, `bodyOf`                                                                 |
-| `fixtures/`        | factories determinísticas por entidade                                                                   |
-| `toast.ts`         | `spyOnToast`, `drainToasts`                                                                              |
-| `session.ts`       | `loginAs`, `logout` (cookie real)                                                                        |
-| `time.ts`          | `NOW`, `NOW_COMPETENCE`, `freezeTime`, `freezeDateOnly`                                                  |
-| `mocked.ts`        | `Mocked<T>`, `mockService`                                                                               |
-| `harness.test.tsx` | testes do próprio harness — **se quebrarem, comece por aqui**                                            |
+| Arquivo                | Papel                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- |
+| `render.tsx`           | `renderWithProviders`, `renderHookWithProviders`, `createTestQueryClient`                                |
+| `router.tsx`           | contextos reais do Next + `routerAdapterMock` / `searchParamsMock`                                       |
+| `msw/`                 | `server`, `db` (store em memória), handlers por recurso, `mockApiError`/`mockNetworkError`/`mockPending` |
+| `msw/handlers/auth.ts` | `/auth/*` e `GET /users/me`; exporta `openSession`, `issueAccessToken`, `authenticatedUser`              |
+| `requests.ts`          | `recordRequests`, `signatures`, `bodyOf` — caminho gravado **sem** o prefixo `/api`                      |
+| `fixtures/`            | factories determinísticas por entidade                                                                   |
+| `toast.ts`             | `spyOnToast`, `drainToasts`                                                                              |
+| `session.ts`           | `loginAs(user?)` → `User`, `logout()` (sessão real em memória + indicador + sessão MSW)                  |
+| `time.ts`              | `NOW`, `NOW_COMPETENCE`, `freezeTime`, `freezeDateOnly`                                                  |
+| `mocked.ts`            | `Mocked<T>`, `mockService`                                                                               |
+| `harness.test.tsx`     | testes do próprio harness — **se quebrarem, comece por aqui**                                            |
 
 `vitest.setup.ts` cobre as lacunas do jsdom 29 (`matchMedia` com `setMatchMedia`, `ResizeObserver`,
 pointer capture, `scrollIntoView`) e o ciclo do MSW:
@@ -77,7 +78,9 @@ afterEach(() => {
   resetDb();
   resetFixtureIds();
   drainToasts();
-  if (hasDom) document.cookie = "userId=;path=/;max-age=0;SameSite=Lax";
+  // O módulo de sessão e o `document` do jsdom vivem por ARQUIVO, não por teste:
+  // sem isto, o access token de um loginAs() vaza o Bearer para o teste seguinte.
+  clearSession();
   vi.unstubAllEnvs();
 });
 ```
@@ -135,7 +138,18 @@ asserta a `action` recebida, inclusive depois do "Tentar novamente".
   memória (`tests/msw/db.ts`) é o que faz o teste de integração significar algo: criar uma categoria
   → o hook invalida → refetch → a linha nova aparece de verdade.
 - **Erro**: `mockApiError(method, path, status, body)`, `mockNetworkError(method, path)`,
-  `mockPending(method, path)`.
+  `mockPending(method, path)`. O `path` é o da API (`"/auth/login"`, `"/expenses/categories"`):
+  `url(path)` de `tests/msw/base.ts` acrescenta `API = "http://localhost:3001/api"` — a origem do
+  jsdom (`environmentOptions.jsdom.url` no `vitest.config.ts`) mais o `/api` do repasse.
+- **Autenticação simulada** (`handlers/auth.ts` + `db`): `db.passwords[userId]` é a senha que
+  `POST /auth/login` confere; `db.session = { userId } | null` faz o papel do cookie `httpOnly`
+  `smaug_refresh` (`null` → `POST /auth/refresh` responde 401 `INVALID_REFRESH_TOKEN`);
+  `db.issuedTokens` numera os tokens `access-<userId>-<n>`, então cada renovação devolve um token
+  diferente e observável. Só `GET /users/me` e `POST /auth/logout-all` conferem o Bearer
+  (`authenticatedUser(request)`, 401 `UNAUTHORIZED` sem ele); os handlers de recurso não. Para
+  simular token vencido num recurso, sobrescreva a rota com um 401 **de uma vez só**
+  (`server.use(http.get(url(path), () => HttpResponse.json({ error: "UNAUTHORIZED" }, { status: 401 }), { once: true }))`,
+  como em `infra/api-client.test.ts`) — o `mockApiError` permanente prova o "não renova em laço".
 - **`server.use(http.get(...))` cru** só quando a resposta precisa variar a cada requisição.
 - **O que o servidor calcula, o handler calcula**: as consultas de Receitas/Despesas montam
   `competenceStatus`, `reference`, `previousAmount`, situação das parcelas, `canDelete`/`canTerminate`
@@ -143,9 +157,13 @@ asserta a `action` recebida, inclusive depois do "Tentar novamente".
   corrente em UTC do relógio — congele com `freezeDateOnly`). Para testar outra situação, semeie
   dados em outra competência — não edite o campo calculado.
 - Os handlers reproduzem os códigos de erro reais do server (`EXPENSE_CATEGORY_NAME_ALREADY_EXISTS`
-  409, `VERSION_CONFLICT` 409, `*_NOT_FOUND` 404) e devolvem as **fixtures**.
+  409, `VERSION_CONFLICT` 409, `*_NOT_FOUND` 404, `EMAIL_ALREADY_EXISTS` 409,
+  `INVALID_CREDENTIALS` 401) e devolvem as **fixtures**.
 
 ## Testes de service — assertam a assinatura da requisição
+
+`recordRequests()` grava o caminho **sem** `/api` (`"POST /auth/login"`, `"GET /users/me"`): o
+teste fala nos caminhos da API, como o service os escreve.
 
 ```ts
 const calls = recordRequests();
@@ -251,8 +269,29 @@ pt-BR (`"Supermercado"`, `"Aluguel"`, `"Moradia"`, `"Salário"`).
 MSW + axios precisam). **Prefira passar um `reference` explícito para `shared/lib/competence.ts` a
 congelar o relógio.**
 
-`tests/session.ts`: `loginAs(userId)` / `logout()` escrevem o **cookie real** — não mockamos, para
-que o interceptor de request do `api-client` exercite a leitura de verdade.
+`tests/session.ts` (real, não mockamos `infra/session.ts` — o interceptor do `api-client` precisa
+ler o token de verdade):
+
+```ts
+export function loginAs(user: User = makeUser()): User {
+  if (!db.users.some((u) => u.id === user.id)) db.users.push(user);
+  setSession(openSession(user).accessToken);
+  return user;
+}
+
+/** Encerra a sessão dos dois lados: a aba esquece o token e o servidor, o refresh. */
+export function logout(): void {
+  clearSession();
+  db.session = null;
+}
+```
+
+`loginAs()` deixa a aba como o login real: access token em memória, indicador `smaug_session` e,
+no MSW, refresh válido — então um 401 do recurso renova e refaz. Use o `User` devolvido para
+assertar (`const user = loginAs(makeUser({ name: "João Silva" }))`).
+
+Teste que exercita 401/renovação/logout faz `vi.mock("@/infra/navigation", () => ({ redirectToLogin:
+vi.fn() }))` — sem o duplo, o jsdom imprime "Not implemented: navigation".
 
 `tests/mocked.ts`: `mockService<T>(real, overrides)` é para **teste de hook cujo assunto é a fiação**
 (query key, invalidação, mensagem de toast, callback de retry) — não para transporte. Transporte é
@@ -260,11 +299,12 @@ MSW.
 
 ## Cobertura (`web/vitest.config.ts`)
 
-Piso global `lines 100 / functions 100 / branches 98 / statements 99`, e gates por glob em 100% para
+Piso global `lines 100 / functions 100 / branches 99 / statements 100`, e gates por glob em 100% para
 `shared/lib/**`, `infra/**`, `proxy.ts`, `shared/hooks/**`, `shared/components/**`,
 `features/*/services/**`, `features/*/hooks/**`, `features/*/components/**`.
-`app/**` é a exceção justificada (`branches: 86, statements: 97`), por causa dos 13 ramos falsos
-inalcançáveis do idioma `isOpen={!!deleteTarget}` + `if (deleteTarget)`.
+`app/**` é a exceção justificada (`branches: 96`), por causa dos ramos falsos inalcançáveis do idioma
+`isOpen={!!deleteTarget}` + `if (deleteTarget)` na página de Categorias. `app/**` inclui o repasse
+`app/api/[...path]/route.ts`, coberto por `route.test.ts` (`@vitest-environment node`).
 Excluídos por política: `**/*.test.*`, `**/types/index.ts`, `app/layout.tsx`, `app/page.tsx`,
 `app/providers.tsx`, `next.config.ts`.
 
@@ -276,7 +316,9 @@ Excluídos por política: `**/*.test.*`, `**/types/index.ts`, `app/layout.tsx`, 
 | `window.location` é **não-configurável** no jsdom 29    | Use o seam `@/infra/navigation` (`redirectToLogin`); nunca `vi.spyOn(window.location, …)`                      |
 | `useToast` tem fila global sem reset                    | `spyOnToast()` por padrão; fake timers só nos dois testes do próprio toast                                     |
 | `infra/query-client.ts` é singleton com `retry: 3`      | Sempre `createTestQueryClient()`; nunca `app/providers.tsx`                                                    |
-| `NEXT_PUBLIC_API_URL` é lido na avaliação do módulo     | Já fixado em `test.env` no `vitest.config.ts`; `vi.stubEnv` dentro do teste chega tarde                        |
+| `infra/session.ts` guarda o token por arquivo           | `clearSession()` no `afterEach` global já cuida; `vi.resetModules()` só para provar efeito de carga            |
+| `/auth/*` não passa pela renovação do `api-client`      | 401 em `/auth/*` só rejeita: para provar renovação, use um recurso (ex.: `/users/me`) com token vencido        |
+| `API_ORIGIN` do route handler é lido por requisição     | No `route.test.ts`, `vi.stubEnv("API_ORIGIN", …)` no `beforeEach` funciona (é lido em runtime, não no import)  |
 | `tests/router.tsx` usa deep imports internos do Next    | Estão presos à versão `next@16.4.2`; se o Next subir, é o primeiro lugar a quebrar                             |
 
 ## Checklist
@@ -300,3 +342,5 @@ Excluídos por política: `**/*.test.*`, `**/types/index.ts`, `app/layout.tsx`, 
 - Não use `container` fora do caso do skeleton.
 - Não refaça no Vitest um caminho feliz que o E2E já cobre.
 - Não gere dado aleatório em fixture.
+- Não mocke `infra/session.ts` nem escreva `document.cookie` à mão para logar: use `loginAs()`.
+- Não semeie `db.users` só para autenticar — `loginAs(user)` já insere o usuário.

@@ -1,6 +1,6 @@
 ---
 name: server-erros-dominio
-description: Como criar e usar erros de domínio no server do Smaug — DomainError, código SCREAMING_SNAKE, this.name, onde declarar (catálogo vs co-localizado), catálogo dos 25 códigos existentes e o pareamento obrigatório com web/infra/api-error.ts.
+description: Como criar e usar erros de domínio no server do Smaug — DomainError, código SCREAMING_SNAKE, this.name, onde declarar (catálogo vs co-localizado), catálogo dos 33 códigos de domínio + 4 de middleware e o pareamento obrigatório com web/infra/api-error.ts.
 ---
 
 # Erros de domínio
@@ -13,8 +13,10 @@ para status HTTP.
 ## Onde o código mora
 
 - Catálogo compartilhado: `server/src/domain/errors/domain-error.ts` — **é aqui que erro novo entra**.
-- Legado co-localizado: no fim do arquivo do caso de uso que lança (fatias `user`,
-  `one-time-revenue`, `fixed-revenue`). Não replique esse padrão em código novo.
+- Legado co-localizado: no fim do arquivo do caso de uso que lança (fatias `user` —
+  `UserNotFoundError` em `get-user.use-case.ts` —, `one-time-revenue`, `fixed-revenue`). Não
+  replique esse padrão em código novo. O `EmailAlreadyExistsError` morava em
+  `create-user.use-case.ts` (removido) e **foi movido para o catálogo**.
 
 ## Anatomia canônica
 
@@ -51,26 +53,39 @@ export class ExpenseCategoryNotFoundError extends DomainError {
 
 ## Catálogo — códigos já existentes (reuse antes de inventar)
 
+Os 33 códigos distintos de `DomainError` (catálogo + co-localizados):
+
 ```
 ALREADY_EXPIRED                        EFFECTIVE_DATE_AFTER_END
 EFFECTIVE_DATE_BEFORE_START            EFFECTIVE_DATE_OUT_OF_RANGE
 EMAIL_ALREADY_EXISTS                   END_DATE_BEFORE_START
 EXPENSE_CATEGORY_HAS_LINKED_EXPENSES   EXPENSE_CATEGORY_NAME_ALREADY_EXISTS
-EXPENSE_CATEGORY_NOT_FOUND             FIXED_REVENUE_NOT_FOUND
-INSTALLMENT_EXPENSE_NOT_FOUND          INSTALLMENT_FINANCIAL_IMMUTABLE
-INSTALLMENT_HAS_PAST_COMPETENCE        NO_FUTURE_INSTALLMENTS
-ONE_TIME_EXPENSE_NOT_FOUND             PAST_COMPETENCE
-PAST_EFFECTIVE_DATE                    PAST_START_DATE
-PAST_TERMINATION_DATE                  RECURRING_EXPENSE_ALREADY_EXPIRED
-RECURRING_EXPENSE_NOT_FOUND            REVENUE_NOT_FOUND
+EXPENSE_CATEGORY_NOT_FOUND             EXPORT_PERIOD_INVALID
+EXPORT_PERIOD_TOO_LONG                 FIXED_REVENUE_NOT_FOUND
+IMPORT_EMPTY_FILE                      IMPORT_MISSING_COLUMNS
+IMPORT_NO_VALID_ROWS                   INSTALLMENT_EXPENSE_NOT_FOUND
+INSTALLMENT_FINANCIAL_IMMUTABLE        INSTALLMENT_HAS_PAST_COMPETENCE
+INVALID_CREDENTIALS                    INVALID_REFRESH_TOKEN
+NO_FUTURE_INSTALLMENTS                 ONE_TIME_EXPENSE_NOT_FOUND
+PAST_COMPETENCE                        PAST_EFFECTIVE_DATE
+PAST_START_DATE                        PAST_TERMINATION_DATE
+RECURRING_EXPENSE_ALREADY_EXPIRED      RECURRING_EXPENSE_NOT_FOUND
+REFRESH_TOKEN_CONFLICT                 REVENUE_NOT_FOUND
 UNALTERABLE_REVENUE                    USER_NOT_FOUND
 VERSION_CONFLICT
 ```
 
-Mais dois códigos emitidos por middleware, que **não** são `DomainError`:
-`UNAUTHORIZED` (`extract-user.middleware.ts`) e `VALIDATION_ERROR` (`validate-request.middleware.ts`).
+Mais quatro códigos emitidos por middleware, que **não** são `DomainError` (o corpo é montado
+direto no `res.status(...).json(...)`):
 
-Classes do catálogo, na ordem em que aparecem em `domain-error.ts`:
+| Código               | Status | Middleware                                               |
+| -------------------- | ------ | -------------------------------------------------------- |
+| `VALIDATION_ERROR`   | 400    | `validate-request.middleware.ts`                         |
+| `UNAUTHORIZED`       | 401    | `authenticate.middleware.ts`                             |
+| `ORIGIN_NOT_ALLOWED` | 403    | `require-trusted-origin.middleware.ts`                   |
+| `TOO_MANY_REQUESTS`  | 429    | `rate-limit.middleware.ts` (com cabeçalho `Retry-After`) |
+
+Classes do catálogo, na ordem em que aparecem em `domain-error.ts` (27):
 `ExpenseCategoryNotFoundError`, `ExpenseCategoryNameAlreadyExistsError`,
 `ExpenseCategoryHasLinkedExpensesError`, `OneTimeExpenseNotFoundError`,
 `OneTimeExpensePastCompetenceCreateError`, `OneTimeExpensePastCompetenceEditError`,
@@ -78,17 +93,36 @@ Classes do catálogo, na ordem em que aparecem em `domain-error.ts`:
 `InstallmentExpensePastStartError`, `InstallmentFinancialImmutableError`,
 `InstallmentHasPastCompetenceError`, `NoFutureInstallmentsError`, `RecurringExpenseNotFoundError`,
 `RecurringExpenseAlreadyExpiredError`, `PastCompetenceError`, `PastEffectiveDateError`,
-`EffectiveDateOutOfRangeError`, `EndDateBeforeStartError`.
+`EffectiveDateOutOfRangeError`, `EndDateBeforeStartError`, `ExportPeriodInvalidError`,
+`ExportPeriodTooLongError`, `ImportEmptyFileError`, `ImportMissingColumnsError`,
+`ImportNoValidRowsError`, `InvalidCredentialsError`, `InvalidRefreshTokenError`,
+`RefreshTokenConflictError`, `EmailAlreadyExistsError`.
+
+Erros de autenticação (todos no catálogo):
+
+| Classe                      | Código                   | Status | Observação                                                        |
+| --------------------------- | ------------------------ | ------ | ----------------------------------------------------------------- |
+| `EmailAlreadyExistsError`   | `EMAIL_ALREADY_EXISTS`   | 409    | cadastro; também vem do P2002 no `createWithPasswordCredential`   |
+| `InvalidCredentialsError`   | `INVALID_CREDENTIALS`    | 401    | mesma resposta para e-mail inexistente e senha errada             |
+| `InvalidRefreshTokenError`  | `INVALID_REFRESH_TOKEN`  | 401    | o controller **apaga** o cookie de refresh                        |
+| `RefreshTokenConflictError` | `REFRESH_TOKEN_CONFLICT` | 409    | reuso dentro da janela de graça; o controller **mantém** o cookie |
+
+**Pareamento com o web**: `web/infra/api-error.ts` tem uma entrada para **cada um** dos 33 + 4
+códigos acima (a tabela `MESSAGES`). As chaves de erro por linha da importação CSV
+(`INVALID_COMPETENCE`, `INVALID_AMOUNT`, …) são outra tabela, de outro contrato, e não contam aqui.
 
 ## Semântica de status
 
-| Situação                                                                    | Erro                            | Status no controller             |
-| --------------------------------------------------------------------------- | ------------------------------- | -------------------------------- |
-| Recurso inexistente **ou de outro usuário**                                 | `*NotFoundError`                | 404                              |
-| Regra de negócio violada (competência passada, imutabilidade, já encerrado) | demais                          | 409                              |
-| Header ausente/inválido                                                     | `UNAUTHORIZED` (middleware)     | 401                              |
-| Body/query fora do schema                                                   | `VALIDATION_ERROR` (middleware) | 400                              |
-| Qualquer erro não mapeado                                                   | `Error` cru                     | 500 via `errorHandlerMiddleware` |
+| Situação                                                                    | Erro                              | Status no controller             |
+| --------------------------------------------------------------------------- | --------------------------------- | -------------------------------- |
+| Recurso inexistente **ou de outro usuário**                                 | `*NotFoundError`                  | 404                              |
+| Regra de negócio violada (competência passada, imutabilidade, já encerrado) | demais                            | 409                              |
+| Bearer ausente/inválido, sessão revogada ou expirada                        | `UNAUTHORIZED` (middleware)       | 401                              |
+| Credencial ou refresh token inválido                                        | `INVALID_*` (auth)                | 401                              |
+| `Origin` não confiável nas rotas `/auth`                                    | `ORIGIN_NOT_ALLOWED` (middleware) | 403                              |
+| Rate limit das rotas `/auth`                                                | `TOO_MANY_REQUESTS` (middleware)  | 429 + `Retry-After`              |
+| Body/query fora do schema                                                   | `VALIDATION_ERROR` (middleware)   | 400                              |
+| Qualquer erro não mapeado                                                   | `Error` cru                       | 500 via `errorHandlerMiddleware` |
 
 Acesso cross-tenant **sempre vira 404**, nunca 403 — é o idioma do projeto (ver `server-caso-de-uso`).
 
@@ -116,7 +150,8 @@ Acesso cross-tenant **sempre vira 404**, nunca 403 — é o idioma do projeto (v
 
 - **Duas casas para erros**: catálogo vs fim do use case. Código novo vai no catálogo.
 - Os erros co-localizados usam `constructor(...)` sem `public`; o catálogo usa `public constructor`.
-  Siga o catálogo.
+  Siga o catálogo. Exceção dentro do próprio catálogo: `EmailAlreadyExistsError`, que veio movido
+  de `create-user.use-case.ts`, manteve o `constructor` sem `public`.
 - `PastEffectiveDateError` existe **duas vezes** (em `domain-error.ts` e em
   `use-cases/fixed-revenue/update-fixed-revenue.use-case.ts`). Ao importar, confira de qual módulo
   o controller correspondente está importando.

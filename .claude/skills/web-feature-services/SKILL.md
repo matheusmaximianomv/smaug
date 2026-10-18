@@ -68,7 +68,9 @@ export const DespesasService = {
    (`data` só em `AuthService.register`). Para update/patch a assinatura é `(id: string, payload: {...})`.
 5. **Endpoints são strings literais, sem `/api`**, em kebab-case, com template literal para ids:
    `/expenses/one-time`, `/expenses/installment`, `/expenses/recurring/${id}/terminate`,
-   `/revenues/fixed`, `/users`. Não existe arquivo de constantes de rota.
+   `/revenues/fixed`, `/auth/login`, `/users/me`. Não existe arquivo de constantes de rota. O `/api`
+   do repasse é o `baseURL` do `apiClient` (skill `web-infra`) — escrevê-lo no service daria
+   `/api/api/...`.
 6. Mapeamento verbo→método:
 
    | Operação                                  | Método                                            |
@@ -102,6 +104,45 @@ export const DespesasService = {
 11. **O service não trata erro**: deixa o axios rejeitar. Quem traduz é o hook, via
     `getApiErrorMessage` (skill `web-infra`).
 
+## O service de autenticação
+
+`web/features/auth/services/AuthService.ts` segue a mesma anatomia — e **não sabe de sessão**: devolve
+o corpo e quem guarda o token é o hook (`useAuth`/`useRegister`, via `setSession`):
+
+```ts
+export const AuthService = {
+  register: async (data: RegisterInput): Promise<AuthSessionResponse> => {
+    const { data: session } = await apiClient.post("/auth/register", data);
+    return session;
+  },
+
+  login: async (payload: LoginInput): Promise<AuthSessionResponse> => {
+    const { data } = await apiClient.post("/auth/login", payload);
+    return data;
+  },
+
+  logout: async (): Promise<void> => {
+    await apiClient.post("/auth/logout");
+  },
+
+  logoutAll: async (): Promise<void> => {
+    await apiClient.post("/auth/logout-all");
+  },
+
+  getMe: async (): Promise<User> => {
+    const { data } = await apiClient.get("/users/me");
+    return data;
+  },
+};
+```
+
+- Passa pelo `apiClient` como todo service: o Bearer entra sozinho (`logoutAll`, `getMe`) e o cookie
+  `smaug_refresh` vai sozinho pela mesma origem (`logout`).
+- 401 em `/auth/*` **não** dispara renovação no interceptor — o service só propaga; quem decide é o
+  hook.
+- A renovação (`POST /auth/refresh`) **não** é método do service: vive em `infra/auth-refresh.ts`,
+  com axios puro, porque o próprio interceptor do `apiClient` depende dela.
+
 ## Checklist
 
 - [ ] `export const <Feature>Service = { ... }` com arrow functions async.
@@ -118,10 +159,17 @@ export const DespesasService = {
 - Não use `try/catch` para engolir erro — o hook precisa dele.
 - Não construa mensagem de erro aqui.
 - Não use classe nem `export default`.
-- Não leia cookie/sessão: o header `X-User-Id` é injetado pelo interceptor do `apiClient`.
+- Não leia cookie/sessão nem monte `Authorization`: o Bearer é injetado pelo interceptor do
+  `apiClient`, e a sessão é guardada pelo hook.
 - Não coloque `/api` no caminho.
 
-## Inconsistência conhecida
+## Inconsistências conhecidas
 
-`DespesasService` usa `const { data } = await apiClient.get(...)` e `AuthService` usa
-`const response = ...; return response.data`. **A desestruturação é a forma majoritária — use ela.**
+- `DadosService.downloadExport` usa `const response = await apiClient.get(...)` (precisa do
+  `response.headers` além do corpo); os demais desestruturam `const { data }`. **A desestruturação é a
+  forma padrão — use `response` só quando precisar de algo além do corpo.**
+- `AuthService.register` recebe o parâmetro `data` (não `payload`) e por isso renomeia na
+  desestruturação (`const { data: session }`). Em código novo, chame o parâmetro de `payload`.
+- `AuthService` tipa o payload com interfaces nomeadas de `../types` (`RegisterInput`,
+  `LoginInput`) em vez de tipo inline — reaproveitadas pelos hooks e pelo formulário. Nos demais
+  services, siga o tipo inline.

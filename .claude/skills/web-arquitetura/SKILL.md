@@ -1,6 +1,6 @@
 ---
 name: web-arquitetura
-description: Arquitetura do frontend Smaug (web/) — camadas UI → hooks → services → infra, estrutura por feature, política de import e alias, Server vs Client Component, e as anatomias de página do App Router (CRUD simples e tela de feature com assistente e Ficha). Leia antes de criar qualquer arquivo em web/.
+description: Arquitetura do frontend Smaug (web/) — camadas UI → hooks → services → infra, estrutura por feature, política de import e alias, Server vs Client Component, proxy.ts com ?next=, o repasse /api (app/api/[...path]/route.ts com API_ORIGIN em runtime) e as anatomias de página do App Router (CRUD simples, tela de feature com assistente e Ficha, layout autenticado client e login RSC). Leia antes de criar qualquer arquivo em web/.
 ---
 
 # Arquitetura do web
@@ -27,11 +27,13 @@ Sentido único. **A UI depende de hooks, não de services nem de infra.** Compon
 
 ```
 web/
-  app/        App Router: (auth)/{login,cadastro}, (app)/{dashboard,receitas,despesas,categorias,historico}
-  features/   auth · dashboard · receitas · despesas · categorias · historico
+  app/        App Router: (auth)/{login,cadastro}, (app)/{dashboard,receitas,despesas,categorias,historico,dados}
+              + api/[...path]/route.ts (repasse /api → API)
+  features/   auth · dashboard · receitas · despesas · categorias · historico · dados
               cada uma com components/ hooks/ services/ types/
   shared/     components (primitivos) · hooks · lib · types
-  infra/      api-client · api-error · session · navigation · router-adapter · query-client
+  infra/      api-client · auth-refresh · session · api-error · navigation · router-adapter
+              · query-client · file-download
   proxy.ts    (guarda de rotas; o antigo middleware da Next 15)
   tests/      harness do Vitest + testes de integração de página
 ```
@@ -76,8 +78,9 @@ Compartilhamento acontece por `@/shared` ou `@/infra`. Na prática o código adm
 - ❌ Hook de outra feature, nem para dado auxiliar: `DespesasScreen` precisa das categorias, mas
   quem chama `useCategories()` é a **página** `app/(app)/despesas/page.tsx`, que passa
   `categories` por prop.
-- ❌ `shared/` importando de `features/`. Ainda há dívida: `AppShell` e `Sidebar` importam `useAuth`
-  de `@/features/auth`. Não acrescente outros casos.
+- ❌ `shared/` importando de `features/` — **sem exceção**. `AppShell` e `Sidebar` recebem o usuário
+  (`ShellUser { name }`) e as ações `onLogout`/`onLogoutAll` **por props**; quem chama `useAuth()` e
+  liga as props é o layout `app/(app)/layout.tsx` (camada `app/`, que pode compor features).
 
 ## Server vs Client Component
 
@@ -88,8 +91,10 @@ fato usa hook/estado/efeito/API de browser — sempre na **primeira linha**, seg
 | -------------------------------------------------------------------------- | ---------------- |
 | `app/layout.tsx` (shell + `metadata`)                                      | RSC              |
 | `app/page.tsx` (só `redirect("/login")`)                                   | RSC              |
-| `app/(app)/layout.tsx` (delega para `AppShell`)                            | RSC              |
-| `app/(auth)/layout.tsx`, `login/page.tsx`, `cadastro/page.tsx`             | RSC              |
+| `app/(app)/layout.tsx` (chama `useAuth` e liga o `AppShell`)               | `"use client"`   |
+| `app/(auth)/layout.tsx`, `cadastro/page.tsx`                               | RSC              |
+| `app/(auth)/login/page.tsx` (`async`, lê `searchParams`)                   | RSC              |
+| `app/api/[...path]/route.ts` (repasse)                                     | route handler    |
 | todas as `app/(app)/*/page.tsx`                                            | `"use client"`   |
 | hooks de feature, `providers.tsx`, primitivos com estado                   | `"use client"`   |
 | componentes de apresentação puros (`KpiCard`, `EntryRow`, `ConfirmDialog`) | **sem diretiva** |
@@ -98,8 +103,8 @@ fato usa hook/estado/efeito/API de browser — sempre na **primeira linha**, seg
 `ToastContainer`, devtools) vivem em `app/providers.tsx`, que consome o **singleton**
 `queryClient` de `@/infra/query-client` — não crie `useState(() => new QueryClient())`.
 
-**Não existem `loading.tsx`, `error.tsx`, `not-found.tsx` nem `route.ts` no projeto** — e isso é
-deliberado:
+**Não existem `loading.tsx`, `error.tsx` nem `not-found.tsx` no projeto** — e isso é deliberado
+(o único route handler é o repasse `app/api/[...path]/route.ts`, descrito abaixo):
 
 - Loading é early-return dentro da própria página client (`if (isLoading) return <Skeleton ... />`)
   ou dentro do container de feature (`LedgerLayout` mostra o esqueleto enquanto `ledger` é `undefined`).
@@ -109,16 +114,103 @@ deliberado:
 
 ## `proxy.ts`
 
-Gate de rota server-side (na Next 16 o antigo `middleware` virou `proxy`; a função exportada é `proxy`), lendo o **mesmo cookie `userId`** que `infra/session.ts` escreve:
+Gate de rota server-side (na Next 16 o antigo `middleware` virou `proxy`; a função exportada é
+`proxy`), lendo o **indicador `smaug_session`** que `infra/session.ts` escreve. O indicador não é
+credencial (o refresh token está no cookie `httpOnly` da API) — ele só decide a rota:
 
 ```ts
 const PUBLIC_ROUTES = ["/login", "/cadastro"];
-// !isPublic && !userId  → redirect /login
-// isPublic  && userId   → redirect /dashboard
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico|api).*)"] };
+const SESSION_HINT_COOKIE = "smaug_session";
+
+export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const isPublic = PUBLIC_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+  const hasSession = request.cookies.get(SESSION_HINT_COOKIE)?.value === "1";
+
+  if (!isPublic && !hasSession) {
+    // Leva a rota pretendida em `?next=` para o login devolver o usuário a ela (design D8). A raiz
+    // não vai: depois do login ela cairia em `/dashboard` de qualquer jeito.
+    const login = new URL("/login", request.url);
+    if (pathname !== "/") login.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(login);
+  }
+
+  if (isPublic && hasSession) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api).*)"],
+};
 ```
 
-## Anatomia de página — dois formatos
+- O `next` gravado aqui **não é confiável**: quem o usa é `safeDestination` (em
+  `features/auth/hooks/useAuth.ts`), que só aceita caminho interno — recusa `//host`, `/\host`,
+  espaço/controle em qualquer posição e qualquer valor cuja origem mude ao ser resolvido como URL.
+- O matcher exclui `api`: o repasse não passa pelo gate (a API faz a própria autenticação).
+
+## Repasse `/api` — `app/api/[...path]/route.ts`
+
+O navegador só fala com a origem do web. `apiClient` usa `baseURL: "/api"`, e este route handler
+repassa `/api/*` → `${API_ORIGIN}/*`, de modo que o cookie `smaug_refresh` emitido pela API vira
+cookie da origem do web (sem CORS nem `withCredentials`):
+
+```ts
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+async function forward(request: Request): Promise<Response> {
+  const apiOrigin = process.env.API_ORIGIN?.replace(/\/+$/, "");
+  if (!apiOrigin) return new Response(null, { status: 500 });
+
+  const url = new URL(request.url);
+  const target = `${apiOrigin}${url.pathname.slice("/api".length)}${url.search}`;
+  const hasBody = request.method !== "GET" && request.method !== "HEAD";
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, {
+      method: request.method,
+      headers: upstreamRequestHeaders(request),
+      body: hasBody ? await request.arrayBuffer() : undefined,
+      redirect: "manual",
+      cache: "no-store",
+    });
+  } catch {
+    return new Response(null, { status: 502 });
+  }
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers: downstreamResponseHeaders(upstream),
+  });
+}
+
+export const GET = forward;
+// HEAD, POST, PUT, PATCH, DELETE, OPTIONS = forward
+```
+
+Regras:
+
+1. **`API_ORIGIN` é variável de servidor, lida a cada requisição** (sem `NEXT_PUBLIC_`): a mesma
+   imagem serve a qualquer destino. Ausente → **500 sem corpo**; API inalcançável → **502 sem
+   corpo** — ambos transitórios para o `api-client`, que não derruba a sessão.
+2. Não troque por `rewrites()` em `next.config.ts`: reprovou no spike (congela o destino no
+   `next build` e falhou em H2/H3 — `specs/010-autenticacao/plan.md`, seção do spike).
+3. Destino montado de `request.url`, **não** de `params.path` (o path decodificado perderia
+   `%2F`/`%20`).
+4. Cabeçalhos de salto (`HOP_BY_HOP`) saem nos dois sentidos; `content-encoding` não é repassado (o
+   `fetch` já descomprimiu); **cada `Set-Cookie` é reanexado separado** via `getSetCookie()`.
+5. Corpo como `arrayBuffer` — o upload `text/csv` e o download do CSV atravessam byte a byte.
+6. Testado em `route.test.ts` ao lado, com `@vitest-environment node` e `fetch` substituído por dublê.
+
+## Anatomia de página — dois formatos (+ layouts de sessão)
 
 ### (a) Página CRUD simples — `app/(app)/categorias/page.tsx`
 
@@ -210,6 +302,50 @@ Regras:
 5. Layout, faixa de meses, resumo, lista, estado vazio e erro vêm de `LedgerLayout`
    (`shared/components/lancamentos/`); a tela de feature só fornece textos, dados e modais.
 
+### (c) Layout autenticado e páginas de `(auth)`
+
+`app/(app)/layout.tsx` é **client** e é o ponto onde a sessão é retomada e o menu recebe o usuário:
+
+```tsx
+"use client";
+
+import { AppShell } from "@/shared/components/AppShell";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+
+/**
+ * Layout cliente das rotas autenticadas: é aqui (camada `app/`, que pode compor features) que a
+ * sessão é retomada e o menu recebe o usuário e as ações de saída — `shared/` não conhece `auth`.
+ */
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const { user, logout, logoutAll } = useAuth();
+  return (
+    <AppShell user={user} onLogout={logout} onLogoutAll={logoutAll}>
+      {children}
+    </AppShell>
+  );
+}
+```
+
+`app/(auth)/login/page.tsx` é **Server Component `async`** e lê o `?next=` de `searchParams`
+(no Next 16, uma `Promise`), repassando ao formulário por prop:
+
+```tsx
+interface LoginPageProps {
+  searchParams: Promise<{ next?: string | string[] }>;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { next } = await searchParams;
+  return (
+    // ... cartão com logo e texto
+    <LoginForm next={typeof next === "string" ? next : null} />
+  );
+}
+```
+
+`cadastro/page.tsx` é RSC simples que monta `<RegisterForm />` — o cadastro já abre a sessão e vai
+para `/dashboard`.
+
 ## Checklist — criar uma feature nova
 
 - [ ] `features/<nome-pt-br>/{components,hooks,services,types}`.
@@ -217,7 +353,8 @@ Regras:
 - [ ] `services/<Feature>Service.ts` (skill `web-feature-services`).
 - [ ] `hooks/use<Coisa>.ts` (skill `web-feature-hooks`).
 - [ ] Componentes (skill `web-componentes`): apresentacionais, e containers só no formato (b).
-- [ ] Página em `app/(app)/<rota>/page.tsx` com `"use client"`.
+- [ ] Página em `app/(app)/<rota>/page.tsx` com `"use client"` — a proteção vem de graça do
+      `proxy.ts` e do layout de `(app)`; não verifique sessão na página.
 - [ ] Rota acrescentada à navegação (`shared/components/Sidebar.tsx` / `BottomNav.tsx`).
 - [ ] Teste ao lado de cada fonte + integração de página em `web/tests/integration/` (skill `web-testes`).
 
@@ -229,4 +366,10 @@ Regras:
 - Não crie barril `index.ts` de re-export.
 - Não importe componente/hook/service de outra feature.
 - Não crie `loading.tsx`/`error.tsx` — siga o padrão de early-return + toast.
+- Não crie outro route handler para falar com a API nem use `rewrites()`: tudo passa pelo repasse
+  `app/api/[...path]/route.ts`.
+- Não exponha o endereço da API ao browser (`NEXT_PUBLIC_*`): o destino é `API_ORIGIN`, só no servidor.
+- Não use `useSearchParams` num hook que roda no layout de `(app)` (exigiria `<Suspense>` e tiraria o
+  menu do SSR) — leia `searchParams` na página Server Component e passe por prop, como faz o login.
+- Não navegue para um `next` vindo da URL sem `safeDestination` (redirecionamento aberto).
 - Não instancie um `QueryClient` novo em `providers.tsx`.

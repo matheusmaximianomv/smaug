@@ -1,6 +1,6 @@
 ---
 name: web-componentes
-description: Como escrever componentes de feature e formulários no web do Smaug — props XProps, apresentacional vs container de feature (Screen/Wizard/Ficha), formulários com React Hook Form + zod (no componente ou dentro do hook do assistente), tokens Tailwind, cn() e acessibilidade em pt-BR.
+description: Como escrever componentes de feature e formulários no web do Smaug — props XProps, apresentacional vs container de feature (Screen/Wizard/Ficha), formulários com React Hook Form + zod (no componente, nos formulários de autenticação ou dentro do hook do assistente), tokens Tailwind, cn() e acessibilidade em pt-BR.
 ---
 
 # Componente de feature e formulário
@@ -88,8 +88,9 @@ Há duas formas de montar, conforme o tamanho do formulário:
 
 ### (a) Formulário simples — RHF no próprio componente
 
-Hoje: `LoginForm.tsx`, `RegisterForm.tsx`, `CategoryForm.tsx`. O formulário **nunca dispara
-mutation**: `onSave` recebe o payload pronto e quem chama `.mutate()` é a página.
+Canônico: `CategoryForm.tsx`. O formulário **nunca dispara mutation**: `onSave` recebe o payload
+pronto e quem chama `.mutate()` é a página. (`LoginForm`/`RegisterForm` são a exceção — ver
+"Formulários de autenticação" abaixo.)
 
 ```tsx
 "use client";
@@ -143,8 +144,26 @@ Detalhes fixos: desestruture exatamente `{ register, handleSubmit, formState: { 
 genérico é o tipo `XFormData`; `defaultValues` vem de `initial?.campo ?? ""`;
 **`{...register("campo")}` é espalhado por último no `<Input>`**; o erro entra como
 `error={errors.campo?.message}`; o rótulo do submit é ternário sobre `initial`.
-`RegisterForm` usa `noValidate` no `<form>` — com comentário explicando que a validação nativa do
-browser barraria o submit antes do React.
+`LoginForm` e `RegisterForm` usam `noValidate` no `<form>` — com comentário explicando que a
+validação nativa do campo `type="email"` barraria o submit antes do React (o schema é a fonte única).
+
+### Formulários de autenticação — `features/auth/components/`
+
+Não há página-container que dispare a ação (as páginas de `(auth)` são Server Components), então o
+próprio formulário chama o hook da feature — sempre da **própria** feature:
+
+- **`LoginForm({ next })`** — `const { login } = useAuth();`, estado local `isLoading`/`error` e
+  `await login(data, next)` num `try/catch` que mostra
+  `getApiErrorMessage(err, "Não foi possível entrar. Tente novamente.")` no bloco
+  `role="alert"`. O `next` chega por prop da página (`?next=` lido no servidor); a validação dele é
+  do hook (`safeDestination`), não do componente.
+- **`RegisterForm()`** — `const { mutate, isPending, error, isEmailTaken } = useRegister();`. O campo
+  `passwordConfirmation` existe só no schema/formulário: `onSubmit` desestrutura
+  `{ name, email, password }` e manda só isso para a API. No 409 `EMAIL_ALREADY_EXISTS`, o bloco de
+  erro acrescenta um `<Link href="/login">Entrar</Link>`.
+- Campos com `autoComplete` correto (`email`, `current-password`, `new-password`, `name`) — os
+  gerenciadores de senha e o E2E dependem disso.
+- Erro de autenticação é **bloco inline**, nunca toast.
 
 ### (b) Assistente em etapas — RHF dentro do hook da feature
 
@@ -239,7 +258,8 @@ Modais com `footer` (Fichas, `WizardShell`) passam os botões pelo slot `footer`
 ## Acessibilidade
 
 `aria-label` em **pt-BR** em todo botão só-ícone (`"Fechar"`, `"Excluir"`, `"Editar"`,
-`"Mês anterior"`, `"Próximo mês"`, `"Abrir menu"`, `"Sair"`), `aria-invalid` / `aria-describedby`
+`"Mês anterior"`, `"Próximo mês"`, `"Abrir menu"`, `"Sair"`; o botão com texto
+`"Sair de todos os dispositivos"` dispensa `aria-label`), `aria-invalid` / `aria-describedby`
 nos campos, `aria-label="Navegação principal"` no `<nav>`. Os testes consultam por papel e nome
 acessível — quebrar o rótulo quebra o teste.
 
@@ -265,4 +285,6 @@ acessível — quebrar o rótulo quebra o teste.
 - Não use hex arbitrário para cor de tema (os poucos `bg-[#f5f0ff]` existentes são paletas pontuais
   de badge, não precedente).
 - Não volte ao formulário com `useState` + bag de erros `Record<string, string>`; use RHF + zod.
+- Não guarde/limpe sessão nem navegue depois do login dentro do componente — isso é do `useAuth`/
+  `useRegister`. Não mande `passwordConfirmation` para a API.
 - Não duplique entre Receitas e Despesas um bloco que caberia em `shared/components/lancamentos/`.
