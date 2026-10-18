@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { LoginForm } from "@/features/auth/components/LoginForm";
 
-export default function LoginPage() {
+interface LoginPageProps {
+  searchParams: Promise<{ next?: string | string[] }>;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { next } = await searchParams;
   return (
     <div className="w-full max-w-sm">
       <div className="rounded-2xl border border-border bg-surface p-10 shadow-xs">
@@ -22,7 +27,7 @@ export default function LoginPage() {
         <p className="mb-7 text-sm leading-relaxed text-text-muted">
           Gestão financeira pessoal. Controle suas receitas e despesas com precisão.
         </p>
-        <LoginForm />
+        <LoginForm next={typeof next === "string" ? next : null} />
         <p className="mt-6 text-center text-sm text-text-muted">
           Não tem conta?{" "}
           <Link href="/cadastro" className="font-medium text-red hover:underline">

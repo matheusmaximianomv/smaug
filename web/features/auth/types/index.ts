@@ -7,15 +7,24 @@ export interface User {
 
 export interface AuthState {
   user: User | null;
-  userId: string | null;
   isAuthenticated: boolean;
 }
 
 export interface RegisterInput {
   name: string;
   email: string;
+  password: string;
 }
 
 export interface LoginInput {
-  userId: string;
+  email: string;
+  password: string;
+}
+
+/** Corpo de `POST /auth/register` e `POST /auth/login`: a sessão aberta e o perfil. */
+export interface AuthSessionResponse {
+  accessToken: string;
+  tokenType: "Bearer";
+  expiresIn: number;
+  user: User;
 }

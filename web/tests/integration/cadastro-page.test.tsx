@@ -1,21 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CadastroPage from "@/app/(auth)/cadastro/page";
-import { getUserId } from "@/infra/session";
+import { getAccessToken, hasSessionHint } from "@/infra/session";
 import { renderWithProviders } from "../render";
 import { db, mockApiError, seedDb } from "../msw";
 import { makeUser } from "../fixtures";
+import { recordRequests } from "../requests";
+import { routerAdapterMock } from "../router";
 
-vi.mock("@/infra/navigation", () => ({ redirectToLogin: vi.fn() }));
+vi.mock("@/infra/router-adapter", async () => {
+  const { routerAdapterMock: router } = await import("../router");
+  return { useRouter: () => router };
+});
+
+const PASSWORD = "senha muito segura";
 
 function renderPage() {
   return renderWithProviders(<CadastroPage />, { pathname: "/cadastro" });
 }
 
-async function submit(name = "Maria Souza", email = "maria@example.com") {
-  await userEvent.type(screen.getByLabelText("Nome"), name);
-  await userEvent.type(screen.getByLabelText("Email"), email);
+async function submit({ email = "maria@example.com", confirmation = PASSWORD } = {}) {
+  await userEvent.type(screen.getByLabelText("Nome"), "Maria Souza");
+  await userEvent.type(screen.getByLabelText("E-mail"), email);
+  await userEvent.type(screen.getByLabelText("Senha"), PASSWORD);
+  await userEvent.type(screen.getByLabelText("Confirmar senha"), confirmation);
   await userEvent.click(screen.getByRole("button", { name: "Criar Conta" }));
 }
 
@@ -27,29 +36,53 @@ describe("página de cadastro", () => {
     expect(screen.getByRole("link", { name: "Fazer login" })).toHaveAttribute("href", "/login");
   });
 
-  it("cria a conta e mostra o id para copiar, sem criar sessão", async () => {
+  it("cria a conta já logado e cai no dashboard, sem mostrar o ID", async () => {
     renderPage();
 
     await submit();
 
-    expect(await screen.findByText("Cadastro realizado com sucesso!")).toBeInTheDocument();
+    await waitFor(() => expect(routerAdapterMock.push).toHaveBeenCalledWith("/dashboard"));
     expect(db.users).toHaveLength(1);
-    // O cadastro não autentica: o usuário ainda precisa fazer login com o id.
-    expect(getUserId()).toBeNull();
+    expect(getAccessToken()).toMatch(/^access-/);
+    expect(hasSessionHint()).toBe(true);
+    expect(screen.queryByText(db.users[0].id)).not.toBeInTheDocument();
   });
 
-  it("no 409 mostra que o e-mail já está em uso", async () => {
+  it("com a confirmação divergente mostra o erro no campo e não envia nada", async () => {
+    const calls = recordRequests();
+    renderPage();
+
+    await submit({ confirmation: "outra senha qualquer" });
+
+    expect(await screen.findByText("As senhas não coincidem")).toBeInTheDocument();
+    expect(calls).toHaveLength(0);
+  });
+
+  it("no EMAIL_ALREADY_EXISTS mostra a mensagem e o link para Entrar", async () => {
     seedDb({ users: [makeUser({ email: "maria@example.com" })] });
     renderPage();
 
     await submit();
 
     expect(await screen.findByText("Já existe uma conta com este e-mail.")).toBeInTheDocument();
-    expect(screen.queryByText("Cadastro realizado com sucesso!")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Entrar" })).toHaveAttribute("href", "/login");
+    expect(getAccessToken()).toBeNull();
+    expect(routerAdapterMock.push).not.toHaveBeenCalled();
+  });
+
+  it("no TOO_MANY_REQUESTS mostra a mensagem de limite", async () => {
+    mockApiError("post", "/auth/register", 429, { error: "TOO_MANY_REQUESTS" });
+    renderPage();
+
+    await submit();
+
+    expect(
+      await screen.findByText("Muitas tentativas. Aguarde alguns minutos e tente novamente."),
+    ).toBeInTheDocument();
   });
 
   it("no 500 mostra a mensagem genérica e mantém o formulário", async () => {
-    mockApiError("post", "/users", 500, {});
+    mockApiError("post", "/auth/register", 500, {});
     renderPage();
 
     await submit();

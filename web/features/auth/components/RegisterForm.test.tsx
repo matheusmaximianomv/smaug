@@ -1,37 +1,65 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { getAccessToken } from "@/infra/session";
 import { renderWithProviders } from "../../../tests/render";
-import { mockApiError, seedDb } from "../../../tests/msw";
+import { db, mockApiError, seedDb } from "../../../tests/msw";
 import { makeUser } from "../../../tests/fixtures";
+import { bodyOf, recordRequests } from "../../../tests/requests";
+import { routerAdapterMock } from "../../../tests/router";
 import { RegisterForm } from "./RegisterForm";
 
-vi.mock("@/infra/navigation", () => ({ redirectToLogin: vi.fn() }));
-
-const { redirectToLogin } = await import("@/infra/navigation");
-
-const writeText = vi.fn().mockResolvedValue(undefined);
-Object.defineProperty(navigator, "clipboard", {
-  configurable: true,
-  value: { writeText },
+vi.mock("@/infra/router-adapter", async () => {
+  const { routerAdapterMock: router } = await import("../../../tests/router");
+  return { useRouter: () => router };
 });
 
-afterEach(() => {
-  vi.useRealTimers();
-});
+const PASSWORD = "senha muito segura";
 
-async function submitValid(user = userEvent) {
-  await user.type(screen.getByLabelText("Nome"), "Maria Souza");
-  await user.type(screen.getByLabelText("Email"), "maria@example.com");
-  await user.click(screen.getByRole("button", { name: "Criar Conta" }));
+interface Fields {
+  name?: string;
+  email?: string;
+  password?: string;
+  confirmation?: string;
 }
+
+async function fillAndSubmit({
+  name = "Maria Souza",
+  email = "maria@example.com",
+  password = PASSWORD,
+  confirmation = password,
+}: Fields = {}) {
+  if (name) {
+    // paste() em vez de type(): digitar centenas de caracteres estoura o timeout sob cobertura.
+    await userEvent.click(screen.getByLabelText("Nome"));
+    await userEvent.paste(name);
+  }
+  if (email) await userEvent.type(screen.getByLabelText("E-mail"), email);
+  if (password) await userEvent.type(screen.getByLabelText("Senha"), password);
+  if (confirmation) await userEvent.type(screen.getByLabelText("Confirmar senha"), confirmation);
+  await userEvent.click(screen.getByRole("button", { name: "Criar Conta" }));
+}
+
+describe("RegisterForm: campos", () => {
+  it("orienta a senha e a confirmação pelo placeholder", () => {
+    renderWithProviders(<RegisterForm />);
+
+    expect(screen.getByLabelText("Senha")).toHaveAttribute(
+      "placeholder",
+      "Pelo menos 12 caracteres",
+    );
+    expect(screen.getByLabelText("Confirmar senha")).toHaveAttribute(
+      "placeholder",
+      "Repita a senha",
+    );
+  });
+});
 
 describe("RegisterForm: validação", () => {
   it("exige o nome", async () => {
     renderWithProviders(<RegisterForm />);
 
-    await userEvent.type(screen.getByLabelText("Email"), "maria@example.com");
-    await userEvent.click(screen.getByRole("button", { name: "Criar Conta" }));
+    await fillAndSubmit({ name: "" });
 
     expect(await screen.findByText("Nome é obrigatório")).toBeInTheDocument();
   });
@@ -39,104 +67,103 @@ describe("RegisterForm: validação", () => {
   it("exige um e-mail válido", async () => {
     renderWithProviders(<RegisterForm />);
 
-    await userEvent.type(screen.getByLabelText("Nome"), "Maria Souza");
-    // O input é type="email": jsdom aplica validação nativa e barraria o submit
-    // de um valor sem "@". Este passa no HTML5 e falha no schema (não tem TLD).
-    await userEvent.type(screen.getByLabelText("Email"), "nao-e-email");
-    await userEvent.click(screen.getByRole("button", { name: "Criar Conta" }));
+    await fillAndSubmit({ email: "nao-e-email" });
 
-    expect(await screen.findByText("Email inválido")).toBeInTheDocument();
+    expect(await screen.findByText("E-mail inválido")).toBeInTheDocument();
   });
 
   it("rejeita nome acima de 255 caracteres", async () => {
     renderWithProviders(<RegisterForm />);
 
-    // paste() em vez de type(): digitar 256 caracteres dispara 256 eventos e
-    // estoura o timeout de 5 s sob instrumentação de cobertura.
-    await userEvent.click(screen.getByLabelText("Nome"));
-    await userEvent.paste("x".repeat(256));
-    await userEvent.type(screen.getByLabelText("Email"), "maria@example.com");
-    await userEvent.click(screen.getByRole("button", { name: "Criar Conta" }));
+    await fillAndSubmit({ name: "x".repeat(256) });
 
     expect(await screen.findByText("Nome muito longo")).toBeInTheDocument();
+  });
+
+  it("mostra o erro de senha curta no campo de senha e não chama a API", async () => {
+    const calls = recordRequests();
+    renderWithProviders(<RegisterForm />);
+
+    await fillAndSubmit({ password: "curta-11chr" });
+
+    expect(
+      await screen.findByText("A senha deve ter pelo menos 12 caracteres"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Senha")).toHaveAttribute("aria-invalid", "true");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("mostra a confirmação divergente no campo de confirmação e não chama a API", async () => {
+    const calls = recordRequests();
+    renderWithProviders(<RegisterForm />);
+
+    await fillAndSubmit({ confirmation: "outra senha qualquer" });
+
+    expect(await screen.findByText("As senhas não coincidem")).toBeInTheDocument();
+    expect(screen.getByLabelText("Confirmar senha")).toHaveAttribute("aria-invalid", "true");
+    expect(calls).toHaveLength(0);
   });
 });
 
 describe("RegisterForm: sucesso", () => {
-  it("troca para a tela de confirmação com o id em campo readOnly", async () => {
+  it("cria a conta sem enviar a confirmação, abre a sessão e leva ao dashboard", async () => {
+    const calls = recordRequests();
     renderWithProviders(<RegisterForm />);
 
-    await submitValid();
+    await fillAndSubmit();
 
-    expect(await screen.findByText("Cadastro realizado com sucesso!")).toBeInTheDocument();
-    const idField = screen.getByRole("textbox");
-    expect(idField).toHaveAttribute("readOnly");
-    expect((idField as HTMLInputElement).value).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Criar Conta" })).not.toBeInTheDocument();
-  });
-
-  it('"Ir para Login" chama redirectToLogin', async () => {
-    renderWithProviders(<RegisterForm />);
-
-    await submitValid();
-    await screen.findByText("Cadastro realizado com sucesso!");
-    await userEvent.click(screen.getByRole("button", { name: "Ir para Login" }));
-
-    expect(redirectToLogin).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("RegisterForm: cópia do id", () => {
-  it("copia o id para a área de transferência e devolve o ícone após 2 s", async () => {
-    renderWithProviders(<RegisterForm />);
-
-    // O cadastro roda com timers reais: o MSW + axios dependem deles.
-    await submitValid();
-    await screen.findByText("Cadastro realizado com sucesso!");
-
-    // `userEvent` trava com os fake timers do Vitest neste stack (verificado):
-    // o clique daqui em diante vai por `fireEvent`, que o RTL já embrulha em act.
-    vi.useFakeTimers();
-
-    const idField = screen.getByRole("textbox") as HTMLInputElement;
-    // O botão de copiar é o único sem nome acessível na tela de confirmação.
-    const copyButton = screen
-      .getAllByRole("button")
-      .find((b) => b.textContent === "")! as HTMLButtonElement;
-
-    const iconBefore = copyButton.innerHTML;
-    fireEvent.click(copyButton);
-
-    expect(writeText).toHaveBeenCalledWith(idField.value);
-    // Sem `waitFor` aqui: com timers falsos ele não sabe avançar o relógio do
-    // Vitest e ficaria pendurado até o timeout do teste.
-    expect(copyButton.innerHTML).not.toBe(iconBefore);
-
-    act(() => {
-      vi.advanceTimersByTime(2000);
+    await waitFor(() => expect(routerAdapterMock.push).toHaveBeenCalledWith("/dashboard"));
+    expect(await bodyOf(calls[0])).toEqual({
+      name: "Maria Souza",
+      email: "maria@example.com",
+      password: PASSWORD,
     });
+    expect(db.users).toHaveLength(1);
+    expect(getAccessToken()).not.toBeNull();
+  });
 
-    expect(copyButton.innerHTML).toBe(iconBefore);
+  it("não mostra o ID do usuário em nenhum momento", async () => {
+    renderWithProviders(<RegisterForm />);
+
+    await fillAndSubmit();
+    await waitFor(() => expect(routerAdapterMock.push).toHaveBeenCalled());
+
+    expect(screen.queryByText(db.users[0].id)).not.toBeInTheDocument();
+    expect(screen.queryByText(/copie seu id/i)).not.toBeInTheDocument();
   });
 });
 
 describe("RegisterForm: erro", () => {
-  it("mostra a mensagem de e-mail já cadastrado", async () => {
+  it("no 409 mostra que o e-mail já tem conta e oferece o caminho para Entrar", async () => {
     seedDb({ users: [makeUser({ email: "maria@example.com" })] });
     renderWithProviders(<RegisterForm />);
 
-    await submitValid();
+    await fillAndSubmit();
 
     expect(await screen.findByText("Já existe uma conta com este e-mail.")).toBeInTheDocument();
-    expect(screen.queryByText("Cadastro realizado com sucesso!")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Entrar" })).toHaveAttribute("href", "/login");
+    expect(routerAdapterMock.push).not.toHaveBeenCalled();
+  });
+
+  it("no 429 mostra a mensagem de limite, sem o link para Entrar", async () => {
+    mockApiError("post", "/auth/register", 429, { error: "TOO_MANY_REQUESTS" });
+    renderWithProviders(<RegisterForm />);
+
+    await fillAndSubmit();
+
+    expect(
+      await screen.findByText("Muitas tentativas. Aguarde alguns minutos e tente novamente."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Entrar" })).not.toBeInTheDocument();
   });
 
   it("usa a mensagem genérica em erro sem código mapeado", async () => {
-    mockApiError("post", "/users", 500, {});
+    mockApiError("post", "/auth/register", 500, {});
     renderWithProviders(<RegisterForm />);
 
-    await submitValid();
+    await fillAndSubmit();
 
     expect(await screen.findByText("Erro ao criar conta. Tente novamente.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Criar Conta" })).toBeEnabled();
   });
 });

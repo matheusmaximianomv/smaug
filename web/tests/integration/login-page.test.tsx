@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LoginPage from "@/app/(auth)/login/page";
-import { getUserId } from "@/infra/session";
+import { getAccessToken, hasSessionHint } from "@/infra/session";
 import { renderWithProviders } from "../render";
 import { mockApiError, seedDb } from "../msw";
 import { makeUser } from "../fixtures";
+import { recordRequests, signatures } from "../requests";
 import { routerAdapterMock } from "../router";
 
 vi.mock("@/infra/router-adapter", async () => {
@@ -13,66 +14,124 @@ vi.mock("@/infra/router-adapter", async () => {
   return { useRouter: () => router };
 });
 
-const USER = makeUser();
+// O 401 de uma renovação chamaria a navegação dura; aqui ela não deve acontecer.
+vi.mock("@/infra/navigation", () => ({ redirectToLogin: vi.fn() }));
 
-function renderPage() {
-  return renderWithProviders(<LoginPage />, { pathname: "/login" });
+const USER = makeUser();
+const PASSWORD = "senha muito segura";
+
+/** A página é um Server Component assíncrono: resolve com o `?next=` e renderiza o resultado. */
+async function renderPage(search: Record<string, string | string[]> = {}) {
+  const page = await LoginPage({ searchParams: Promise.resolve(search) });
+  return renderWithProviders(page, { pathname: "/login" });
 }
 
-async function submit(userId: string) {
-  await userEvent.type(screen.getByLabelText("ID do Usuário"), userId);
+async function submit(email: string, password: string) {
+  await userEvent.type(screen.getByLabelText("E-mail"), email);
+  await userEvent.type(screen.getByLabelText("Senha"), password);
   await userEvent.click(screen.getByRole("button", { name: "Entrar" }));
 }
 
 describe("página de login", () => {
-  it("apresenta a marca e o caminho para o cadastro", () => {
-    renderPage();
+  it("apresenta a marca e o caminho para o cadastro", async () => {
+    await renderPage();
 
     expect(screen.getByRole("heading", { name: "SMAUG" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Criar conta" })).toHaveAttribute("href", "/cadastro");
   });
 
-  it("entra de ponta a ponta: grava o cookie e navega para o dashboard", async () => {
-    seedDb({ users: [USER] });
-    renderPage();
+  it("entra de ponta a ponta: guarda o token, escreve o indicador e navega para o dashboard", async () => {
+    seedDb({ users: [USER], passwords: { [USER.id]: PASSWORD } });
+    await renderPage();
 
-    await submit(USER.id);
+    await submit(USER.email, PASSWORD);
 
     await waitFor(() => expect(routerAdapterMock.push).toHaveBeenCalledWith("/dashboard"));
-    expect(getUserId()).toBe(USER.id);
+    expect(getAccessToken()).toMatch(/^access-/);
+    expect(hasSessionHint()).toBe(true);
   });
 
-  it("no 404 mostra a mensagem e NÃO grava o cookie", async () => {
-    renderPage();
+  it("depois de entrar volta à rota protegida que o usuário tentou abrir", async () => {
+    seedDb({ users: [USER], passwords: { [USER.id]: PASSWORD } });
+    await renderPage({ next: "/receitas" });
 
-    await submit("00000000-0000-4000-8000-000000000099");
+    await submit(USER.email, PASSWORD);
 
-    expect(
-      await screen.findByText("Usuário não encontrado. Verifique o ID e tente novamente."),
-    ).toBeInTheDocument();
-    expect(getUserId()).toBeNull();
+    await waitFor(() => expect(routerAdapterMock.push).toHaveBeenCalledWith("/receitas"));
+  });
+
+  it("com ?next externo ou repetido vai para o dashboard", async () => {
+    seedDb({ users: [USER], passwords: { [USER.id]: PASSWORD } });
+    await renderPage({ next: ["/receitas", "/despesas"] });
+
+    await submit(USER.email, PASSWORD);
+
+    await waitFor(() => expect(routerAdapterMock.push).toHaveBeenCalledWith("/dashboard"));
+  });
+
+  it("com ?next que o navegador lê como outro domínio (tab apagado pelo parser) vai para o dashboard", async () => {
+    seedDb({ users: [USER], passwords: { [USER.id]: PASSWORD } });
+    await renderPage({ next: decodeURIComponent("/%09/malicioso.exemplo") });
+
+    await submit(USER.email, PASSWORD);
+
+    await waitFor(() => expect(routerAdapterMock.push).toHaveBeenCalledWith("/dashboard"));
+  });
+
+  it("no INVALID_CREDENTIALS mostra a mensagem, fica no login e não tenta renovar", async () => {
+    seedDb({ users: [USER], passwords: { [USER.id]: PASSWORD } });
+    const calls = recordRequests();
+    await renderPage();
+
+    await submit(USER.email, "senha errada qualquer");
+
+    expect(await screen.findByText("E-mail ou senha incorretos.")).toBeInTheDocument();
+    expect(signatures(calls)).toEqual(["POST /auth/login"]);
+    expect(getAccessToken()).toBeNull();
+    expect(hasSessionHint()).toBe(false);
     expect(routerAdapterMock.push).not.toHaveBeenCalled();
   });
 
-  it("no 500 mostra a mensagem genérica e NÃO grava o cookie", async () => {
-    mockApiError("get", `/users/${USER.id}`, 500, {});
-    renderPage();
+  it("a mesma mensagem vale para um e-mail sem conta", async () => {
+    await renderPage();
 
-    await submit(USER.id);
+    await submit("ninguem@example.com", PASSWORD);
+
+    expect(await screen.findByText("E-mail ou senha incorretos.")).toBeInTheDocument();
+  });
+
+  it("no TOO_MANY_REQUESTS mostra a mensagem de limite e não abre sessão", async () => {
+    mockApiError("post", "/auth/login", 429, { error: "TOO_MANY_REQUESTS" });
+    await renderPage();
+
+    await submit(USER.email, PASSWORD);
+
+    expect(
+      await screen.findByText("Muitas tentativas. Aguarde alguns minutos e tente novamente."),
+    ).toBeInTheDocument();
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it("no 500 mostra a mensagem genérica e não abre sessão", async () => {
+    mockApiError("post", "/auth/login", 500, {});
+    await renderPage();
+
+    await submit(USER.email, PASSWORD);
 
     expect(
       await screen.findByText("Não foi possível entrar. Tente novamente."),
     ).toBeInTheDocument();
-    expect(getUserId()).toBeNull();
+    expect(hasSessionHint()).toBe(false);
   });
 
-  it("com id fora do formato UUID nem chega à API", async () => {
-    renderPage();
+  it("com e-mail fora do formato nem chega à API", async () => {
+    const calls = recordRequests();
+    await renderPage();
 
-    await submit("abc");
+    await submit("abc", PASSWORD);
 
-    expect(await screen.findByText("ID de usuário inválido")).toBeInTheDocument();
-    expect(getUserId()).toBeNull();
+    expect(await screen.findByText("E-mail inválido")).toBeInTheDocument();
+    expect(calls).toHaveLength(0);
     expect(routerAdapterMock.push).not.toHaveBeenCalled();
   });
 });
