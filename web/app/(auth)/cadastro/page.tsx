@@ -4,7 +4,7 @@ import { RegisterForm } from "@/features/auth/components/RegisterForm";
 export default function CadastroPage() {
   return (
     <div className="w-full max-w-sm">
-      <div className="rounded-2xl border border-border bg-surface p-10 shadow-sm">
+      <div className="rounded-2xl border border-border bg-surface p-10 shadow-xs">
         <div className="mb-8 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-red">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none">

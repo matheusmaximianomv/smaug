@@ -176,7 +176,7 @@ describe("Modal camadas e folha inferior", () => {
         <p>Conteúdo</p>
       </Modal>,
     );
-    expect(screen.getByRole("dialog")).toHaveClass("z-[60]");
+    expect(screen.getByRole("dialog")).toHaveClass("z-60");
   });
 
   it("ancora na base da tela até 768 px", () => {

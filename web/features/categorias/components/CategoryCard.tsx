@@ -14,7 +14,7 @@ export function CategoryCard({ category, onEdit, onDelete }: CategoryCardProps) 
   return (
     <article
       data-testid="category-card"
-      className="flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:shadow-sm transition-shadow"
+      className="flex items-center gap-3 rounded-lg border border-border bg-surface p-4 hover:shadow-xs transition-shadow"
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-light text-[15px] font-bold text-red">
         {initial}
@@ -28,7 +28,7 @@ export function CategoryCard({ category, onEdit, onDelete }: CategoryCardProps) 
       <div className="flex items-center gap-1">
         <button
           onClick={() => onEdit(category)}
-          className="rounded p-1.5 text-text-subtle hover:bg-bg hover:text-text-muted"
+          className="rounded-sm p-1.5 text-text-subtle hover:bg-bg hover:text-text-muted"
           title="Editar"
           aria-label="Editar categoria"
         >
@@ -36,7 +36,7 @@ export function CategoryCard({ category, onEdit, onDelete }: CategoryCardProps) 
         </button>
         <button
           onClick={() => onDelete(category)}
-          className="rounded p-1.5 text-text-subtle hover:bg-red-light hover:text-red"
+          className="rounded-sm p-1.5 text-text-subtle hover:bg-red-light hover:text-red"
           title="Excluir"
           aria-label="Excluir categoria"
         >

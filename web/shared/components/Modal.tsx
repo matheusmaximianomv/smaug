@@ -27,7 +27,7 @@ const WIDTHS = {
   "2xl": "max-w-[760px]",
 };
 
-const LAYERS = { base: "z-50", top: "z-[60]" };
+const LAYERS = { base: "z-50", top: "z-60" };
 
 /**
  * Apoiado no Radix Dialog: ele entrega focus trap, devolução do foco ao fechar,
@@ -53,7 +53,7 @@ export function Modal({
 }: ModalProps) {
   const close = (
     <Dialog.Close
-      className="shrink-0 rounded p-1 text-text-subtle hover:bg-bg hover:text-text"
+      className="shrink-0 rounded-sm p-1 text-text-subtle hover:bg-bg hover:text-text"
       aria-label="Fechar"
     >
       <X size={16} />
@@ -70,7 +70,7 @@ export function Modal({
           className={cn(
             "fixed left-1/2 top-1/2 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2",
             "max-md:bottom-2.5 max-md:top-auto max-md:w-[calc(100%-1.25rem)] max-md:translate-y-0",
-            "rounded-xl bg-surface shadow-2xl overflow-hidden focus:outline-none",
+            "rounded-xl bg-surface shadow-2xl overflow-hidden focus:outline-hidden",
             LAYERS[layer],
             WIDTHS[width],
             className,

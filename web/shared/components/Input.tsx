@@ -29,7 +29,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           className={cn(
             "flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm",
             "placeholder:text-text-subtle",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red focus-visible:ring-offset-0",
+            "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red focus-visible:ring-offset-0",
             "disabled:cursor-not-allowed disabled:opacity-50",
             error && "border-red focus-visible:ring-red",
             className,

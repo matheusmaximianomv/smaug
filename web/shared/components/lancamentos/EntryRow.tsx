@@ -39,7 +39,7 @@ export function EntryRow({
       className={cn(
         "group mt-[5px] flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-3.5 py-2.5 text-left text-text",
         "transition-[border-color,box-shadow] hover:border-[#d6d0ca] hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
-        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red",
+        "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red",
       )}
     >
       <span className={cn("h-2 w-2 shrink-0 rounded-full", ENTRY_KIND[kind].dotCls)} aria-hidden />

@@ -76,7 +76,7 @@ export function ChoiceCardGroup<T extends string>({
             onKeyDown={onKeyDown(index)}
             className={cn(
               "flex flex-col gap-[5px] rounded-xl border-[1.5px] border-border bg-surface px-4 py-[18px] text-left text-text",
-              "hover:border-red-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red",
+              "hover:border-red-mid focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red",
               checked && SELECTED[tone],
             )}
           >

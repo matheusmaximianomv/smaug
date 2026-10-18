@@ -82,4 +82,23 @@ describe("EntryRow", () => {
 
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  it("desenha o contorno de foco vermelho sólido de 2 px", () => {
+    render(
+      <EntryRow
+        kind="avulsa"
+        title="Farmácia"
+        subtitle={[]}
+        amount={50}
+        tone="expense"
+        onClick={vi.fn()}
+      />,
+    );
+
+    // Com `outline` junto, o `cn()` da v4 o funde em `outline-2`; aqui só cabe o par coerente.
+    expect(screen.getByRole("button", { name: /Farmácia/ })).toHaveClass(
+      "focus-visible:outline-2",
+      "focus-visible:outline-red",
+    );
+  });
 });

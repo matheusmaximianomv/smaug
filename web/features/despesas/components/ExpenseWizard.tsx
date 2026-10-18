@@ -139,7 +139,7 @@ export function ExpenseWizard({
             error={errors.description?.message}
             {...form.register("description")}
           />
-          <div className="flex flex-wrap items-start gap-3 [&>*]:min-w-[200px] [&>*]:flex-1">
+          <div className="flex flex-wrap items-start gap-3 *:min-w-[200px] *:flex-1">
             <MoneyField
               label={AMOUNT_LABEL[values.kind]}
               tone="expense"

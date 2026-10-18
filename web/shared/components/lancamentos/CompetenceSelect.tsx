@@ -60,7 +60,7 @@ export function CompetenceSelect({
         }}
         className={cn(
           "h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red",
+          "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red",
           error && "border-red",
         )}
       >

@@ -12,13 +12,13 @@ describe("Skeleton", () => {
   it("mescla o className recebido com as classes base", () => {
     const { container } = render(<Skeleton className="h-4 w-20" />);
 
-    expect(container.firstChild).toHaveClass("animate-pulse", "rounded", "h-4", "w-20");
+    expect(container.firstChild).toHaveClass("animate-pulse", "rounded-sm", "h-4", "w-20");
   });
 
   it("deixa o className vencer conflitos do Tailwind", () => {
     const { container } = render(<Skeleton className="rounded-full" />);
 
     expect(container.firstChild).toHaveClass("rounded-full");
-    expect(container.firstChild).not.toHaveClass("rounded");
+    expect(container.firstChild).not.toHaveClass("rounded-sm");
   });
 });

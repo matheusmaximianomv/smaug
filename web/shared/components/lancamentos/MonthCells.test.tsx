@@ -54,10 +54,10 @@ describe("MonthCells de linha do tempo", () => {
     expect(reference).toHaveAttribute("aria-current", "date");
     expect(next).not.toHaveAttribute("aria-current");
     expect(within(reference).getByText("Abr/26")).toHaveClass("font-extrabold");
-    // Sem o estilo, `outline-2` sozinho não desenha nada.
     expect(within(reference).getByText("Abr/26").previousElementSibling).toHaveClass(
-      "[outline-style:solid]",
       "outline-2",
+      "outline-offset-2",
+      "outline-text",
     );
     expect(screen.getByText("continua…")).toBeInTheDocument();
   });

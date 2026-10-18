@@ -133,7 +133,7 @@ describe("ConfirmDialog sobre outro modal", () => {
     const { rerender } = render(ui(false));
     rerender(ui(true));
 
-    expect(screen.getByRole("dialog", { name: "Remover despesa?" })).toHaveClass("z-[60]");
+    expect(screen.getByRole("dialog", { name: "Remover despesa?" })).toHaveClass("z-60");
 
     await userEvent.keyboard("{Escape}");
 

@@ -20,7 +20,7 @@ export function ImportPanel() {
     return (
       <div className="mt-5 space-y-4">
         <ImportDropzone onFileSelected={selectFile} disabled={isPreviewing} />
-        <p className="rounded-md border border-border bg-bg px-3 py-2 text-[12.5px] leading-[1.5] text-text-subtle">
+        <p className="rounded-md border border-border bg-bg px-3 py-2 text-[12.5px] leading-normal text-text-subtle">
           Toda importação <strong className="font-bold">cria registros novos</strong>. Nada é
           atualizado, nada se liga ao que já existe — importar o mesmo arquivo duas vezes gera tudo
           em dobro.
@@ -50,7 +50,7 @@ export function ImportPanel() {
             onClick={reset}
             title="Remover"
             aria-label="Remover arquivo"
-            className="rounded p-1 text-text-subtle hover:text-red"
+            className="rounded-sm p-1 text-text-subtle hover:text-red"
           >
             <X size={13} />
           </button>

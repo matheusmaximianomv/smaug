@@ -18,9 +18,9 @@ export function ExpenseBreakdown({ categories }: ExpenseBreakdownProps) {
             <span>{cat.categoryName}</span>
             <span className="font-semibold">{formatCurrency(cat.amount)}</span>
           </div>
-          <div className="h-1 rounded-sm bg-bg overflow-hidden">
+          <div className="h-1 rounded-xs bg-bg overflow-hidden">
             <div
-              className="h-full rounded-sm bg-red transition-all duration-300"
+              className="h-full rounded-xs bg-red transition-all duration-300"
               style={{ width: `${cat.percentage}%` }}
             />
           </div>

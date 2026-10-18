@@ -37,7 +37,7 @@ export function MonthYearSelect({
           value={month}
           onChange={(e) => onMonthChange(Number(e.target.value))}
           aria-label={`${label ?? "Competência"} — mês`}
-          className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
+          className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red"
         >
           {MONTH_NAMES_FULL.map((n, i) => (
             <option key={i} value={i + 1}>
@@ -49,7 +49,7 @@ export function MonthYearSelect({
           value={year}
           onChange={(e) => onYearChange(Number(e.target.value))}
           aria-label={`${label ?? "Competência"} — ano`}
-          className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red"
+          className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red"
         >
           {years.map((y) => (
             <option key={y} value={y}>

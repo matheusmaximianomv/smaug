@@ -40,7 +40,7 @@ export const MoneyField = forwardRef<HTMLInputElement, MoneyFieldProps>(
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errorId : undefined}
             className={cn(
-              "w-full bg-transparent text-lg font-bold tabular-nums outline-none",
+              "w-full bg-transparent text-lg font-bold tabular-nums outline-hidden placeholder:text-text-subtle",
               TONE_TEXT[tone],
             )}
             {...props}

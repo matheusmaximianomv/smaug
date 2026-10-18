@@ -79,15 +79,15 @@ export function SemesterChart({
       </div>
       <div className="mt-3 flex gap-3.5 text-xs text-text-muted">
         <span>
-          <span className="mr-1 inline-block h-2 w-2 rounded-sm bg-green align-middle" />
+          <span className="mr-1 inline-block h-2 w-2 rounded-xs bg-green align-middle" />
           Receitas
         </span>
         <span>
-          <span className="mr-1 inline-block h-2 w-2 rounded-sm bg-red align-middle" />
+          <span className="mr-1 inline-block h-2 w-2 rounded-xs bg-red align-middle" />
           Despesas
         </span>
         <span>
-          <span className="mr-1 inline-block h-2 w-2 rounded-sm border border-gray-400 bg-gray-300 opacity-60 align-middle" />
+          <span className="mr-1 inline-block h-2 w-2 rounded-xs border border-gray-400 bg-gray-300 opacity-60 align-middle" />
           Projeção
         </span>
       </div>

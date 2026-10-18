@@ -44,7 +44,7 @@ export function Stepper({ label, value, onChange, min = 1, max = 72, hint, error
           aria-invalid={error ? true : undefined}
           aria-describedby={hint || error ? describedBy : undefined}
           onChange={(event) => onChange(clamp(parseInt(event.target.value, 10) || min))}
-          className="w-14 text-center text-sm font-bold outline-none"
+          className="w-14 text-center text-sm font-bold outline-hidden"
         />
         <button
           type="button"

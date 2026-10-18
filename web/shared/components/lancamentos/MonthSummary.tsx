@@ -35,7 +35,7 @@ export function MonthSummary({ label, total, count, tone, segments }: MonthSumma
         </div>
       </div>
       <div className="flex min-w-[240px] flex-1 flex-col gap-2.5">
-        <div className="flex h-2 gap-0.5 overflow-hidden rounded bg-bg" aria-hidden>
+        <div className="flex h-2 gap-0.5 overflow-hidden rounded-sm bg-bg" aria-hidden>
           {segments
             .filter((segment) => segment.amount > 0)
             .map((segment) => (
@@ -51,7 +51,7 @@ export function MonthSummary({ label, total, count, tone, segments }: MonthSumma
             <li key={segment.kind} className="flex items-center">
               <i
                 className={cn(
-                  "mr-1.5 inline-block h-2 w-2 rounded-sm",
+                  "mr-1.5 inline-block h-2 w-2 rounded-xs",
                   ENTRY_KIND[segment.kind].dotCls,
                 )}
               />
