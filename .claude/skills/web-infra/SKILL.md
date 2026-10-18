@@ -119,7 +119,7 @@ export function clearUserId(): void;
   `` `${COOKIE_NAME}=${encodeURIComponent(userId)};path=/;max-age=${MAX_AGE_SECONDS};SameSite=Lax` ``
 - **Não existe cópia em `localStorage`, e isso é deliberado**: manter dois armazenamentos fez eles
   divergirem — cookie presente com `localStorage` vazio colocava o app num laço infinito
-  `/login` ↔ `/dashboard`. O `middleware.ts` lê **esse mesmo cookie** no servidor.
+  `/login` ↔ `/dashboard`. O `proxy.ts` lê **esse mesmo cookie** no servidor.
 
 ## `infra/navigation.ts` — seam de teste
 

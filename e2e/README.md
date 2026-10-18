@@ -26,10 +26,14 @@ npm run test:e2e                      # suíte completa
 npm run test:e2e -- tests/smoke.spec.ts
 npm run test:e2e:ui                   # modo UI
 npm run --prefix e2e test:keep-db     # preserva o .db para depuração
-E2E_WEB_MODE=build npm run test:e2e   # reproduz o CI localmente
+E2E_WEB_MODE=dev npm run test:e2e     # next dev (hot reload); feche o `npm run dev` antes
 npm run e2e:install-browsers          # uma vez por máquina
 npm run --prefix e2e report
 ```
+
+> O modo `dev` exige o `npm run dev` **fechado**: na Next 16 o `next dev` admite uma
+> única instância por diretório e falha com "Another next dev server is already
+> running". O modo `build` (padrão) convive com o dev aberto.
 
 ## Portas
 
@@ -40,13 +44,13 @@ npm run --prefix e2e report
 
 ## Variáveis
 
-| Variável                        | Default                    | Efeito                                   |
-| ------------------------------- | -------------------------- | ---------------------------------------- |
-| `E2E_API_PORT` / `E2E_WEB_PORT` | 3100 / 3101                | portas da stack                          |
-| `E2E_WEB_MODE`                  | `dev` local, `build` em CI | `next dev` vs `next build && next start` |
-| `E2E_TMP_DIR`                   | `e2e/.tmp`                 | onde o SQLite da execução é criado       |
-| `E2E_KEEP_DB`                   | —                          | preserva o banco ao final                |
-| `E2E_ALL_BROWSERS`              | —                          | habilita firefox e webkit                |
+| Variável                        | Default              | Efeito                                   |
+| ------------------------------- | -------------------- | ---------------------------------------- |
+| `E2E_API_PORT` / `E2E_WEB_PORT` | 3100 / 3101          | portas da stack                          |
+| `E2E_WEB_MODE`                  | `build` (local e CI) | `next build && next start` vs `next dev` |
+| `E2E_TMP_DIR`                   | `e2e/.tmp`           | onde o SQLite da execução é criado       |
+| `E2E_KEEP_DB`                   | —                    | preserva o banco ao final                |
+| `E2E_ALL_BROWSERS`              | —                    | habilita firefox e webkit                |
 
 ## Regras ao escrever specs
 

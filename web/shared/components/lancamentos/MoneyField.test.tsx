@@ -15,6 +15,12 @@ describe("MoneyField", () => {
     expect(screen.getByText("R$")).toBeInTheDocument();
   });
 
+  it("dá cor própria ao placeholder, sem herdar o tom do valor", () => {
+    render(<MoneyField label="Valor" tone="expense" />);
+
+    expect(screen.getByPlaceholderText("0,00")).toHaveClass("placeholder:text-text-subtle");
+  });
+
   it("liga a mensagem de erro ao campo", () => {
     render(<MoneyField label="Valor" tone="revenue" error="Valor inválido" />);
     const input = screen.getByLabelText(/Valor/);

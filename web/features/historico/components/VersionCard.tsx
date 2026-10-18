@@ -12,7 +12,7 @@ export function VersionCard({ entry }: VersionCardProps) {
   return (
     <div className="flex items-start gap-3 py-3 border-b border-border last:border-0">
       <div
-        className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${isRevenue ? "bg-green-light text-green" : "bg-[#f5f0ff] text-[#6841c7]"}`}
+        className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${isRevenue ? "bg-green-light text-green" : "bg-tipo-recorrente-light text-tipo-recorrente"}`}
       >
         {isRevenue ? <TrendingUp size={13} /> : <RotateCcw size={13} />}
       </div>
@@ -27,7 +27,7 @@ export function VersionCard({ entry }: VersionCardProps) {
             </span>
           )}
           {!isRevenue && entry.categoryName && (
-            <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#f5f0ff] text-[#6841c7]">
+            <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-tipo-recorrente-light text-tipo-recorrente">
               {entry.categoryName}
             </span>
           )}

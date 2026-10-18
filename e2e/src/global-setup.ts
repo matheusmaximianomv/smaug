@@ -72,7 +72,7 @@ export default async function globalSetup(): Promise<void> {
       await web.get(route).catch(() => undefined);
     }
     for (const route of APP_ROUTES) {
-      // Cookie para passar pelo middleware e realmente compilar a rota.
+      // Cookie para passar pelo proxy e realmente compilar a rota.
       await web
         .get(route, { headers: { Cookie: `userId=${probeUser.id}` } })
         .catch(() => undefined);

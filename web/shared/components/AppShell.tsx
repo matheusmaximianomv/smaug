@@ -39,7 +39,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-border bg-surface px-4">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="rounded p-1.5 text-text"
+              className="rounded-sm p-1.5 text-text"
               aria-label="Abrir menu"
             >
               <Menu size={20} />

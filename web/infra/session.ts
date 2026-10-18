@@ -1,7 +1,7 @@
 /**
  * Sessão do usuário, com o cookie como **fonte única de verdade**.
  *
- * O middleware (`web/middleware.ts`) lê esse mesmo cookie no servidor para liberar
+ * O proxy (`web/proxy.ts`) lê esse mesmo cookie no servidor para liberar
  * as rotas de `(app)`. Manter uma segunda cópia em `localStorage` permitia que as
  * duas divergissem — cookie presente e `localStorage` vazio deixava o app em um
  * laço infinito entre `/login` e `/dashboard`.

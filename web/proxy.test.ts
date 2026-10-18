@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { config, middleware } from "./middleware";
+import { config, proxy } from "./proxy";
 
 const ORIGIN = "http://localhost:3001";
 const UUID = "00000000-0000-4000-8000-000000000001";
@@ -32,58 +32,58 @@ describe("rotas privadas", () => {
   it.each(["/dashboard", "/receitas", "/despesas", "/categorias", "/historico"])(
     "redireciona %s para /login sem cookie de sessão",
     (path) => {
-      expectRedirectTo(middleware(request(path)), "/login");
+      expectRedirectTo(proxy(request(path)), "/login");
     },
   );
 
   it("deixa passar quando há cookie de sessão", () => {
-    expectNext(middleware(request("/dashboard", UUID)));
+    expectNext(proxy(request("/dashboard", UUID)));
   });
 
   it("redireciona a raiz para /login sem cookie", () => {
-    expectRedirectTo(middleware(request("/")), "/login");
+    expectRedirectTo(proxy(request("/")), "/login");
   });
 
   it("deixa a raiz passar com cookie", () => {
-    expectNext(middleware(request("/", UUID)));
+    expectNext(proxy(request("/", UUID)));
   });
 });
 
 describe("rotas públicas", () => {
   it("deixa /login passar sem cookie", () => {
-    expectNext(middleware(request("/login")));
+    expectNext(proxy(request("/login")));
   });
 
   it("deixa /cadastro passar sem cookie", () => {
-    expectNext(middleware(request("/cadastro")));
+    expectNext(proxy(request("/cadastro")));
   });
 
   it("redireciona /login para /dashboard quando já há sessão", () => {
-    expectRedirectTo(middleware(request("/login", UUID)), "/dashboard");
+    expectRedirectTo(proxy(request("/login", UUID)), "/dashboard");
   });
 
   it("redireciona /cadastro para /dashboard quando já há sessão", () => {
-    expectRedirectTo(middleware(request("/cadastro", UUID)), "/dashboard");
+    expectRedirectTo(proxy(request("/cadastro", UUID)), "/dashboard");
   });
 
   it("trata subrotas de /login como públicas", () => {
-    expectNext(middleware(request("/login/algo")));
+    expectNext(proxy(request("/login/algo")));
   });
 
   it("trata subrotas de /cadastro como públicas", () => {
-    expectNext(middleware(request("/cadastro/confirmacao")));
+    expectNext(proxy(request("/cadastro/confirmacao")));
   });
 
   it("NÃO trata /loginfake como pública: redireciona para /login", () => {
-    expectRedirectTo(middleware(request("/loginfake")), "/login");
+    expectRedirectTo(proxy(request("/loginfake")), "/login");
   });
 
   it("NÃO trata /cadastrofake como pública: redireciona para /login", () => {
-    expectRedirectTo(middleware(request("/cadastrofake")), "/login");
+    expectRedirectTo(proxy(request("/cadastrofake")), "/login");
   });
 
   it("ignora cookie de sessão vazio numa rota pública", () => {
-    expectNext(middleware(request("/login", "")));
+    expectNext(proxy(request("/login", "")));
   });
 });
 

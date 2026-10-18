@@ -1,14 +1,38 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-bg text-text font-sans;
-  }
+@theme {
+  --color-red: #c0292a;
+  --color-red-light: #fdf1f1;
+  --color-red-mid: #e8a0a0;
+
+  --color-bg: #faf9f8;
+  --color-surface: #ffffff;
+  --color-border: #e8e5e2;
+
+  --color-text: #1a1614;
+  --color-text-muted: #6b6460;
+  --color-text-subtle: #a09c98;
+
+  --color-green: #1a7a4a;
+  --color-green-light: #f0faf5;
+
+  /* Identidade por tipo de lançamento (PRD 6.1): cor do ponto/legenda e fundo do selo. */
+  --color-tipo-avulsa: #3b5bdb;
+  --color-tipo-avulsa-light: #f0f4ff;
+
+  --color-tipo-parcelada: #c2660a;
+  --color-tipo-parcelada-light: #fff7ed;
+
+  --color-tipo-recorrente: #6841c7;
+  --color-tipo-recorrente-light: #f5f0ff;
+
+  --color-tipo-fixa: #2d7a4a;
+  --color-tipo-fixa-light: #f0fdf4;
+
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+
+  --width-nav: 236px;
 }
 
 /*
@@ -18,15 +42,41 @@
  * legível do Tailwind. A cor de fundo vem por `backgroundColor` inline, que não
  * sobrescreve o `background-image` destas classes.
  */
-@layer utilities {
-  .bg-stripes {
-    background-image: repeating-linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.4) 0 4px,
-      transparent 4px 8px
-    );
+@utility bg-stripes {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.4) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+@utility bg-hatch {
+  background-image: repeating-linear-gradient(135deg, #e9e3dd 0 4px, #f8f6f4 4px 8px);
+}
+
+@layer base {
+  * {
+    @apply border-border;
   }
-  .bg-hatch {
-    background-image: repeating-linear-gradient(135deg, #e9e3dd 0 4px, #f8f6f4 4px 8px);
+  body {
+    @apply bg-bg text-text font-sans;
+  }
+  /*
+   * A v4 devolveu ao `<button>` o cursor padrão do navegador; a maioria dos
+   * botões crus do app não declara `cursor-pointer`, então a mão volta aqui.
+   */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  /*
+   * Controles crus (links da navegação, setas do mês, "Fechar") não declaram foco
+   * próprio e ficavam com o anel padrão do navegador, fora da cor do produto. Quem
+   * declara (`focus-visible:outline-hidden` + `ring-red`, o contorno das linhas)
+   * vence esta base, que está numa camada abaixo das utilidades.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-red);
+    outline-offset: 2px;
   }
 }

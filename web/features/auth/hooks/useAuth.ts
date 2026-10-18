@@ -21,6 +21,9 @@ export function useAuth() {
     const userId = getUserId();
 
     if (!userId) {
+      // O cookie de sessão só é legível no browser, depois da hidratação; o primeiro render
+      // precisa sair com `isLoading: true` para casar com o HTML do servidor.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       return;
     }

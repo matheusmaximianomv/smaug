@@ -217,17 +217,20 @@ Modais com `footer` (Fichas, `WizardShell`) passam os botões pelo slot `footer`
 - **Só tokens do tema**, nunca hex cru: `bg-surface`, `bg-bg`, `border-border`, `text-text`,
   `text-text-muted`, `text-text-subtle`, `text-red`, `bg-red-light`, `border-red-mid`, `text-green`,
   `bg-green-light`, `w-nav`, e as cores por tipo de lançamento `tipo.{avulsa,parcelada,recorrente,fixa}`
-  (com `.light`). Definidos em `web/tailwind.config.ts`. Cor/ícone/rótulo de cada tipo vêm de
+  (com `.light`). Definidos no bloco `@theme` de `web/app/globals.css` (Tailwind 4, CSS-first, sem arquivo
+  de config JS); token novo entra ali como `--color-*`. Cor/ícone/rótulo de cada tipo vêm de
   `ENTRY_KIND` em `@/shared/lib/entry-types` — não repita o mapa numa feature.
 - Utilitários `bg-stripes` (prévia de nova versão) e `bg-hatch` (meses que deixam de existir) estão
-  em `app/globals.css`.
+  em `app/globals.css` como `@utility`.
 - **Tamanhos de fonte arbitrários são intencionais** e fazem parte do design:
   `text-[11px]`, `text-[11.5px]`, `text-[13px]`, `text-[13.5px]`, `text-[14.5px]`, `text-[18px]`,
   `text-[22px]`.
 - Superfície de card: `rounded-lg border border-border bg-surface p-4|p-5`.
 - Título de seção: `text-[13px] font-bold uppercase tracking-wide text-text-muted`.
 - Ritmo vertical: `space-y-4` em formulário, `space-y-6` em página, `gap-2.5` em lista de cards.
-- Foco: `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red`.
+- Foco: `focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red` — sempre com a cor
+  explícita: na v4 o anel herda `currentColor`. Contorno é `outline-2` sozinho (já é sólido); não
+  acrescente `outline` junto, que o `cn()` funde no mesmo grupo.
 - **`cn()` sempre que a classe for condicional** ou o componente aceitar `className`; string literal
   simples caso contrário. Condicional: `cn(base, cond && "classes")`.
 - Ícones de `lucide-react`, sempre com `size` numérico explícito (12/14/16/18/20/40) e

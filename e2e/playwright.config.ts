@@ -17,7 +17,10 @@ const WEB_URL = `http://localhost:${WEB_PORT}`;
 const DATABASE_URL =
   process.env.E2E_DATABASE_URL ?? `file:${path.join(E2E_DIR, ".tmp", "smaug-e2e-local.db")}`;
 
-const WEB_MODE = process.env.E2E_WEB_MODE ?? (process.env.CI ? "build" : "dev");
+// Na Next 16 o `next dev` admite uma única instância por diretório (lock em
+// `.next/dev`): com o `npm run dev` do usuário aberto, o modo dev falharia.
+// `build` convive com ele e é o mesmo artefato que o CI exercita.
+const WEB_MODE = process.env.E2E_WEB_MODE ?? "build";
 
 // As seis variáveis são explícitas porque server/.env É lido (dotenv não
 // sobrescreve o que já está no process.env, mas ausência aqui viraria o valor

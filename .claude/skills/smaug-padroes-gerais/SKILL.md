@@ -42,7 +42,7 @@ compartilhado. São **quatro lockfiles**.
 npm run install:all      # obrigatório uma vez: raiz + server + web + e2e
 npm run dev              # server (3000) + web (3001)
 npm run test             # server e depois web
-npm run lint             # eslint (server) + next lint (web)
+npm run lint             # eslint (server) + eslint 9 flat config (web)
 npm run format           # prettier em todo o repo
 npm run validate:deps    # regras de arquitetura — SÓ da raiz
 npm run test:e2e         # Playwright, com SQLite exclusivo do run
@@ -50,10 +50,13 @@ npm run test:e2e         # Playwright, com SQLite exclusivo do run
 
 - `npm run --prefix server validate:deps` está **quebrado** (aponta para um `.dependency-cruiser.cjs`
   inexistente). Use sempre o script da raiz.
-- Instalar dependência em `web/` exige `--legacy-peer-deps` (React 19 RC) — já fixado em `web/.npmrc`.
+- `web/` instala estrito (`npm ci`/`npm install` sem flags), como os demais pacotes; com o React 19
+  estável não há mais `.npmrc` nem flag de peers.
 - Prisma sempre pelos scripts do server (`prisma:generate`, `migrate:deploy`, `migrate:new`,
   `prisma -- <args>`): eles escolhem `prisma/<provider>/` pela `DATABASE_PROVIDER` (ambiente, depois
-  `server/.env`) e nunca alteram arquivo versionado. Mudança de schema = editar
+  `server/.env`), gravam o schema derivado e passam `--config prisma/prisma.config.ts` (a config do
+  Prisma 7, ao lado dos schemas derivados, que aponta schema, migrations e URLs do provider) — e nunca
+  alteram arquivo versionado. `npx prisma` direto não acha a config e falha. Mudança de schema = editar
   `server/prisma/schema.prisma` + `migrate:new`, que cria a migration em SQLite **e** PostgreSQL.
 
 ## Política de idioma
@@ -87,9 +90,11 @@ Prettier é a única lei de estilo (`.prettierrc`, sem override por pacote):
 ```
 
 O `eslint.config.js` da raiz (aplica a `server/` e `e2e/`) tem `rules: {}` — só
-`js.configs.recommended` + `tseslint.configs.recommended`. O `web/` usa `next lint` com
-`next/core-web-vitals` + `next/typescript`, também sem regra própria, exceto liberar
-`no-explicit-any` e `no-non-null-assertion` **em arquivos de teste** (`web/.eslintrc.json`).
+`js.configs.recommended` + `tseslint.configs.recommended`. O `web/` usa ESLint 9 com
+configuração flat (`web/eslint.config.mjs`, script `eslint .`): `eslint-config-next/core-web-vitals`
+
+- `eslint-config-next/typescript`, também sem regra própria, exceto liberar
+  `no-explicit-any` e `no-non-null-assertion` **em arquivos de teste** (override no mesmo arquivo).
 
 Consequência prática: `any` e `!` são proibidos em código de produção do `web/` e permitidos em
 teste. No `server/`, `req.userId!` é a exceção deliberada (ver `server-http`).

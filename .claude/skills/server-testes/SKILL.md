@@ -222,27 +222,22 @@ encadeáveis) e `createRequestMock(overrides)` (defaults `params/query/body/head
 Boilerplate a copiar:
 
 ```ts
-const TEST_DB_URL = "file:./test-installment-expense.db";
+import type { PrismaClient } from "@prisma/client";
+import { sqliteTestDatabase } from "../../helpers/sqlite-test-database";
+
+const testDb = sqliteTestDatabase("installment-expense"); // prisma/sqlite/test-installment-expense.db
 
 beforeAll(async () => {
   vi.resetModules();
 
   process.env.DATABASE_PROVIDER = "sqlite";
-  process.env.DATABASE_URL = TEST_DB_URL;
+  process.env.DATABASE_URL = testDb.url;
   process.env.NODE_ENV = "test";
   process.env.PORT = "3000";
   process.env.LOG_LEVEL = "error";
 
-  prisma = new PrismaClient({ datasources: { db: { url: TEST_DB_URL } } });
-
-  const { execSync } = await import("child_process");
-  execSync(
-    `DATABASE_URL=${TEST_DB_URL} npx prisma db push --schema prisma/sqlite/schema.prisma --force-reset --skip-generate`,
-    {
-      cwd: process.cwd(),
-      stdio: "pipe",
-    },
-  );
+  testDb.push();
+  prisma = testDb.client();
 
   const { createHttpServer } = await import("@src/infrastructure/http/server");
   app = createHttpServer();
@@ -252,16 +247,20 @@ beforeAll(async () => {
 });
 ```
 
-Ordem obrigatória: `vi.resetModules()` → env → `prisma db push` → **`await import()` dinâmico** do
+`sqliteTestDatabase(name)` (`tests/helpers/sqlite-test-database.ts`) devolve `url` (absoluta: CLI,
+client do teste e app abrem o mesmo arquivo), `push()` (apaga o arquivo e roda `db push` pelo wrapper
+— sem flag de reset, que o CLI do Prisma 7 recusa quando há um agente de IA no ambiente), `client()`
+(`PrismaClient` com o mesmo driver adapter da aplicação) e `remove()` (o arquivo e os
+`-journal`/`-wal`/`-shm`). O `client()` vem **depois** do `push()`, que apaga o arquivo.
+
+Ordem obrigatória: `vi.resetModules()` → env → `testDb.push()` → **`await import()` dinâmico** do
 app (import estático avaliaria o container contra o ambiente de dev) → seed **por HTTP**, nunca via
 Prisma.
 
 ```ts
 afterAll(async () => {
   await prisma.$disconnect();
-  const { unlinkSync, existsSync } = await import("fs");
-  const dbPath = TEST_DB_URL.replace("file:", "").replace("./", "prisma/sqlite/");
-  if (existsSync(dbPath)) unlinkSync(dbPath);
+  testDb.remove();
 });
 
 beforeEach(async () => {
@@ -285,7 +284,8 @@ de erro. Estado dependente de tempo usa `vi.useFakeTimers()` + `vi.setSystemTime
 `it`**; linha em competência passada é inserida direto pelo Prisma (contornando a guarda da API),
 com `id` explícito e legível (`"installment-no-future-1"`).
 
-Pré-requisito: um client do Prisma já gerado. Esses runs deixam arquivos `.db` em `server/`.
+Pré-requisito: um client do Prisma já gerado (SQLite). Os arquivos `.db` ficam em
+`server/prisma/sqlite/` e são apagados no `afterAll`.
 
 ## Checklist
 

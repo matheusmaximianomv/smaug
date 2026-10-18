@@ -79,6 +79,19 @@ describe("Button", () => {
     expect(screen.getByRole("button")).toHaveClass(expected);
   });
 
+  it.each(["default", "outline", "ghost", "danger"] as const)(
+    'desenha o anel de foco vermelho na variante "%s"',
+    (variant) => {
+      // Na v4 o anel herda `currentColor`: sem cor própria, some no texto branco da `danger`.
+      render(<Button variant={variant}>Salvar</Button>);
+
+      expect(screen.getByRole("button")).toHaveClass(
+        "focus-visible:ring-2",
+        "focus-visible:ring-red",
+      );
+    },
+  );
+
   it.each([
     ["sm", "h-8"],
     ["md", "h-10"],

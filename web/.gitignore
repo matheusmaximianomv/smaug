@@ -24,6 +24,10 @@
 .DS_Store
 *.pem
 
+# gerado pelo `next dev` (16.2+) para agentes de IA, atrelado à versão instalada;
+# a fonte de verdade para agentes neste repo é CLAUDE.md + .claude/skills/
+/AGENTS.md
+
 # debug
 npm-debug.log*
 yarn-debug.log*

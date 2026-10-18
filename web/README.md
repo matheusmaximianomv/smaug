@@ -1,6 +1,6 @@
 # Smaug — Web
 
-Frontend em **Next.js 15 (App Router)** e React 19 RC. Consome a API REST de
+Frontend em **Next.js 16 (App Router)** e React 19. Consome a API REST de
 `server/`; não há rotas de API aqui (`app/api/` não existe).
 
 Rode os comandos a partir desta pasta ou com `--prefix web` da raiz.
@@ -11,7 +11,7 @@ Rode os comandos a partir desta pasta ou com `--prefix web` da raiz.
 npm run dev                 # next dev -p 3001
 npm run build               # next build
 npm run start               # next start -p 3001
-npm run lint                # next lint
+npm run lint                # eslint . (ESLint 9, config flat em eslint.config.mjs)
 npm run typecheck           # tsc --noEmit
 
 npm test                    # vitest run (uma passada)
@@ -34,10 +34,9 @@ cp .env.example .env.local
 > ⚠️ O Next **inlina** a variável em tempo de build. Um `next build` feito com o
 > valor errado não se corrige em runtime — é preciso rebuildar.
 
-> ⚠️ **Instale sempre com `--legacy-peer-deps`.** O React está fixado num
-> prerelease (`19.0.0-rc-…`) e `^19.0.0` não casa com prerelease no semver do
-> npm; sem a flag o npm instala uma árvore sem os peers e o `vitest.setup.ts`
-> quebra por falta de `@testing-library/dom`. Já está fixado em `.npmrc`.
+> A instalação é estrita (`npm ci`, sem flags): com o React 19 estável todos os
+> peers casam. Não reintroduza flag que relaxe os peers — ela escondia uma árvore
+> sem peers que já quebrou o `vitest.setup.ts` por falta de `@testing-library/dom`.
 
 ## Estrutura
 
@@ -52,7 +51,7 @@ shared/         components/ (Button, Modal, Toast, MonthNavigator, lancamentos/,
                 hooks/ (useToast, useDebounce, useMediaQuery)  lib/  types/
 infra/          api-client, api-error, session, navigation, router-adapter, query-client
 tests/          harness do Vitest — MSW, fixtures, renderWithProviders
-middleware.ts   guarda de rotas server-side
+proxy.ts        guarda de rotas server-side (o antigo middleware da Next 15)
 ```
 
 A fonte é **Plus Jakarta Sans**, carregada por `<link>` no `app/layout.tsx`.
@@ -90,7 +89,7 @@ estado, efeitos ou APIs de browser.
 Não há senha nem JWT: a API identifica o usuário pelo header `X-User-Id`.
 
 O **cookie `userId` é a fonte única de verdade**, lido por `infra/session.ts`
-(`getUserId` / `setUserId` / `clearUserId`) e pelo `middleware.ts` no servidor,
+(`getUserId` / `setUserId` / `clearUserId`) e pelo `proxy.ts` no servidor,
 que protege `(app)` e devolve quem já está autenticado para fora de `(auth)`.
 
 > Não reintroduza uma cópia em `localStorage`. Manter dois stores permitia que
@@ -139,7 +138,7 @@ interceptors reais do axios sejam exercitados.
   handlers do MSW).
 
 A cobertura tem **catraca por glob** no `vitest.config.ts`: 100% nas quatro
-métricas em `shared/lib`, `infra`, `middleware.ts`, `shared/hooks`,
+métricas em `shared/lib`, `infra`, `proxy.ts`, `shared/hooks`,
 `shared/components`, `features/*/services`, `features/*/hooks` e
 `features/*/components`. `app/**` tem um piso menor de branches, documentado no
 próprio arquivo.

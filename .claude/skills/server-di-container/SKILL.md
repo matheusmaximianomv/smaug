@@ -30,7 +30,9 @@ import "reflect-metadata";
 import { container } from "tsyringe";
 // ~70 imports agrupados por fatia: repositório → porta → use cases → service → controller
 
-const prismaClient = new PrismaClient();
+// O singleton de infrastructure/database/config.ts, que monta o driver adapter do provider
+// (o Prisma 7 não constrói client sem adapter).
+const prismaClient = getPrismaClient();
 
 container.registerInstance<PrismaClient>("PrismaClient", prismaClient);
 container.registerSingleton<Logger>("Logger", PinoLogger);
@@ -131,9 +133,10 @@ container.registerInstance<OneTimeRevenueController>(
   `container.resolve<Logger>("Logger")`, nos dois middlewares de log/erro e no `main.ts`.
 - Não instancie service ou repositório em rota, controller ou teste de integração.
 
-## Inconsistência conhecida
+## Um client só
 
-O `container.ts` cria o próprio `new PrismaClient()`, separado do singleton preguiçoso de
-`infrastructure/database/config.ts` (`getPrismaClient()`), usado por `/health` e pelo
-`database.provider.ts` — na prática **são duas conexões**. Não "conserte" isso de passagem numa
-tarefa de feature; se for unificar, é mudança própria, com teste.
+O `container.ts` não constrói `PrismaClient`: usa `getPrismaClient()` de
+`infrastructure/database/config.ts`, o mesmo singleton preguiçoso do `/health` e do
+`database.provider.ts`. É ali que mora a escolha do driver adapter
+(`infrastructure/database/prisma-adapter.ts`). Não construa um `PrismaClient` próprio no container nem em
+repositório — no Prisma 7, sem `adapter`, ele nem constrói.

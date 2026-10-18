@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
+import { CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useToastState } from "../hooks/useToast";
 
@@ -29,14 +29,15 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2">
+    <div className="fixed bottom-4 right-4 z-100 flex flex-col gap-2">
       {toasts.map((t) => {
         const Icon = ICONS[t.type];
         return (
           <div
             key={t.id}
             className={cn(
-              "flex items-start gap-3 rounded-lg border px-4 py-3 shadow-lg w-80 animate-in slide-in-from-bottom-2",
+              "flex items-start gap-3 rounded-lg border px-4 py-3 shadow-lg w-80",
+              "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2",
               COLORS[t.type],
             )}
           >

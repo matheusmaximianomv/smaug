@@ -9,6 +9,11 @@ export function useMediaQuery(query: string): boolean {
     const media = window.matchMedia(query);
 
     if (media.matches !== matches) {
+      // `matchMedia` só existe no browser: o estado nasce `false` para casar com o HTML do
+      // servidor e é corrigido aqui, depois da hidratação. Ler no `useState` causaria
+      // mismatch de hidratação. Reescrever com `useSyncExternalStore` está registrado como
+      // follow-up (derrubava a cobertura de shared/hooks abaixo de 100%).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMatches(media.matches);
     }
 

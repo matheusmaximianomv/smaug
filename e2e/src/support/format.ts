@@ -2,7 +2,7 @@ import { MONTH_NAMES_FULL, MONTH_NAMES_SHORT } from "./month-names.js";
 import type { Competence } from "./competence.js";
 
 /**
- * Mesma formatação de `web/shared/lib/formatCurrency.ts`. O Node 22 tem ICU
+ * Mesma formatação de `web/shared/lib/formatCurrency.ts`. O Node 24 tem ICU
  * completo, então a string sai idêntica à do browser — inclusive o NBSP (U+00A0)
  * entre "R$" e o número.
  */

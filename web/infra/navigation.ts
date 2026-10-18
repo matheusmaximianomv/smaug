@@ -13,5 +13,7 @@
 export function redirectToLogin(): void {
   if (typeof window === "undefined") return;
   if (window.location.pathname === "/login") return;
+  // A troca de documento é proposital: descarta o cache do React Query da sessão encerrada.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.href = "/login";
 }

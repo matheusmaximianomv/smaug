@@ -1,5 +1,6 @@
 "use client";
 
+import { createContext, useContext, useRef } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "../lib/utils";
@@ -27,7 +28,53 @@ const WIDTHS = {
   "2xl": "max-w-[760px]",
 };
 
-const LAYERS = { base: "z-50", top: "z-[60]" };
+const LAYERS = { base: "z-50", top: "z-60" };
+
+/*
+ * Utilidades da `tw-animate-css`, sempre sob `motion-safe:`: com movimento
+ * reduzido não sobra `animation-name`, e o Presence do Radix desmonta na hora
+ * em vez de esperar o `animationend`. O `data-state` só muda na camada que está
+ * abrindo/fechando, então a Ficha não reanima quando a confirmação sobre ela fecha.
+ */
+const OVERLAY_MOTION = cn(
+  "motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in",
+  "motion-safe:data-[state=closed]:animate-out motion-safe:data-[state=closed]:fade-out",
+);
+
+/** Diálogo centrado amplia/reduz; a folha inferior do celular sobe e desce da base. */
+const PANEL_MOTION = cn(
+  "motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in",
+  "motion-safe:data-[state=open]:md:zoom-in-95 motion-safe:data-[state=open]:max-md:slide-in-from-bottom-4",
+  "motion-safe:data-[state=closed]:animate-out motion-safe:data-[state=closed]:fade-out",
+  "motion-safe:data-[state=closed]:md:zoom-out-95 motion-safe:data-[state=closed]:max-md:slide-out-to-bottom-4",
+);
+
+interface Gate {
+  isOpen: boolean;
+  origin: HTMLElement | null;
+}
+
+const GateContext = createContext<Gate | null>(null);
+
+interface ModalGateProps extends Gate {
+  children: React.ReactNode;
+}
+
+/**
+ * Deixa a tela fechar os modais de dentro sem desmontá-los. Receitas e Despesas
+ * montavam a Ficha e o assistente só enquanto abertos: fechar os desmontava na
+ * hora, sem animação de saída. Com o portão, quem desenha o modal segue montado
+ * com `isOpen` fixo e a tela só baixa o portão; o Radix anima a saída e desmonta
+ * o conteúdo sozinho.
+ *
+ * `origin` é quem tinha o foco quando a tela abriu a camada (a linha do extrato).
+ * A Ficha de série troca de `Modal` com a camada aberta (placeholder de
+ * carregamento → Ficha), e o segundo já nasce com o foco no <body>: sem a origem
+ * da camada, não haveria para onde devolver o foco ao fechar.
+ */
+export function ModalGate({ isOpen, origin, children }: ModalGateProps) {
+  return <GateContext.Provider value={{ isOpen, origin }}>{children}</GateContext.Provider>;
+}
 
 /**
  * Apoiado no Radix Dialog: ele entrega focus trap, devolução do foco ao fechar,
@@ -51,9 +98,12 @@ export function Modal({
   layer = "base",
   className,
 }: ModalProps) {
+  const gate = useContext(GateContext);
+  const isShown = isOpen && (gate?.isOpen ?? true);
+  const origin = useRef<HTMLElement | null>(null);
   const close = (
     <Dialog.Close
-      className="shrink-0 rounded p-1 text-text-subtle hover:bg-bg hover:text-text"
+      className="shrink-0 rounded-sm p-1 text-text-subtle hover:bg-bg hover:text-text"
       aria-label="Fechar"
     >
       <X size={16} />
@@ -61,16 +111,30 @@ export function Modal({
   );
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog.Root open={isShown} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay
-          className={cn("fixed inset-0 bg-black/35 animate-in fade-in", LAYERS[layer])}
+          className={cn("fixed inset-0 bg-black/35", OVERLAY_MOTION, LAYERS[layer])}
         />
         <Dialog.Content
+          // Sem `Dialog.Trigger`, o Radix devolve o foco a um gatilho nulo e ele cai no
+          // <body>. Guardamos quem tinha o foco ao abrir (a linha do extrato, o botão
+          // "Remover" sob a confirmação) e o devolvemos quando a saída termina.
+          onOpenAutoFocus={() => {
+            const active = document.activeElement as HTMLElement | null;
+            origin.current = active === document.body ? null : active;
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            // Desmontado ainda aberto = trocado por outro modal da mesma camada; o foco
+            // fica com o substituto em vez de saltar para a linha e voltar.
+            if (!isShown) (origin.current ?? gate?.origin)?.focus();
+          }}
           className={cn(
             "fixed left-1/2 top-1/2 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2",
             "max-md:bottom-2.5 max-md:top-auto max-md:w-[calc(100%-1.25rem)] max-md:translate-y-0",
-            "rounded-xl bg-surface shadow-2xl overflow-hidden focus:outline-none",
+            "rounded-xl bg-surface shadow-2xl overflow-hidden focus:outline-hidden",
+            PANEL_MOTION,
             LAYERS[layer],
             WIDTHS[width],
             className,

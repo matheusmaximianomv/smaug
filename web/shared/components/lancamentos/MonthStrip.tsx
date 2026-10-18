@@ -22,7 +22,7 @@ export function MonthStrip({ cells, onSelect }: MonthStripProps) {
     <div
       role="group"
       aria-label="Meses do ano"
-      className="grid grid-cols-12 gap-1 max-md:flex max-md:overflow-x-auto max-md:[scrollbar-width:none]"
+      className="grid grid-cols-12 gap-1 max-md:flex max-md:overflow-x-auto max-md:scrollbar-none"
     >
       {cells.map((cell) => (
         <button
@@ -32,7 +32,7 @@ export function MonthStrip({ cells, onSelect }: MonthStripProps) {
           onClick={() => onSelect(cell.month)}
           className={cn(
             "relative flex flex-col items-center rounded-[7px] border border-transparent py-1.5 max-md:min-w-[56px]",
-            "hover:border-border hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red",
+            "hover:border-border hover:bg-surface focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red",
             cell.selected && "border-red bg-surface shadow-[0_0_0_2px] shadow-red-light",
           )}
         >

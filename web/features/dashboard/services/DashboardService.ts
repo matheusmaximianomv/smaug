@@ -40,7 +40,6 @@ async function fetchMonth(year: number, month: number) {
 export const DashboardService = {
   getByMonth: async (year: number, month: number): Promise<DashboardData> => {
     const current = getCurrentCompetence();
-    const { year: currentYear, month: currentMonth } = current;
 
     // Fetch selected month + 6 chart months (centered on today) in parallel
     const chartOffsets = [-3, -2, -1, 0, 1, 2];

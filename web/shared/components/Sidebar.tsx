@@ -70,7 +70,7 @@ export function Sidebar({ className }: SidebarProps) {
         </span>
         <button
           onClick={logout}
-          className="rounded p-1 text-text-subtle hover:text-red"
+          className="rounded-sm p-1 text-text-subtle hover:text-red"
           title="Sair"
           aria-label="Sair"
         >

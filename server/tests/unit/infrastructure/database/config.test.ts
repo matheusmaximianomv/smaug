@@ -13,6 +13,13 @@ const PrismaClientMock = vi.fn(function (this: Record<string, unknown>, options:
 
 vi.mock("@prisma/client", () => ({ PrismaClient: PrismaClientMock }));
 
+const ADAPTER = { adapterName: "fake-adapter" };
+const createPrismaAdapterMock = vi.fn(() => ADAPTER);
+
+vi.mock("@src/infrastructure/database/prisma-adapter.ts", () => ({
+  createPrismaAdapter: createPrismaAdapterMock,
+}));
+
 const originalEnv = { ...process.env };
 
 async function importConfig(provider: string, databaseUrl = "file:./dev.db") {
@@ -48,9 +55,26 @@ describe("database config", () => {
     expect(first).toBe(second);
     expect(PrismaClientMock).toHaveBeenCalledTimes(1);
     // O env.ts já entrega o caminho SQLite absoluto, a partir do diretório corrente.
-    expect(prismaOptions[0]).toEqual({
-      datasources: { db: { url: `file:${process.cwd()}/dev.db` } },
-    });
+    expect(createPrismaAdapterMock).toHaveBeenCalledWith("sqlite", `file:${process.cwd()}/dev.db`);
+    expect(prismaOptions[0]).toEqual({ adapter: ADAPTER });
+  });
+
+  it("should build the PostgreSQL adapter with the configured URL", async () => {
+    const url = "postgresql://user:secret@localhost:5432/smaug";
+    const { getPrismaClient } = await importConfig("postgresql", url);
+
+    getPrismaClient();
+
+    expect(createPrismaAdapterMock).toHaveBeenCalledWith("postgresql", url);
+    expect(prismaOptions[0]).toEqual({ adapter: ADAPTER });
+  });
+
+  it("should treat the memory provider as SQLite when a client is requested", async () => {
+    const { getPrismaClient } = await importConfig("memory");
+
+    getPrismaClient();
+
+    expect(createPrismaAdapterMock).toHaveBeenCalledWith("sqlite", `file:${process.cwd()}/dev.db`);
   });
 
   it("should disconnect and allow a new client afterwards", async () => {

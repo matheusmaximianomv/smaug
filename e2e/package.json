@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Testes end-to-end (Playwright) do Smaug",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24"
   },
   "scripts": {
     "test": "node scripts/run-e2e.mjs",
@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
-    "@types/node": "^22.10.0",
+    "@types/node": "^24",
     "typescript": "^5.9.3"
   }
 }

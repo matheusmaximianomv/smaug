@@ -32,7 +32,7 @@ web/
               cada uma com components/ hooks/ services/ types/
   shared/     components (primitivos) · hooks · lib · types
   infra/      api-client · api-error · session · navigation · router-adapter · query-client
-  middleware.ts
+  proxy.ts    (guarda de rotas; o antigo middleware da Next 15)
   tests/      harness do Vitest + testes de integração de página
 ```
 
@@ -107,9 +107,9 @@ deliberado:
   `<div className="rounded-lg border border-red bg-red-light p-3 text-sm text-red">`.
 - `shared/components/ErrorBoundary.tsx` existe e é testado, mas **não está montado** em nenhum lugar.
 
-## `middleware.ts`
+## `proxy.ts`
 
-Gate de rota server-side, lendo o **mesmo cookie `userId`** que `infra/session.ts` escreve:
+Gate de rota server-side (na Next 16 o antigo `middleware` virou `proxy`; a função exportada é `proxy`), lendo o **mesmo cookie `userId`** que `infra/session.ts` escreve:
 
 ```ts
 const PUBLIC_ROUTES = ["/login", "/cadastro"];
