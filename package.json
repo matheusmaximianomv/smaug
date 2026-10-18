@@ -4,8 +4,8 @@
   "description": "Smaug - Sistema de Gestão Financeira Pessoal",
   "private": true,
   "engines": {
-    "node": ">=22.0.0",
-    "npm": ">=10.0.0"
+    "node": ">=24",
+    "npm": ">=11"
   },
   "scripts": {
     "dev:server": "npm run --prefix server dev",
