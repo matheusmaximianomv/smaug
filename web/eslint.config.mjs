@@ -6,6 +6,8 @@ export default defineConfig([
   ...nextCoreWebVitals,
   ...nextTypescript,
   globalIgnores(["coverage/**"]),
+  // Absoluto: o lint-staged chama o ESLint a partir da raiz do repo, onde não há pages/.
+  { settings: { next: { rootDir: import.meta.dirname } } },
   {
     files: ["**/*.test.ts", "**/*.test.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.setup.ts"],
     rules: {
