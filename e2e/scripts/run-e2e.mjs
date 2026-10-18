@@ -46,7 +46,10 @@ const DB_URL = `file:${DB_FILE}`;
 const API_PORT = process.env.E2E_API_PORT ?? "3100";
 const WEB_PORT = process.env.E2E_WEB_PORT ?? "3101";
 const API_URL = `http://localhost:${API_PORT}`;
-const WEB_MODE = process.env.E2E_WEB_MODE ?? (process.env.CI ? "build" : "dev");
+// Na Next 16 o `next dev` admite uma única instância por diretório (lock em
+// `.next/dev`): com o `npm run dev` do usuário aberto, o modo dev falharia.
+// `build` convive com ele e é o mesmo artefato que o CI exercita.
+const WEB_MODE = process.env.E2E_WEB_MODE ?? "build";
 
 const SIBLINGS = ["", "-journal", "-wal", "-shm"];
 const die = (msg) => {
