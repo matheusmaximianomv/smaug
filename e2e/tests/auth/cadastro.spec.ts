@@ -1,71 +1,115 @@
 import { randomUUID } from "node:crypto";
+import type { Page } from "@playwright/test";
 import { expect, test } from "../../src/fixtures/test.js";
-import { goto, waitForHydration } from "../../src/support/ui.js";
+import { goto } from "../../src/support/ui.js";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+/** Preenche o cadastro; `Senha` exige `exact` porque "Confirmar senha" também casaria. */
+async function preencherCadastro(
+  page: Page,
+  dados: { name: string; email: string; password: string; confirmation?: string },
+): Promise<void> {
+  await page.getByLabel("Nome").fill(dados.name);
+  await page.getByLabel("E-mail").fill(dados.email);
+  await page.getByLabel("Senha", { exact: true }).fill(dados.password);
+  await page.getByLabel("Confirmar senha").fill(dados.confirmation ?? dados.password);
+}
+
+/** Registra as chamadas de cadastro que saem do navegador (pelo repasse `/api`). */
+function chamadasDeCadastro(page: Page): string[] {
+  const urls: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/auth/register")) urls.push(request.url());
+  });
+  return urls;
+}
 
 test.describe("cadastro", () => {
   test.use({ authenticate: false });
 
-  test("cria a conta e exibe o ID gerado", async ({ page }) => {
+  test("cria a conta e cai no dashboard já logado, sem ver o próprio ID", async ({ page }) => {
     await goto(page, "/cadastro");
 
-    await page.getByLabel("Nome").fill("Bilbo Bolseiro");
-    await page.getByLabel("Email").fill(`e2e-${randomUUID()}@e2e.local`);
+    await preencherCadastro(page, {
+      name: "Bilbo Bolseiro",
+      email: `e2e-${randomUUID()}@e2e.local`,
+      password: "um-anel-para-todos",
+    });
     await page.getByRole("button", { name: "Criar Conta" }).click();
 
-    await expect(page.getByText("Cadastro realizado com sucesso!")).toBeVisible();
-
-    const idField = page.getByRole("textbox");
-    await expect(idField).toHaveAttribute("readonly", "");
-    expect(await idField.inputValue()).toMatch(UUID_RE);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByText("Bilbo Bolseiro", { exact: true })).toBeVisible();
+    await expect(page.locator("body")).not.toContainText(UUID_RE);
   });
 
-  test("o ID recém-criado autentica no login", async ({ page }) => {
+  test("a conta recém-criada entra pelo login com e-mail e senha", async ({ page }) => {
+    const email = `e2e-${randomUUID()}@e2e.local`;
     await goto(page, "/cadastro");
-    await page.getByLabel("Nome").fill("Frodo Bolseiro");
-    await page.getByLabel("Email").fill(`e2e-${randomUUID()}@e2e.local`);
+    await preencherCadastro(page, {
+      name: "Frodo Bolseiro",
+      email,
+      password: "o-condado-e-longe",
+    });
     await page.getByRole("button", { name: "Criar Conta" }).click();
-    await expect(page.getByText("Cadastro realizado com sucesso!")).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard$/);
 
-    const novoId = await page.getByRole("textbox").inputValue();
-
-    // Navegação dura (window.location.href): o documento é outro e precisa
-    // hidratar de novo antes de o submit ser interceptado pelo React.
-    await page.getByRole("button", { name: "Ir para Login" }).click();
+    await page.getByRole("button", { name: "Sair", exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
-    await waitForHydration(page);
 
-    await page.getByLabel("ID do Usuário").fill(novoId);
+    await goto(page, "/login");
+    await page.getByLabel("E-mail").fill(email);
+    await page.getByLabel("Senha").fill("o-condado-e-longe");
     await page.getByRole("button", { name: "Entrar" }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByText("Frodo Bolseiro", { exact: true })).toBeVisible();
   });
 
-  test("recusa e-mail já cadastrado", async ({ page, seedUser }) => {
+  test("recusa e-mail já cadastrado e oferece o caminho para entrar", async ({
+    page,
+    seedUser,
+  }) => {
     await goto(page, "/cadastro");
 
-    await page.getByLabel("Nome").fill("Outro Nome");
-    await page.getByLabel("Email").fill(seedUser.email);
+    await preencherCadastro(page, {
+      name: "Outro Nome",
+      email: seedUser.email,
+      password: "outra-senha-qualquer",
+    });
     await page.getByRole("button", { name: "Criar Conta" }).click();
 
-    await expect(page.getByText("Já existe uma conta com este e-mail.")).toBeVisible();
+    // O Next também monta um `role="alert"` (o anunciador de rotas): filtrar pelo texto.
+    const alerta = page
+      .getByRole("alert")
+      .filter({ hasText: "Já existe uma conta com este e-mail." });
+    await expect(alerta).toBeVisible();
+    await expect(alerta.getByRole("link", { name: "Entrar" })).toHaveAttribute("href", "/login");
+    await expect(page).toHaveURL(/\/cadastro$/);
   });
 
-  test("valida nome e e-mail antes de enviar", async ({ page }) => {
+  test("confirmação divergente e senha curta barram o envio", async ({ page }) => {
+    const chamadas = chamadasDeCadastro(page);
     await goto(page, "/cadastro");
 
-    // Formulário vazio: as duas mensagens do Zod.
+    await preencherCadastro(page, {
+      name: "Maria Souza",
+      email: `e2e-${randomUUID()}@e2e.local`,
+      password: "senha-bem-comprida",
+      confirmation: "senha-diferente-aqui",
+    });
     await page.getByRole("button", { name: "Criar Conta" }).click();
-    await expect(page.getByText("Nome é obrigatório")).toBeVisible();
-    await expect(page.getByText("Email inválido")).toBeVisible();
+    await expect(page.getByText("As senhas não coincidem")).toBeVisible();
 
-    // E-mail malformado: alcançável porque o `<form>` tem `noValidate` — sem
-    // ele a validação nativa do browser barraria o submit antes do React.
-    await page.getByPlaceholder("Seu nome completo").fill("Maria Souza");
-    await page.getByPlaceholder("seu@email.com").fill("nao-e-email");
+    await preencherCadastro(page, {
+      name: "Maria Souza",
+      email: `e2e-${randomUUID()}@e2e.local`,
+      password: "curta",
+    });
     await page.getByRole("button", { name: "Criar Conta" }).click();
-    await expect(page.getByText("Email inválido")).toBeVisible();
+    await expect(page.getByText("A senha deve ter pelo menos 12 caracteres")).toBeVisible();
+
+    expect(chamadas).toEqual([]);
+    await expect(page).toHaveURL(/\/cadastro$/);
   });
 });

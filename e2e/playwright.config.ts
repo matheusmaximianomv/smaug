@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
+import { ACCESS_TOKEN_TTL_SECONDS } from "./src/config/env.js";
 
 const E2E_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(E2E_DIR, "..");
@@ -9,7 +10,7 @@ const ROOT = path.resolve(E2E_DIR, "..");
 // impossível um teste acabar batendo no dev.db por engano.
 const API_PORT = Number(process.env.E2E_API_PORT ?? 3100);
 const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 3101);
-const API_URL = `http://localhost:${API_PORT}`;
+const API_URL = `http://${process.env.E2E_API_HOST ?? "localhost"}:${API_PORT}`;
 const WEB_URL = `http://localhost:${WEB_PORT}`;
 
 // Definido por scripts/run-e2e.mjs. O fallback só existe para `npx playwright
@@ -22,9 +23,9 @@ const DATABASE_URL =
 // `build` convive com ele e é o mesmo artefato que o CI exercita.
 const WEB_MODE = process.env.E2E_WEB_MODE ?? "build";
 
-// As seis variáveis são explícitas porque server/.env É lido (dotenv não
-// sobrescreve o que já está no process.env, mas ausência aqui viraria o valor
-// do .env de desenvolvimento).
+// Todas explícitas porque server/.env É lido (dotenv não sobrescreve o que já
+// está no process.env, mas ausência aqui viraria o valor do .env de
+// desenvolvimento).
 const serverEnv = {
   NODE_ENV: "test",
   DATABASE_PROVIDER: "sqlite",
@@ -34,6 +35,27 @@ const serverEnv = {
   // Precisa ser string IDÊNTICA ao Origin do browser: cors() com origem string
   // faz comparação exata. Por isso "localhost" em toda a config, nunca 127.0.0.1.
   CORS_ORIGIN: WEB_URL,
+  // Segredos FIXOS de teste, públicos de propósito (os mesmos do server/vitest.config.ts): não
+  // protegem nada e não devem ser usados em nenhum ambiente real.
+  JWT_SECRET: "dGVzdC1vbmx5LWp3dC1zZWNyZXQtbm90LXNlY3JldCE=",
+  JWT_KEY_ID: "test",
+  PASSWORD_PEPPERS: "test:dGVzdC1vbmx5LXBlcHBlci1ub3QtYS1zZWNyZXQhISE=",
+  PASSWORD_PEPPER_CURRENT_ID: "test",
+  // Curto para a renovação silenciosa acontecer de verdade durante a suíte (ver env.ts).
+  ACCESS_TOKEN_TTL_SECONDS: String(ACCESS_TOKEN_TTL_SECONDS),
+  // Argon2id no mínimo que NODE_ENV=test aceita: um cadastro + um login por teste, em paralelo,
+  // com os parâmetros de produção custariam segundos de CPU por teste.
+  ARGON2_MEMORY_KIB: "1024",
+  ARGON2_TIME_COST: "1",
+  ARGON2_PARALLELISM: "1",
+  // O web repassa `/api/*` com X-Forwarded-For: a API confia só no Next local, como no cenário
+  // "mesma máquina" de produção (sem isto o express-rate-limit acusa ERR_ERL_UNEXPECTED_X_FORWARDED_FOR).
+  TRUST_PROXY: "loopback",
+  // Toda a suíte sai do mesmo IP (localhost): com os limites reais o seed esbarraria no 429.
+  AUTH_RATE_LIMIT_REGISTER_PER_IP: "100000",
+  AUTH_RATE_LIMIT_LOGIN_PER_IP: "100000",
+  AUTH_RATE_LIMIT_LOGIN_PER_EMAIL: "100000",
+  AUTH_RATE_LIMIT_REFRESH_PER_IP: "100000",
 };
 
 export default defineConfig({
@@ -111,8 +133,9 @@ export default defineConfig({
       cwd: path.join(ROOT, "web"),
       url: `${WEB_URL}/login`,
       // Sem NODE_ENV aqui: `next dev` exige development e `next start` seta
-      // production sozinho.
-      env: { NEXT_PUBLIC_API_URL: API_URL },
+      // production sozinho. API_ORIGIN é lido em runtime pelo repasse
+      // `app/api/[...path]/route.ts`: o navegador só fala com o web.
+      env: { API_ORIGIN: API_URL },
       reuseExistingServer: false,
       timeout: 180_000,
       stdout: "pipe",

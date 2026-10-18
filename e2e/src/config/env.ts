@@ -6,10 +6,18 @@ export const ROOT = path.resolve(E2E_DIR, "..");
 
 export const API_PORT = Number(process.env.E2E_API_PORT ?? 3100);
 export const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 3101);
-export const API_URL = `http://localhost:${API_PORT}`;
+export const API_URL = `http://${process.env.E2E_API_HOST ?? "localhost"}:${API_PORT}`;
 export const WEB_URL = `http://localhost:${WEB_PORT}`;
 
 export const DB_FILE = process.env.E2E_DB_FILE ?? path.join(E2E_DIR, ".tmp", "smaug-e2e-local.db");
+
+/**
+ * Vida do access token na API do run. Curta de propósito: os 10 min de produção nunca venceriam
+ * dentro de um teste, e assim a renovação silenciosa (401 → `/auth/refresh` → refaz a chamada)
+ * roda de verdade em todo teste que dura mais que isso. A API ainda aceita o token por mais 5 s de
+ * tolerância de relógio. O seed não renova: cada teste ganha um token novo no início e semeia logo.
+ */
+export const ACCESS_TOKEN_TTL_SECONDS = 20;
 
 export const WEB_MODE = process.env.E2E_WEB_MODE ?? (process.env.CI ? "build" : "dev");
 export const MANAGED_BY_WRAPPER = !!process.env.E2E_MANAGED_BY_WRAPPER;

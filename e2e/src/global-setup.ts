@@ -36,17 +36,22 @@ export default async function globalSetup(): Promise<void> {
   }
 
   // --- prova de schema: /health passa mesmo sem tabelas (SELECT 1 não precisa
-  //     delas). Só uma escrita real prova que o `db push` rodou. ---
-  const probe = await api.post("/users", {
-    data: { name: "e2e-probe", email: `probe-${randomUUID()}@e2e.local` },
+  //     delas). Só uma escrita real prova que o `db push` rodou — e um cadastro
+  //     também prova que a API subiu com os segredos de autenticação. ---
+  const probe = await api.post("/auth/register", {
+    data: {
+      name: "e2e-probe",
+      email: `probe-${randomUUID()}@e2e.local`,
+      password: `senha-${randomUUID()}`,
+    },
   });
   if (probe.status() !== 201) {
     throw new Error(
-      `[e2e] POST /users devolveu ${probe.status()} — o banco provavelmente está sem schema.\n` +
-        "Rode a suíte por `npm run test:e2e` (o script cria o SQLite desta execução).",
+      `[e2e] POST /auth/register devolveu ${probe.status()} — o banco provavelmente está sem schema.\n` +
+        "Rode a suíte por `npm run test:e2e` (o script cria o SQLite desta execução).\n" +
+        (await probe.text().catch(() => "")),
     );
   }
-  const probeUser = (await probe.json()) as { id: string };
 
   // --- congela a competência base e propaga por env ---
   // Os workers são forkados depois daqui e herdam o process.env, então todos
@@ -72,10 +77,8 @@ export default async function globalSetup(): Promise<void> {
       await web.get(route).catch(() => undefined);
     }
     for (const route of APP_ROUTES) {
-      // Cookie para passar pelo proxy e realmente compilar a rota.
-      await web
-        .get(route, { headers: { Cookie: `userId=${probeUser.id}` } })
-        .catch(() => undefined);
+      // Indicador de sessão para passar pelo proxy e realmente compilar a rota.
+      await web.get(route, { headers: { Cookie: "smaug_session=1" } }).catch(() => undefined);
     }
     console.log(
       `[e2e] warm-up de ${PUBLIC_ROUTES.length + APP_ROUTES.length} rotas em ${Date.now() - started}ms`,

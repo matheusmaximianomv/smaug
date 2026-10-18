@@ -44,13 +44,27 @@ npm run --prefix e2e report
 
 ## Variáveis
 
-| Variável                        | Default              | Efeito                                   |
-| ------------------------------- | -------------------- | ---------------------------------------- |
-| `E2E_API_PORT` / `E2E_WEB_PORT` | 3100 / 3101          | portas da stack                          |
-| `E2E_WEB_MODE`                  | `build` (local e CI) | `next build && next start` vs `next dev` |
-| `E2E_TMP_DIR`                   | `e2e/.tmp`           | onde o SQLite da execução é criado       |
-| `E2E_KEEP_DB`                   | —                    | preserva o banco ao final                |
-| `E2E_ALL_BROWSERS`              | —                    | habilita firefox e webkit                |
+| Variável                        | Default              | Efeito                                                        |
+| ------------------------------- | -------------------- | ------------------------------------------------------------- |
+| `E2E_API_PORT` / `E2E_WEB_PORT` | 3100 / 3101          | portas da stack                                               |
+| `E2E_WEB_MODE`                  | `build` (local e CI) | `next build && next start` vs `next dev`                      |
+| `E2E_TMP_DIR`                   | `e2e/.tmp`           | onde o SQLite da execução é criado                            |
+| `E2E_KEEP_DB`                   | —                    | preserva o banco ao final                                     |
+| `E2E_ALL_BROWSERS`              | —                    | habilita firefox e webkit                                     |
+| `E2E_API_HOST`                  | `localhost`          | host da API (`127.0.0.1` põe web e API em origens diferentes) |
+
+## Access token curto
+
+A API do run emite access tokens de **20 s** (`ACCESS_TOKEN_TTL_SECONDS` em
+`src/config/env.ts`, repassado ao `serverEnv` do `playwright.config.ts`), e não
+os 10 min de produção. Assim a renovação silenciosa (401 → `POST
+/api/auth/refresh` → a chamada refeita) roda de verdade: `tests/auth/sessao.spec.ts`
+fica parado além da vida do token mais os 5 s de tolerância de relógio da API e
+confere que a próxima tela renova sem toast e sem passar por `/login`.
+
+Consequência para quem escreve spec: o `seed` usa o token do cadastro e **não
+renova**. Semeie no começo do teste; um seed feito mais de ~25 s depois dele
+volta 401.
 
 ## Regras ao escrever specs
 
