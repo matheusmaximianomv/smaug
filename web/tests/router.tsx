@@ -1,7 +1,7 @@
 /**
  * Stubs de roteamento para testes.
  *
- * ⚠️ Este arquivo usa deep imports INTERNOS do Next, fixados em `next@15.0.3`:
+ * ⚠️ Este arquivo usa deep imports INTERNOS do Next, fixados em `next@16.4.2`:
  *   next/dist/shared/lib/app-router-context.shared-runtime
  *   next/dist/shared/lib/hooks-client-context.shared-runtime
  *
@@ -9,7 +9,7 @@
  * `next/link`, que lê os MESMOS contextos, degradando os testes de
  * Sidebar/BottomNav a checagem de markup. Concentrar os deep imports aqui deixa
  * o raio de impacto de um upgrade do Next em UM arquivo: se os testes de rota
- * quebrarem após atualizar o Next, reconfira estes dois caminhos.
+ * quebrarem após atualizar o Next (mesmo numa minor), reconfira estes dois caminhos.
  */
 import type { ReactNode } from "react";
 import { vi, type Mock } from "vitest";
