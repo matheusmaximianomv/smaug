@@ -1,0 +1,17 @@
+# Dependências e saídas: a imagem instala e gera as suas
+node_modules/
+.next/
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Env: API_ORIGIN chega pelo `docker run`/compose, nunca dentro da imagem
+.env
+.env.*
+
+# VCS / Docker
+.git/
+Dockerfile*
+.dockerignore
