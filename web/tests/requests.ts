@@ -1,5 +1,8 @@
 import { afterEach } from "vitest";
-import { server } from "./msw";
+import { API, server } from "./msw";
+
+/** `/api` do repasse: tirado do path gravado para os testes falarem nos caminhos da API. */
+const API_PREFIX = new URL(API).pathname;
 
 // `server.resetHandlers()` não desregistra listeners de evento. Registrado no
 // import para que todo arquivo que use `recordRequests` limpe os seus.
@@ -9,8 +12,9 @@ afterEach(() => {
 
 export interface RecordedRequest {
   method: string;
-  path: string;
   search: URLSearchParams;
+  /** Caminho da API, sem o prefixo `/api` do repasse (`/expenses/categories`). */
+  path: string;
   /** Corpo da requisição, resolvido sob demanda: `JSON.parse(await r.text)`. */
   text: Promise<string>;
   headers: Headers;
@@ -34,7 +38,9 @@ export function recordRequests(): RecordedRequest[] {
     const url = new URL(request.url);
     calls.push({
       method: request.method,
-      path: url.pathname,
+      path: url.pathname.startsWith(`${API_PREFIX}/`)
+        ? url.pathname.slice(API_PREFIX.length)
+        : url.pathname,
       search: url.searchParams,
       text: request.clone().text(),
       headers: request.headers,
@@ -44,7 +50,7 @@ export function recordRequests(): RecordedRequest[] {
   return calls;
 }
 
-/** `["POST /users", "GET /users/abc"]` — formato legível para `toEqual`. */
+/** `["POST /auth/login", "GET /users/me"]` — formato legível para `toEqual`. */
 export function signatures(calls: RecordedRequest[]): string[] {
   return calls.map((c) => `${c.method} ${c.path}`);
 }

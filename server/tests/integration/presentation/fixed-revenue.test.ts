@@ -5,12 +5,13 @@ import type { Express } from "express";
 import { sqliteTestDatabase } from "../../helpers/sqlite-test-database";
 
 const testDb = sqliteTestDatabase("fixed-revenue");
+const PASSWORD = "correct-horse-battery-staple";
 const BASE_DATE = new Date("2026-03-01T00:00:00.000Z");
 
 describe("Fixed Revenue Endpoints", () => {
   let prisma: PrismaClient;
   let app: Express;
-  let userId: string;
+  let accessToken: string;
 
   beforeAll(async () => {
     vi.resetModules();
@@ -22,6 +23,11 @@ describe("Fixed Revenue Endpoints", () => {
     process.env.NODE_ENV = "test";
     process.env.PORT = "3000";
     process.env.LOG_LEVEL = "error";
+    // Argon2 mínimo: o cadastro do beforeAll faz hash, e o custo de produção só deixaria o teste lento.
+    process.env.ARGON2_MEMORY_KIB = "1024";
+    process.env.ARGON2_TIME_COST = "1";
+    process.env.ARGON2_PARALLELISM = "1";
+    process.env.AUTH_RATE_LIMIT_REGISTER_PER_IP = "1000";
 
     testDb.push();
     prisma = testDb.client();
@@ -29,11 +35,14 @@ describe("Fixed Revenue Endpoints", () => {
     const { createHttpServer } = await import("@src/infrastructure/http/server");
     app = createHttpServer();
 
-    const createUserRes = await request(app).post("/users").send({
-      name: "Fixed Revenue User",
-      email: "fixed-revenue-user@example.com",
-    });
-    userId = createUserRes.body.id;
+    const createUserRes = await request(app)
+      .post("/auth/register")
+      .send({
+        name: "Fixed Revenue User",
+        email: "fixed-revenue-user@example.com",
+        password: PASSWORD,
+      });
+    accessToken = createUserRes.body.accessToken;
   });
 
   afterAll(async () => {
@@ -47,7 +56,7 @@ describe("Fixed Revenue Endpoints", () => {
     await prisma.fixedRevenue.deleteMany();
   });
 
-  const authHeaders = () => ({ "X-User-Id": userId });
+  const authHeaders = () => ({ Authorization: `Bearer ${accessToken}` });
 
   const createSalary = async () =>
     request(app).post("/revenues/fixed").set(authHeaders()).send({

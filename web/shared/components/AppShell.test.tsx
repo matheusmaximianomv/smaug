@@ -2,21 +2,15 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { User } from "@/features/auth/types";
 import { setMatchMedia } from "../../vitest.setup";
 import { RouterStubProvider, createRouterStub } from "../../tests/router";
 import { AppShell } from "./AppShell";
+import type { ShellUser } from "./Sidebar";
 
-const authMock = vi.hoisted(() => ({
-  user: null as User | null,
-  logout: vi.fn(),
-}));
+const onLogout = vi.fn();
+const onLogoutAll = vi.fn();
 
-vi.mock("@/features/auth/hooks/useAuth", () => ({
-  useAuth: () => authMock,
-}));
-
-function renderShell() {
+function renderShell(user: ShellUser | null = null) {
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <RouterStubProvider
@@ -29,7 +23,7 @@ function renderShell() {
     );
   }
   return render(
-    <AppShell>
+    <AppShell user={user} onLogout={onLogout} onLogoutAll={onLogoutAll}>
       <p>Conteúdo da página</p>
     </AppShell>,
     { wrapper: Wrapper },
@@ -38,7 +32,6 @@ function renderShell() {
 
 afterEach(() => {
   setMatchMedia(false);
-  authMock.user = null;
 });
 
 describe("AppShell no desktop", () => {
@@ -105,21 +98,35 @@ describe("AppShell no mobile", () => {
 
   it("mostra as iniciais do usuário no avatar", () => {
     setMatchMedia(true);
-    authMock.user = { id: "u1", name: "João Silva", email: "j@e.com", createdAt: "" };
-
-    renderShell();
+    renderShell({ name: "João Silva" });
 
     expect(screen.getByText("JS")).toBeInTheDocument();
   });
 
   it('mostra "?" quando não há usuário carregado', () => {
     setMatchMedia(true);
-    authMock.user = null;
-
-    renderShell();
+    renderShell(null);
 
     expect(screen.getByText("?")).toBeInTheDocument();
   });
+});
+
+describe("AppShell: ações de saída", () => {
+  it.each([false, true])(
+    "repassa o usuário e as duas saídas à sidebar (mobile: %s)",
+    async (mobile) => {
+      setMatchMedia(mobile);
+      renderShell({ name: "João Silva" });
+      if (mobile) await userEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+
+      expect(screen.getByText("João Silva")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Sair" }));
+      await userEvent.click(screen.getByRole("button", { name: "Sair de todos os dispositivos" }));
+
+      expect(onLogout).toHaveBeenCalledTimes(1);
+      expect(onLogoutAll).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 describe("AppShell: conteúdo", () => {

@@ -1,27 +1,31 @@
 /**
  * @vitest-environment node
  *
- * Cobre os três guards `typeof document === "undefined"` de `session.ts`, que são
- * inalcançáveis no ambiente jsdom. No servidor (RSC, proxy) o módulo precisa
- * degradar silenciosamente em vez de lançar.
+ * Cobre os guards `typeof document === "undefined"` de `session.ts`, que são inalcançáveis no
+ * ambiente jsdom. No servidor (RSC, proxy) o módulo precisa degradar silenciosamente em vez de
+ * lançar — inclusive na limpeza do cookie legado, que roda ao carregar o módulo.
  */
 import { describe, expect, it } from "vitest";
-import { clearUserId, getUserId, setUserId } from "./session";
+import { clearSession, getAccessToken, hasSessionHint, setSession } from "./session";
 
 describe("session sem document (ambiente node)", () => {
   it("confirma que não existe document neste ambiente", () => {
     expect(typeof document).toBe("undefined");
   });
 
-  it("getUserId devolve null", () => {
-    expect(getUserId()).toBeNull();
+  it("setSession guarda o token em memória sem lançar", () => {
+    expect(() => setSession("token-1")).not.toThrow();
+    expect(getAccessToken()).toBe("token-1");
   });
 
-  it("setUserId não lança", () => {
-    expect(() => setUserId("00000000-0000-4000-8000-000000000001")).not.toThrow();
+  it("clearSession esquece o token sem lançar", () => {
+    setSession("token-1");
+
+    expect(() => clearSession()).not.toThrow();
+    expect(getAccessToken()).toBeNull();
   });
 
-  it("clearUserId não lança", () => {
-    expect(() => clearUserId()).not.toThrow();
+  it("hasSessionHint devolve false", () => {
+    expect(hasSessionHint()).toBe(false);
   });
 });

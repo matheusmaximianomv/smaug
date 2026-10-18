@@ -3,14 +3,20 @@
 import { useState } from "react";
 import { Menu } from "lucide-react";
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import { Sidebar } from "./Sidebar";
+import { Sidebar, type ShellUser } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
-import { useAuth } from "@/features/auth/hooks/useAuth";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export interface AppShellProps {
+  user: ShellUser | null;
+  onLogout: () => void;
+  onLogoutAll: () => void;
+  children: React.ReactNode;
+}
+
+export function AppShell({ user, onLogout, onLogoutAll, children }: AppShellProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user } = useAuth();
+  const sidebarProps = { user, onLogout, onLogoutAll };
   const initials =
     user?.name
       .split(" ")
@@ -22,13 +28,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-bg">
       {/* Desktop Sidebar */}
-      {!isMobile && <Sidebar className="w-nav shrink-0 sticky top-0 h-screen overflow-y-auto" />}
+      {!isMobile && (
+        <Sidebar
+          {...sidebarProps}
+          className="w-nav shrink-0 sticky top-0 h-screen overflow-y-auto"
+        />
+      )}
 
       {/* Mobile sidebar overlay */}
       {isMobile && sidebarOpen && (
         <>
           <div className="fixed inset-0 z-30 bg-black/40" onClick={() => setSidebarOpen(false)} />
-          <Sidebar className="fixed inset-y-0 left-0 z-40 w-nav" />
+          <Sidebar {...sidebarProps} className="fixed inset-y-0 left-0 z-40 w-nav" />
         </>
       )}
 

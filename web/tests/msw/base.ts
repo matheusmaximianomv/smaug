@@ -1,5 +1,8 @@
-/** Mesma origem que `infra/api-client.ts` resolve a partir de NEXT_PUBLIC_API_URL. */
-export const API = "http://localhost:3000";
+/**
+ * Onde o `apiClient` chega no jsdom: `baseURL: "/api"` resolvido contra a origem do app
+ * (`environmentOptions.jsdom.url` do `vitest.config.ts`).
+ */
+export const API = "http://localhost:3001/api";
 
 export const url = (path: string): string => `${API}${path}`;
 

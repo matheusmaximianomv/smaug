@@ -1,20 +1,42 @@
-version: "3.9"
+# Publicação "mesma máquina" (specs/010-autenticacao/deploy.md): só o web é público; a API fica na
+# rede interna do compose e é alcançada pelo repasse /api do web (API_ORIGIN=http://api:3000).
+# Pré-requisito: server/.env.secrets (permissão 600, não versionado). Sem ele o compose não sobe.
 
 services:
-  app:
+  api:
     build: .
     env_file:
       - .env.docker
+      - .env.secrets
+    environment:
+      # Origem pública do web, como o navegador a vê. Produção: SMAUG_PUBLIC_ORIGIN=https://<domínio>.
+      CORS_ORIGIN: ${SMAUG_PUBLIC_ORIGIN:-http://localhost:${SMAUG_WEB_PORT:-8080}}
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "3000:3000"
+    # Porta da API não publicada: só o web (na mesma rede) fala com ela.
+    expose:
+      - "3000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 5s
       retries: 5
+      start_period: 30s
+      start_interval: 2s
+
+  web:
+    build: ../web
+    env_file:
+      - ../web/.env.docker
+    depends_on:
+      api:
+        condition: service_healthy
+    # Só no loopback por padrão: o público chega por um proxy reverso com TLS no host, que
+    # sobrescreve o X-Forwarded-For (requisito do runbook; exposto direto, o cliente forja o IP e
+    # escapa do rate limit). Proxy em outra máquina: SMAUG_WEB_BIND=0.0.0.0 + firewall.
+    ports:
+      - "${SMAUG_WEB_BIND:-127.0.0.1}:${SMAUG_WEB_PORT:-8080}:3001"
 
   postgres:
     image: postgres:16-alpine
@@ -22,8 +44,9 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: smaug
+    # Só no loopback do host, para operação (psql, POSTGRES_SHADOW_DATABASE_URL do migrate:check).
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
@@ -31,6 +54,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+# Sub-rede fixa para o TRUST_PROXY do .env.docker confiar só nos saltos desta rede (o web).
+# Mudou aqui, mude lá.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.250.0.0/24
 
 volumes:
   db_data:

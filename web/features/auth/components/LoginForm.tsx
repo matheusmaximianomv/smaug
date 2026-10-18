@@ -6,10 +6,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
 import { useAuth } from "../hooks/useAuth";
-import { getApiErrorMessage, isInvalidSessionError } from "@/infra/api-error";
+import { getApiErrorMessage } from "@/infra/api-error";
 import { loginSchema, type LoginFormData } from "../types/schemas";
 
-export function LoginForm() {
+interface LoginFormProps {
+  /** Rota protegida que levou ao login (`?next=`); validada pelo `useAuth` antes de navegar. */
+  next?: string | null;
+}
+
+export function LoginForm({ next = null }: LoginFormProps) {
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,28 +31,39 @@ export function LoginForm() {
     setIsLoading(true);
     setError(null);
     try {
-      await login(data.userId);
+      await login(data, next);
     } catch (err) {
-      setError(
-        isInvalidSessionError(err)
-          ? "Usuário não encontrado. Verifique o ID e tente novamente."
-          : getApiErrorMessage(err, "Não foi possível entrar. Tente novamente."),
-      );
+      setError(getApiErrorMessage(err, "Não foi possível entrar. Tente novamente."));
     } finally {
       setIsLoading(false);
     }
   };
 
+  // noValidate: a validação nativa do campo type="email" barraria o submit antes do React; o
+  // schema é a fonte única de validação.
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <Input
-        label="ID do Usuário"
-        placeholder="Cole seu ID de usuário aqui"
-        error={errors.userId?.message}
-        {...register("userId")}
+        label="E-mail"
+        type="email"
+        autoComplete="email"
+        placeholder="seu@email.com"
+        error={errors.email?.message}
+        {...register("email")}
+      />
+      <Input
+        label="Senha"
+        type="password"
+        autoComplete="current-password"
+        placeholder="Sua senha"
+        error={errors.password?.message}
+        {...register("password")}
       />
       {error && (
-        <div className="rounded-lg border border-red bg-red-light p-3 text-sm text-red">
+        <div
+          role="alert"
+          className="rounded-lg border border-red bg-red-light p-3 text-sm text-red"
+        >
           {error}
         </div>
       )}

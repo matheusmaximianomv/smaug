@@ -5,13 +5,19 @@ import type { Express } from "express";
 import { sqliteTestDatabase } from "../../helpers/sqlite-test-database";
 
 const testDb = sqliteTestDatabase("lancamentos-read-api");
+const PASSWORD = "correct-horse-battery-staple";
+const UNAUTHORIZED_BODY = { error: "UNAUTHORIZED", message: "Authentication required" };
+const UNAUTHENTICATED: [string, Record<string, string>][] = [
+  ["without the Authorization header", {}],
+  ["with an invalid Bearer token", { Authorization: "Bearer not-a-valid-token" }],
+];
 const MARCH = new Date("2026-03-01T12:00:00.000Z");
 const APRIL = new Date("2026-04-15T12:00:00.000Z");
 
 describe("Read API for the Receitas/Despesas screens", () => {
   let prisma: PrismaClient;
   let app: Express;
-  let userId: string;
+  let accessToken: string;
   let categoryId: string;
 
   beforeAll(async () => {
@@ -24,6 +30,14 @@ describe("Read API for the Receitas/Despesas screens", () => {
     process.env.NODE_ENV = "test";
     process.env.PORT = "3000";
     process.env.LOG_LEVEL = "error";
+    // Argon2 mínimo: o cadastro do beforeAll faz hash, e o custo de produção só deixaria o teste lento.
+    process.env.ARGON2_MEMORY_KIB = "1024";
+    process.env.ARGON2_TIME_COST = "1";
+    process.env.ARGON2_PARALLELISM = "1";
+    process.env.AUTH_RATE_LIMIT_REGISTER_PER_IP = "1000";
+    // O relógio falso salta de março para abril: token e sessão precisam sobreviver ao salto.
+    process.env.ACCESS_TOKEN_TTL_SECONDS = String(365 * 24 * 60 * 60);
+    process.env.SESSION_MAX_LIFETIME_SECONDS = String(365 * 24 * 60 * 60);
 
     testDb.push();
     prisma = testDb.client();
@@ -32,13 +46,13 @@ describe("Read API for the Receitas/Despesas screens", () => {
     app = createHttpServer();
 
     const userRes = await request(app)
-      .post("/users")
-      .send({ name: "Read API User", email: "read-api@example.com" });
-    userId = userRes.body.id;
+      .post("/auth/register")
+      .send({ name: "Read API User", email: "read-api@example.com", password: PASSWORD });
+    accessToken = userRes.body.accessToken;
 
     const categoryRes = await request(app)
       .post("/expenses/categories")
-      .set({ "X-User-Id": userId })
+      .set(auth())
       .send({ name: "Moradia" });
     categoryId = categoryRes.body.id;
   });
@@ -61,7 +75,7 @@ describe("Read API for the Receitas/Despesas screens", () => {
     await prisma.fixedRevenue.deleteMany();
   });
 
-  const auth = () => ({ "X-User-Id": userId });
+  const auth = () => ({ Authorization: `Bearer ${accessToken}` });
   const get = (url: string, query: Record<string, number | string> = {}) =>
     request(app).get(url).set(auth()).query(query);
 
@@ -164,10 +178,14 @@ describe("Read API for the Receitas/Despesas screens", () => {
       },
     );
 
-    it("should require the X-User-Id header", async () => {
-      const response = await request(app).get("/expenses/summary").query({ year: 2026 });
+    it.each(UNAUTHENTICATED)("should return 401 %s", async (_case, headers) => {
+      const response = await request(app)
+        .get("/expenses/summary")
+        .set(headers)
+        .query({ year: 2026 });
 
       expect(response.status).toBe(401);
+      expect(response.body).toEqual(UNAUTHORIZED_BODY);
     });
   });
 
@@ -200,9 +218,21 @@ describe("Read API for the Receitas/Despesas screens", () => {
       expect(summary.body.months[6].totals.total).toBe(0);
     });
 
-    it("should validate the year and require authentication", async () => {
-      expect((await get("/revenues/summary")).status).toBe(400);
-      expect((await request(app).get("/revenues/summary").query({ year: 2026 })).status).toBe(401);
+    it("should return 400 when the year is missing", async () => {
+      const response = await get("/revenues/summary");
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("VALIDATION_ERROR");
+    });
+
+    it.each(UNAUTHENTICATED)("should return 401 %s", async (_case, headers) => {
+      const response = await request(app)
+        .get("/revenues/summary")
+        .set(headers)
+        .query({ year: 2026 });
+
+      expect(response.status).toBe(401);
+      expect(response.body).toEqual(UNAUTHORIZED_BODY);
     });
   });
 

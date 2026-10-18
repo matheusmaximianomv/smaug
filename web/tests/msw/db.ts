@@ -18,6 +18,15 @@ import type { User } from "@/features/auth/types";
 
 export interface Db {
   users: User[];
+  /** Senha de cada usuário, por id: o que `POST /auth/login` confere. */
+  passwords: Record<string, string>;
+  /**
+   * Dono do refresh token válido — o cookie `httpOnly` que o MSW não enxerga. `null` é "sem
+   * cookie": `POST /auth/refresh` responde 401 `INVALID_REFRESH_TOKEN`.
+   */
+  session: { userId: string } | null;
+  /** Contador dos access tokens emitidos, para cada renovação devolver um token diferente. */
+  issuedTokens: number;
   categories: CategoryWithCount[];
   oneTimeRevenues: OneTimeRevenue[];
   fixedRevenues: FixedRevenue[];
@@ -29,6 +38,9 @@ export interface Db {
 function emptyDb(): Db {
   return {
     users: [],
+    passwords: {},
+    session: null,
+    issuedTokens: 0,
     categories: [],
     oneTimeRevenues: [],
     fixedRevenues: [],

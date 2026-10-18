@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { EmailAddress } from "@src/domain/value-objects/email-address.value-object";
 
 export interface UserProps {
   id?: string;
@@ -25,12 +26,12 @@ export class User {
 
   public static create(props: UserProps): User {
     User.validateName(props.name);
-    User.validateEmail(props.email);
+    const email = EmailAddress.create(props.email);
 
     return new User({
       id: props.id ?? randomUUID(),
       name: props.name.trim(),
-      email: props.email.trim().toLowerCase(),
+      email: email.value,
       createdAt: props.createdAt ?? new Date(),
     });
   }
@@ -39,14 +40,6 @@ export class User {
     const trimmed = name.trim();
     if (trimmed.length < MIN_NAME_LENGTH || trimmed.length > MAX_NAME_LENGTH) {
       throw new Error("Name must be between 1 and 255 characters");
-    }
-  }
-
-  private static validateEmail(email: string): void {
-    const trimmed = email.trim();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmed)) {
-      throw new Error("Invalid email format");
     }
   }
 }

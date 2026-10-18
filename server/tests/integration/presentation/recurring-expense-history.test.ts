@@ -5,12 +5,13 @@ import type { Express } from "express";
 import { sqliteTestDatabase } from "../../helpers/sqlite-test-database";
 
 const testDb = sqliteTestDatabase("recurring-expense-history");
+const PASSWORD = "correct-horse-battery-staple";
 const BASE_DATE = new Date("2026-03-01T00:00:00.000Z");
 
 describe("Recurring Expense History Endpoints", () => {
   let prisma: PrismaClient;
   let app: Express;
-  let userId: string;
+  let accessToken: string;
   let baseCategoryId: string;
 
   beforeAll(async () => {
@@ -23,6 +24,11 @@ describe("Recurring Expense History Endpoints", () => {
     process.env.NODE_ENV = "test";
     process.env.PORT = "3000";
     process.env.LOG_LEVEL = "error";
+    // Argon2 mínimo: o cadastro do beforeAll faz hash, e o custo de produção só deixaria o teste lento.
+    process.env.ARGON2_MEMORY_KIB = "1024";
+    process.env.ARGON2_TIME_COST = "1";
+    process.env.ARGON2_PARALLELISM = "1";
+    process.env.AUTH_RATE_LIMIT_REGISTER_PER_IP = "1000";
 
     testDb.push();
     prisma = testDb.client();
@@ -30,15 +36,18 @@ describe("Recurring Expense History Endpoints", () => {
     const { createHttpServer } = await import("@src/infrastructure/http/server");
     app = createHttpServer();
 
-    const userResponse = await request(app).post("/users").send({
-      name: "Recurring History User",
-      email: "recurring-history-user@example.com",
-    });
-    userId = userResponse.body.id;
+    const userResponse = await request(app)
+      .post("/auth/register")
+      .send({
+        name: "Recurring History User",
+        email: "recurring-history-user@example.com",
+        password: PASSWORD,
+      });
+    accessToken = userResponse.body.accessToken;
 
     const categoryResponse = await request(app)
       .post("/expenses/categories")
-      .set({ "X-User-Id": userId })
+      .set(authHeaders())
       .send({ name: "Essenciais" });
     baseCategoryId = categoryResponse.body.id;
   });
@@ -54,19 +63,16 @@ describe("Recurring Expense History Endpoints", () => {
     await prisma.recurringExpense.deleteMany();
   });
 
-  const authHeaders = () => ({ "X-User-Id": userId });
+  const authHeaders = () => ({ Authorization: `Bearer ${accessToken}` });
 
   it("should return complete version history when fetching recurring expense after multiple updates", async () => {
-    const createResponse = await request(app)
-      .post("/expenses/recurring")
-      .set(authHeaders())
-      .send({
-        description: "Aluguel",
-        amount: 2000,
-        categoryId: baseCategoryId,
-        startYear: 2026,
-        startMonth: 4,
-      });
+    const createResponse = await request(app).post("/expenses/recurring").set(authHeaders()).send({
+      description: "Aluguel",
+      amount: 2000,
+      categoryId: baseCategoryId,
+      startYear: 2026,
+      startMonth: 4,
+    });
 
     expect(createResponse.status).toBe(201);
 

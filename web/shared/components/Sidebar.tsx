@@ -2,18 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, MonitorSmartphone } from "lucide-react";
 import { cn } from "../lib/utils";
 import { NAV_ITEMS, isNavItemActive } from "./nav-items";
-import { useAuth } from "@/features/auth/hooks/useAuth";
 
-interface SidebarProps {
+/** O que o menu mostra de quem está logado; `null` enquanto o perfil não chegou. */
+export interface ShellUser {
+  name: string;
+}
+
+export interface SidebarProps {
+  user: ShellUser | null;
+  onLogout: () => void;
+  onLogoutAll: () => void;
   className?: string;
 }
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ user, onLogout, onLogoutAll, className }: SidebarProps) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
   const initials =
     user?.name
       .split(" ")
@@ -61,20 +67,29 @@ export function Sidebar({ className }: SidebarProps) {
       </nav>
 
       {/* User */}
-      <div className="flex items-center gap-2.5 border-t border-border px-4 py-3.5">
-        <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-red text-xs font-bold text-white">
-          {initials}
+      <div className="border-t border-border px-4 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-red text-xs font-bold text-white">
+            {initials}
+          </div>
+          <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-medium">
+            {user?.name ?? ""}
+          </span>
+          <button
+            onClick={onLogout}
+            className="rounded-sm p-1 text-text-subtle hover:text-red"
+            title="Sair"
+            aria-label="Sair"
+          >
+            <LogOut size={14} />
+          </button>
         </div>
-        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-medium">
-          {user?.name ?? ""}
-        </span>
         <button
-          onClick={logout}
-          className="rounded-sm p-1 text-text-subtle hover:text-red"
-          title="Sair"
-          aria-label="Sair"
+          onClick={onLogoutAll}
+          className="mt-2 flex w-full items-center gap-2 rounded-sm py-1 text-xs text-text-subtle hover:text-red"
         >
-          <LogOut size={14} />
+          <MonitorSmartphone size={12} className="shrink-0" />
+          Sair de todos os dispositivos
         </button>
       </div>
     </aside>

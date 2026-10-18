@@ -1,7 +1,8 @@
 # Smaug — Web
 
 Frontend em **Next.js 16 (App Router)** e React 19. Consome a API REST de
-`server/`; não há rotas de API aqui (`app/api/` não existe).
+`server/` pelo repasse de mesma origem `app/api/[...path]/route.ts` — a única rota
+de API daqui, que não tem lógica própria.
 
 Rode os comandos a partir desta pasta ou com `--prefix web` da raiz.
 
@@ -25,14 +26,25 @@ A porta é **3001**, fixa nos scripts. A API responde em `3000`.
 
 ## Ambiente
 
-`NEXT_PUBLIC_API_URL` é a única variável necessária.
+`API_ORIGIN` é a única variável necessária: o endereço da API para onde o route
+handler `app/api/[...path]/route.ts` repassa `/api/*` (`/api/auth/login` →
+`${API_ORIGIN}/auth/login`). O navegador só fala com a origem do web, então o
+cookie do refresh fica na origem do web e não há CORS.
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env.local   # API_ORIGIN=http://localhost:3000
 ```
 
-> ⚠️ O Next **inlina** a variável em tempo de build. Um `next build` feito com o
-> valor errado não se corrige em runtime — é preciso rebuildar.
+É variável de **servidor** (sem `NEXT_PUBLIC_`): não vai para o bundle e é lida a
+cada requisição pelo `next start`, então a mesma build serve a qualquer destino e
+trocá-la não exige rebuild. Ausente, cada chamada a `/api` responde 500; API
+inalcançável, 502. Na imagem Docker vem de `.env.docker` (`http://api:3000`).
+
+> ⚠️ **`X-Forwarded-For`.** O repasse encaminha o `X-Forwarded-For` como o Next o
+> preenche, e a API usa esse IP no rate limit do login. Com o `next start` exposto
+> direto à internet, o cliente manda o próprio `X-Forwarded-For` e forja o IP. Em
+> qualquer publicação, ponha na frente um proxy reverso (com TLS) que
+> **sobrescreva** o cabeçalho, e deixe o web ouvindo só onde esse proxy alcança.
 
 > A instalação é estrita (`npm ci`, sem flags): com o React 19 estável todos os
 > peers casam. Não reintroduza flag que relaxe os peers — ela escondia uma árvore
@@ -44,12 +56,13 @@ cp .env.example .env.local
 app/            App Router
   (auth)/       login, cadastro            — layout próprio
   (app)/        dashboard, receitas, despesas, categorias, historico
+  api/[...path] repasse /api/* → API_ORIGIN
   layout.tsx  providers.tsx  page.tsx      — page.tsx só faz redirect("/login")
 features/       auth, dashboard, receitas, despesas, categorias, historico
                 cada uma com components/ hooks/ services/ types/
 shared/         components/ (Button, Modal, Toast, MonthNavigator, lancamentos/, …)
                 hooks/ (useToast, useDebounce, useMediaQuery)  lib/  types/
-infra/          api-client, api-error, session, navigation, router-adapter, query-client
+infra/          api-client, api-error, session, auth-refresh, navigation, router-adapter, query-client
 tests/          harness do Vitest — MSW, fixtures, renderWithProviders
 proxy.ts        guarda de rotas server-side (o antigo middleware da Next 15)
 ```
@@ -86,18 +99,27 @@ estado, efeitos ou APIs de browser.
 
 ## Sessão e autenticação
 
-Não há senha nem JWT: a API identifica o usuário pelo header `X-User-Id`.
+Login por e-mail e senha (`/login`, `/cadastro`). A API devolve um access token
+curto e grava o refresh token rotativo no cookie `httpOnly` **`smaug_refresh`**
+(`Path=/api/auth`), que nenhum script da página lê.
 
-O **cookie `userId` é a fonte única de verdade**, lido por `infra/session.ts`
-(`getUserId` / `setUserId` / `clearUserId`) e pelo `proxy.ts` no servidor,
-que protege `(app)` e devolve quem já está autenticado para fora de `(auth)`.
+`infra/session.ts` guarda só o que o navegador precisa:
 
-> Não reintroduza uma cópia em `localStorage`. Manter dois stores permitia que
-> divergissem — cookie presente com `localStorage` vazio colocava o app num laço
-> infinito entre `/login` e `/dashboard`.
+- o **access token, em memória** (variável de módulo — nunca em cookie,
+  `localStorage` ou `sessionStorage`): `getAccessToken` / `setSession` /
+  `clearSession`. Recarregar a página o perde, e a sessão volta por uma renovação;
+- o **indicador `smaug_session=1`**, cookie sem segredo lido por `hasSessionHint` e
+  pelo `proxy.ts` no servidor, que protege `(app)` (mandando para
+  `/login?next=<rota>`) e devolve quem já tem sessão para fora de `(auth)`.
 
-`infra/api-client.ts` é a única instância axios: injeta o `X-User-Id` no
-request e, **somente em 401**, limpa a sessão e chama `redirectToLogin()`. Falhas
+`infra/auth-refresh.ts` faz a renovação (`POST /api/auth/refresh`) em
+**single-flight**: chamadas simultâneas na aba recebem a mesma promessa. 409 é
+repetido uma vez; 401 apaga o indicador **antes** de redirecionar, o que impede o
+laço `/login` ↔ `/dashboard` quando o indicador diverge do estado real.
+
+`infra/api-client.ts` é a única instância axios (`baseURL: "/api"`): injeta
+`Authorization: Bearer <access token>` e, num 401 fora de `/auth/*`, renova uma vez
+e refaz a requisição. **Só uma renovação recusada com 401 encerra a sessão** — falhas
 de rede e 5xx são transitórias e não deslogam o usuário.
 
 `infra/api-error.ts` traduz os códigos de erro da API para mensagens em pt-BR.

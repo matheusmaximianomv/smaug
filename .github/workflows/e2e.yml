@@ -60,6 +60,7 @@ jobs:
         run: npm run test:e2e
         env:
           CI: "true"
+          # Os segredos de teste da API ficam fixos no serverEnv de e2e/playwright.config.ts.
 
       - name: Publicar o relatório
         if: ${{ !cancelled() }}

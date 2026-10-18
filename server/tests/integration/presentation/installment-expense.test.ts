@@ -5,11 +5,13 @@ import type { Express } from "express";
 import { sqliteTestDatabase } from "../../helpers/sqlite-test-database";
 
 const testDb = sqliteTestDatabase("installment-expense");
+const PASSWORD = "correct-horse-battery-staple";
 
 describe("Installment Expense Endpoints", () => {
   let prisma: PrismaClient;
   let app: Express;
   let userId: string;
+  let accessToken: string;
   let categoryId: string;
 
   beforeAll(async () => {
@@ -20,6 +22,11 @@ describe("Installment Expense Endpoints", () => {
     process.env.NODE_ENV = "test";
     process.env.PORT = "3000";
     process.env.LOG_LEVEL = "error";
+    // Argon2 mínimo: o cadastro do beforeAll faz hash, e o custo de produção só deixaria o teste lento.
+    process.env.ARGON2_MEMORY_KIB = "1024";
+    process.env.ARGON2_TIME_COST = "1";
+    process.env.ARGON2_PARALLELISM = "1";
+    process.env.AUTH_RATE_LIMIT_REGISTER_PER_IP = "1000";
 
     testDb.push();
     prisma = testDb.client();
@@ -27,15 +34,19 @@ describe("Installment Expense Endpoints", () => {
     const { createHttpServer } = await import("@src/infrastructure/http/server");
     app = createHttpServer();
 
-    const createUserRes = await request(app).post("/users").send({
-      name: "Installment User",
-      email: "installment-user@example.com",
-    });
-    userId = createUserRes.body.id;
+    const createUserRes = await request(app)
+      .post("/auth/register")
+      .send({
+        name: "Installment User",
+        email: "installment-user@example.com",
+        password: PASSWORD,
+      });
+    userId = createUserRes.body.user.id;
+    accessToken = createUserRes.body.accessToken;
 
     const categoryRes = await request(app)
       .post("/expenses/categories")
-      .set({ "X-User-Id": userId })
+      .set(authHeaders())
       .send({ name: "Eletrônicos" });
     categoryId = categoryRes.body.id;
   });
@@ -54,7 +65,7 @@ describe("Installment Expense Endpoints", () => {
     vi.useRealTimers();
   });
 
-  const authHeaders = () => ({ "X-User-Id": userId });
+  const authHeaders = () => ({ Authorization: `Bearer ${accessToken}` });
 
   const currentStart = () => {
     // UTC, como MonthlyCompetence.isPastMonth(): em hora local o teste quebra na virada do mês.
@@ -120,17 +131,14 @@ describe("Installment Expense Endpoints", () => {
   });
 
   it("should return 409 when creating an installment expense with past start competence", async () => {
-    const res = await request(app)
-      .post("/expenses/installment")
-      .set(authHeaders())
-      .send({
-        description: "Passada",
-        totalAmount: 200,
-        installmentCount: 2,
-        startYear: 2020,
-        startMonth: 5,
-        categoryId,
-      });
+    const res = await request(app).post("/expenses/installment").set(authHeaders()).send({
+      description: "Passada",
+      totalAmount: 200,
+      installmentCount: 2,
+      startYear: 2020,
+      startMonth: 5,
+      categoryId,
+    });
 
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("PAST_COMPETENCE");
@@ -231,38 +239,32 @@ describe("Installment Expense Endpoints", () => {
       },
     });
 
-    const res = await request(app)
-      .delete(`/expenses/installment/${expense.id}`)
-      .set(authHeaders());
+    const res = await request(app).delete(`/expenses/installment/${expense.id}`).set(authHeaders());
 
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("INSTALLMENT_HAS_PAST_COMPETENCE");
   });
 
   it("should return 404 when accessing installment expense from another user", async () => {
-    const otherUserRes = await request(app).post("/users").send({
-      name: "Another User",
-      email: "another-user@example.com",
-    });
-    const otherUserId = otherUserRes.body.id;
+    const otherUserRes = await request(app)
+      .post("/auth/register")
+      .send({ name: "Another User", email: "another-user@example.com", password: PASSWORD });
+    const otherAuth = { Authorization: `Bearer ${otherUserRes.body.accessToken}` };
 
     const otherCategoryRes = await request(app)
       .post("/expenses/categories")
-      .set({ "X-User-Id": otherUserId })
+      .set(otherAuth)
       .send({ name: "Viagem" });
     const otherCategoryId = otherCategoryRes.body.id;
 
-    const otherExpenseRes = await request(app)
-      .post("/expenses/installment")
-      .set({ "X-User-Id": otherUserId })
-      .send({
-        description: "Viagem",
-        totalAmount: 600,
-        installmentCount: 3,
-        startYear: 2026,
-        startMonth: 7,
-        categoryId: otherCategoryId,
-      });
+    const otherExpenseRes = await request(app).post("/expenses/installment").set(otherAuth).send({
+      description: "Viagem",
+      totalAmount: 600,
+      installmentCount: 3,
+      startYear: 2026,
+      startMonth: 7,
+      categoryId: otherCategoryId,
+    });
 
     const res = await request(app)
       .get(`/expenses/installment/${otherExpenseRes.body.id}`)

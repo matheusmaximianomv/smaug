@@ -85,7 +85,7 @@ test.describe("histórico de versões", () => {
     await page.getByRole("button", { name: "Receitas Fixas" }).click();
     await expect(page.getByText("Despesa Recorrente")).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Todos" }).click();
+    await page.getByRole("button", { name: "Todos", exact: true }).click();
 
     await expect(page.getByText("Receita Fixa")).toHaveCount(2);
     await expect(page.getByText("Despesa Recorrente")).toHaveCount(2);

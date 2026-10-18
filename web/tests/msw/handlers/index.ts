@@ -1,4 +1,4 @@
-import { userHandlers } from "./users";
+import { authHandlers } from "./auth";
 import { categoryHandlers } from "./categories";
 import { revenueHandlers } from "./revenues";
 import { expenseHandlers } from "./expenses";
@@ -10,7 +10,7 @@ import { dataHandlers } from "./data";
  * o MSW não case a rota genérica primeiro.
  */
 export const handlers = [
-  ...userHandlers,
+  ...authHandlers,
   ...categoryHandlers,
   ...revenueHandlers,
   ...expenseHandlers,

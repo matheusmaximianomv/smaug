@@ -10,6 +10,12 @@ interface ApiErrorBody {
 const MESSAGES: Record<string, string> = {
   VALIDATION_ERROR: "Dados inválidos. Revise os campos e tente novamente.",
   UNAUTHORIZED: "Sessão inválida. Faça login novamente.",
+  ORIGIN_NOT_ALLOWED: "Origem da requisição não permitida. Recarregue a página e tente novamente.",
+  TOO_MANY_REQUESTS: "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+
+  INVALID_CREDENTIALS: "E-mail ou senha incorretos.",
+  INVALID_REFRESH_TOKEN: "Sua sessão expirou. Faça login novamente.",
+  REFRESH_TOKEN_CONFLICT: "Não foi possível renovar a sessão. Tente novamente.",
 
   USER_NOT_FOUND: "Usuário não encontrado.",
   EMAIL_ALREADY_EXISTS: "Já existe uma conta com este e-mail.",
@@ -90,12 +96,11 @@ export function getErrorMessageByCode(code: string, fallback: string): string {
 
 /**
  * Distingue "esta sessão não vale mais" de "a chamada falhou agora".
- * Só 401 (header ausente/inválido) e 404 (usuário inexistente) invalidam a sessão;
- * falha de rede, timeout e 5xx são transitórios e não devem deslogar ninguém.
+ * Só 401 invalida a sessão (token ausente/inválido ou renovação recusada); falha de rede,
+ * timeout, 404 e 5xx são transitórios ou de negócio e não devem deslogar ninguém.
  */
 export function isInvalidSessionError(error: unknown): boolean {
-  const status = (error as AxiosError)?.response?.status;
-  return status === 401 || status === 404;
+  return (error as AxiosError)?.response?.status === 401;
 }
 
 /**

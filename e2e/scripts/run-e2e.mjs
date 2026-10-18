@@ -45,7 +45,6 @@ const DB_FILE = path.join(TMP_DIR, `smaug-e2e-${RUN_ID}.db`);
 const DB_URL = `file:${DB_FILE}`;
 const API_PORT = process.env.E2E_API_PORT ?? "3100";
 const WEB_PORT = process.env.E2E_WEB_PORT ?? "3101";
-const API_URL = `http://localhost:${API_PORT}`;
 // Na Next 16 o `next dev` admite uma única instância por diretório (lock em
 // `.next/dev`): com o `npm run dev` do usuário aberto, o modo dev falharia.
 // `build` convive com ele e é o mesmo artefato que o CI exercita.
@@ -120,12 +119,13 @@ if (push.status !== 0) {
 }
 
 // --- 4. Build do front quando em modo "build" ------------------------------
-// NEXT_PUBLIC_* é inlined em build time: precisa estar setado AQUI.
+// Nada da API é inlined no build: o repasse `/api` lê API_ORIGIN em runtime, e
+// o `playwright.config.ts` o passa ao `next start`.
 if (WEB_MODE === "build") {
-  console.log("[e2e] next build (NEXT_PUBLIC_API_URL=" + API_URL + ")");
+  console.log("[e2e] next build");
   const build = spawnSync("npm", ["run", "--prefix", WEB_DIR, "build"], {
     stdio: "inherit",
-    env: { ...process.env, NEXT_PUBLIC_API_URL: API_URL },
+    env: process.env,
     shell: process.platform === "win32",
   });
   if (build.status !== 0) {

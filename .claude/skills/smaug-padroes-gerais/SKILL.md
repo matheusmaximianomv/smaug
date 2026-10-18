@@ -15,12 +15,13 @@ em todos os pacotes.
 | Tarefa                                                   | Skill                     |
 | -------------------------------------------------------- | ------------------------- |
 | Entender camadas do backend / adicionar um agregado novo | `server-arquitetura`      |
+| Adapter de auth (argon2/jose/crypto), `authConfig`, env  | `server-arquitetura`      |
 | Escrever entidade ou value object                        | `server-entidade-dominio` |
 | Criar/alterar erro de domínio                            | `server-erros-dominio`    |
 | Escrever caso de uso                                     | `server-caso-de-uso`      |
 | Escrever porta + repositório Prisma                      | `server-repositorio`      |
 | Escrever service da aplicação ou DTO/schema Zod          | `server-servico-dto`      |
-| Escrever controller, rota ou middleware                  | `server-http`             |
+| Escrever controller, rota ou middleware (authenticate)   | `server-http`             |
 | Registrar dependências                                   | `server-di-container`     |
 | Testes do server (unit/integração)                       | `server-testes`           |
 | Entender camadas do frontend / criar página              | `web-arquitetura`         |
@@ -28,7 +29,7 @@ em todos os pacotes.
 | Escrever service de feature (axios)                      | `web-feature-services`    |
 | Escrever componente de feature ou formulário             | `web-componentes`         |
 | Escrever primitivo de UI, hook ou lib compartilhada      | `web-shared-ui`           |
-| Mexer em api-client, api-error, sessão, navegação        | `web-infra`               |
+| Mexer em api-client, renovação, api-error, sessão        | `web-infra`               |
 | Testes do web (Vitest + RTL + MSW)                       | `web-testes`              |
 | Testes E2E (Playwright)                                  | `testes-e2e`              |
 
@@ -46,7 +47,17 @@ npm run lint             # eslint (server) + eslint 9 flat config (web)
 npm run format           # prettier em todo o repo
 npm run validate:deps    # regras de arquitetura — SÓ da raiz
 npm run test:e2e         # Playwright, com SQLite exclusivo do run
+node e2e/scripts/run-e2e.mjs --grep "<título>"   # E2E com flags do Playwright (ver abaixo)
 ```
+
+- `npm run dev` precisa de `server/.env` com os segredos de autenticação (`JWT_SECRET`,
+  `JWT_KEY_ID`, `PASSWORD_PEPPERS`, `PASSWORD_PEPPER_CURRENT_ID` — modelo em `server/.env.example`)
+  e de `web/.env.local` com `API_ORIGIN=http://localhost:3000` (modelo em `web/.env.example`): o
+  navegador só fala com o web, e o repasse `web/app/api/[...path]/route.ts` lê `API_ORIGIN` a cada
+  requisição. Não existe mais `NEXT_PUBLIC_*` da API inlined no build.
+- `npm run test:e2e -- --grep x` **não** repassa a flag (o `npm run --prefix e2e test` do meio a
+  consome); só caminho posicional passa (`npm run test:e2e -- tests/smoke.spec.ts`). Para
+  `--grep`, `--project`, `--headed` etc. chame o wrapper direto: `node e2e/scripts/run-e2e.mjs …`.
 
 - `npm run --prefix server validate:deps` está **quebrado** (aponta para um `.dependency-cruiser.cjs`
   inexistente). Use sempre o script da raiz.
@@ -108,25 +119,52 @@ Comentário **não descreve o que o código faz**; ele registra o _porquê_, nom
 observada de verdade e a alternativa que foi descartada. Exemplares a imitar:
 
 - `web/shared/lib/money.ts` (`parseMoneyInput`) — cita o bug do `parseFloat(v.replace(",", "."))` que virava `1.234`.
-- `web/infra/api-client.ts` — "Só 401 encerra a sessão. Falha de rede ou 5xx são transitórios…".
+- `web/infra/api-client.ts` — o interceptor de 401 explica por que só renova quem saiu com o token
+  atual ("renovar de novo giraria o refresh token à toa — o que dá 409 na outra aba") e que "Rede ou
+  5xx são transitórios".
 - `web/vitest.config.ts` — justifica o threshold relaxado de `app/**` e lista as duas alternativas rejeitadas.
-- `e2e/src/support/ui.ts` — `waitForHydration` descreve a corrida real (submit nativo virando `GET /login?userId=…`).
+- `e2e/src/support/ui.ts` — `waitForHydration` descreve a corrida real (submit nativo virando `GET /login?email=…`).
 
 Não escreva comentário que repete a linha seguinte. Código morto ou comentado não entra
 (princípio II da constituição).
 
 ## Regras de dependência (`.dependency-cruiser.js`, raiz)
 
-Cinco regras `error` e uma `warn`:
+Sete regras `error` e uma `warn`, nesta ordem no arquivo:
 
 1. `no-server-to-web` — `server/` não importa `web/`.
 2. `no-web-to-server` — `web/` não importa `server/`.
 3. `no-domain-to-infra` — `server/src/domain` não importa `infrastructure`/`presentation`.
 4. `no-application-to-infra` — `server/src/application` não importa `infrastructure`/`presentation`.
-5. `no-e2e-to-src` — `e2e/` não importa `server/` nem `web/` (é caixa-preta; fala só HTTP).
-6. `no-circular-dependencies` — apenas aviso.
+5. `auth-crypto-only-in-infra` — `argon2` e `jose` só são importados em `server/src/infrastructure/`
+   (ficam atrás das portas `PasswordHasher`/`AccessTokenService`).
+6. `http-middleware-libs-only-in-presentation` — `cookie-parser` e `express-rate-limit` só em
+   `server/src/presentation/`.
+7. `no-e2e-to-src` — `e2e/` não importa `server/` nem `web/` (é caixa-preta; fala só HTTP).
+8. `no-circular-dependencies` — apenas aviso.
+
+As regras 5 e 6 são o modelo para dependência de runtime com dono: biblioteca nova que deve viver
+numa camada só ganha uma regra `from: { path: "^server/src/", pathNot: "^server/src/<camada>/" }`,
+`to: { path: "node_modules/(<lib>)/" }`, copiada de uma delas.
+
+```js
+{
+  name: "auth-crypto-only-in-infra",
+  comment:
+    "argon2 e jose ficam atrás das portas PasswordHasher/AccessTokenService: só os adapters de server/src/infrastructure os importam",
+  severity: "error",
+  from: { path: "^server/src/", pathNot: "^server/src/infrastructure/" },
+  to: { path: "node_modules/(argon2|jose)/" },
+},
+```
 
 Rode `npm run validate:deps` (da raiz) antes de abrir PR.
+
+**Furo conhecido (pré-existente):** a config não tem `options.tsConfig`, então o dependency-cruiser
+**não resolve o alias `@src/*`** — `import … from "@src/infrastructure/…"` dentro de `domain/` passa
+calado pelas regras 3 e 4. Elas só pegam import relativo. As regras 5 e 6 funcionam, porque miram
+`node_modules/`. Até o furo ser fechado, a revisão é quem garante a direção das camadas quando o
+import usa o alias.
 
 ## Git
 

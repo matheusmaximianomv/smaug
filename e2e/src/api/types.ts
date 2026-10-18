@@ -11,6 +11,14 @@ export interface UserDto {
   createdAt: string;
 }
 
+/** Corpo de `POST /auth/register` e `/auth/login`. */
+export interface AuthSessionDto {
+  accessToken: string;
+  tokenType: "Bearer";
+  expiresIn: number;
+  user: UserDto;
+}
+
 export interface CategoryDto {
   id: string;
   userId: string;

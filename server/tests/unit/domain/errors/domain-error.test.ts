@@ -143,6 +143,30 @@ const cases: ErrorCase[] = [
     "IMPORT_NO_VALID_ROWS",
     "Import file has no valid entries",
   ],
+  [
+    "InvalidCredentialsError",
+    new errors.InvalidCredentialsError(),
+    "INVALID_CREDENTIALS",
+    "Invalid email or password",
+  ],
+  [
+    "InvalidRefreshTokenError",
+    new errors.InvalidRefreshTokenError(),
+    "INVALID_REFRESH_TOKEN",
+    "Refresh token is invalid, expired or revoked",
+  ],
+  [
+    "RefreshTokenConflictError",
+    new errors.RefreshTokenConflictError(),
+    "REFRESH_TOKEN_CONFLICT",
+    "Refresh token was already rotated by a concurrent request",
+  ],
+  [
+    "EmailAlreadyExistsError",
+    new errors.EmailAlreadyExistsError("ana@example.com"),
+    "EMAIL_ALREADY_EXISTS",
+    'A user with email "ana@example.com" already exists',
+  ],
 ];
 
 describe("domain errors", () => {

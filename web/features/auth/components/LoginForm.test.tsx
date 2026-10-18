@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../../tests/render";
 import { mockApiError, mockNetworkError, seedDb } from "../../../tests/msw";
 import { makeUser } from "../../../tests/fixtures";
+import { recordRequests } from "../../../tests/requests";
 import { routerAdapterMock } from "../../../tests/router";
 import { LoginForm } from "./LoginForm";
 
@@ -14,57 +15,95 @@ vi.mock("@/infra/router-adapter", async () => {
 });
 
 const USER = makeUser();
+const PASSWORD = "senha muito segura";
 
-async function fillAndSubmit(userId: string) {
-  await userEvent.type(screen.getByLabelText("ID do Usuário"), userId);
+function seedAccount() {
+  seedDb({ users: [USER], passwords: { [USER.id]: PASSWORD } });
+}
+
+async function fillAndSubmit(email: string, password: string) {
+  if (email) await userEvent.type(screen.getByLabelText("E-mail"), email);
+  if (password) await userEvent.type(screen.getByLabelText("Senha"), password);
   await userEvent.click(screen.getByRole("button", { name: "Entrar" }));
 }
 
-describe("LoginForm: validação de formato", () => {
-  it("rejeita um id que não é UUID e não chama a API", async () => {
+describe("LoginForm: campos", () => {
+  it("pede e-mail e senha, com a senha mascarada", () => {
     renderWithProviders(<LoginForm />);
 
-    await fillAndSubmit("nao-e-uuid");
+    expect(screen.getByLabelText("E-mail")).toHaveAttribute("type", "email");
+    expect(screen.getByLabelText("Senha")).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("Senha")).toHaveAttribute("placeholder", "Sua senha");
+    expect(screen.queryByLabelText("ID do Usuário")).not.toBeInTheDocument();
+  });
+});
 
-    expect(await screen.findByText("ID de usuário inválido")).toBeInTheDocument();
-    expect(routerAdapterMock.push).not.toHaveBeenCalled();
+describe("LoginForm: validação", () => {
+  it("rejeita um e-mail fora do formato e não chama a API", async () => {
+    const calls = recordRequests();
+    renderWithProviders(<LoginForm />);
+
+    await fillAndSubmit("nao-e-email", PASSWORD);
+
+    expect(await screen.findByText("E-mail inválido")).toBeInTheDocument();
+    expect(calls).toHaveLength(0);
   });
 
-  it("rejeita o campo vazio", async () => {
+  it("exige os dois campos", async () => {
     renderWithProviders(<LoginForm />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    await fillAndSubmit("", "");
 
-    expect(await screen.findByText("ID de usuário inválido")).toBeInTheDocument();
+    expect(await screen.findByText("Informe o e-mail")).toBeInTheDocument();
+    expect(screen.getByText("Informe a senha")).toBeInTheDocument();
   });
 });
 
 describe("LoginForm: respostas da API", () => {
-  it("entra com um id válido e navega para o dashboard", async () => {
-    seedDb({ users: [USER] });
+  it("entra com credenciais corretas e navega para o dashboard", async () => {
+    seedAccount();
     renderWithProviders(<LoginForm />);
 
-    await fillAndSubmit(USER.id);
+    await fillAndSubmit(USER.email, PASSWORD);
 
     await waitFor(() => expect(routerAdapterMock.push).toHaveBeenCalledWith("/dashboard"));
   });
 
-  it("mostra a mensagem de usuário não encontrado no 404", async () => {
+  it("leva à rota pretendida recebida em next", async () => {
+    seedAccount();
+    renderWithProviders(<LoginForm next="/historico" />);
+
+    await fillAndSubmit(USER.email, PASSWORD);
+
+    await waitFor(() => expect(routerAdapterMock.push).toHaveBeenCalledWith("/historico"));
+  });
+
+  it("mostra a mensagem de credenciais inválidas no 401", async () => {
+    seedAccount();
     renderWithProviders(<LoginForm />);
 
-    await fillAndSubmit("00000000-0000-4000-8000-000000000099");
+    await fillAndSubmit(USER.email, "senha errada qualquer");
 
-    expect(
-      await screen.findByText("Usuário não encontrado. Verifique o ID e tente novamente."),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("E-mail ou senha incorretos.");
     expect(routerAdapterMock.push).not.toHaveBeenCalled();
   });
 
-  it("usa a mensagem genérica no 500", async () => {
-    mockApiError("get", `/users/${USER.id}`, 500, {});
+  it("mostra a mensagem de limite de tentativas no 429", async () => {
+    mockApiError("post", "/auth/login", 429, { error: "TOO_MANY_REQUESTS" });
     renderWithProviders(<LoginForm />);
 
-    await fillAndSubmit(USER.id);
+    await fillAndSubmit(USER.email, PASSWORD);
+
+    expect(
+      await screen.findByText("Muitas tentativas. Aguarde alguns minutos e tente novamente."),
+    ).toBeInTheDocument();
+  });
+
+  it("usa a mensagem genérica no 500", async () => {
+    mockApiError("post", "/auth/login", 500, {});
+    renderWithProviders(<LoginForm />);
+
+    await fillAndSubmit(USER.email, PASSWORD);
 
     expect(
       await screen.findByText("Não foi possível entrar. Tente novamente."),
@@ -72,10 +111,10 @@ describe("LoginForm: respostas da API", () => {
   });
 
   it("usa a mensagem de conexão numa falha de rede", async () => {
-    mockNetworkError("get", `/users/${USER.id}`);
+    mockNetworkError("post", "/auth/login");
     renderWithProviders(<LoginForm />);
 
-    await fillAndSubmit(USER.id);
+    await fillAndSubmit(USER.email, PASSWORD);
 
     expect(
       await screen.findByText("Não foi possível falar com o servidor. Verifique sua conexão."),
@@ -83,27 +122,27 @@ describe("LoginForm: respostas da API", () => {
   });
 
   it("limpa a mensagem de erro numa nova tentativa bem-sucedida", async () => {
-    seedDb({ users: [USER] });
+    seedAccount();
     renderWithProviders(<LoginForm />);
 
-    await fillAndSubmit("00000000-0000-4000-8000-000000000099");
-    await screen.findByText("Usuário não encontrado. Verifique o ID e tente novamente.");
+    await fillAndSubmit(USER.email, "senha errada qualquer");
+    await screen.findByText("E-mail ou senha incorretos.");
 
-    await userEvent.clear(screen.getByLabelText("ID do Usuário"));
-    await fillAndSubmit(USER.id);
+    await userEvent.clear(screen.getByLabelText("Senha"));
+    await userEvent.type(screen.getByLabelText("Senha"), PASSWORD);
+    await userEvent.click(screen.getByRole("button", { name: "Entrar" }));
 
     await waitFor(() =>
-      expect(
-        screen.queryByText("Usuário não encontrado. Verifique o ID e tente novamente."),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByText("E-mail ou senha incorretos.")).not.toBeInTheDocument(),
     );
+    expect(routerAdapterMock.push).toHaveBeenCalledWith("/dashboard");
   });
 
   it("reabilita o botão depois do erro", async () => {
     renderWithProviders(<LoginForm />);
 
-    await fillAndSubmit("00000000-0000-4000-8000-000000000099");
-    await screen.findByText("Usuário não encontrado. Verifique o ID e tente novamente.");
+    await fillAndSubmit(USER.email, PASSWORD);
+    await screen.findByText("E-mail ou senha incorretos.");
 
     expect(screen.getByRole("button", { name: "Entrar" })).toBeEnabled();
   });

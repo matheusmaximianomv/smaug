@@ -1,4 +1,4 @@
-import { API_URL } from "../src/config/env.js";
+import { API_URL, WEB_URL } from "../src/config/env.js";
 import { expect, test } from "../src/fixtures/test.js";
 
 test.describe("smoke", () => {
@@ -33,19 +33,26 @@ test.describe("smoke", () => {
   });
 
   /**
-   * Guarda contra `web/.env.local` sobrescrever NEXT_PUBLIC_API_URL e o browser
-   * acabar batendo na porta 3000 (dev.db) em vez da API isolada do E2E.
+   * Guarda contra o web subir sem `API_ORIGIN` (ou com um `web/.env.local` apontando para a porta
+   * 3000, o dev.db): o navegador só fala com a origem do web, e o repasse `/api` leva à API
+   * isolada do E2E — é ela que conhece o usuário semeado.
    */
-  test("o front aponta para a API isolada do E2E", async ({ page, seed, seedUser }) => {
+  test("o front fala só com o web e o repasse chega à API isolada do E2E", async ({
+    page,
+    seed,
+  }) => {
     await seed.createCategory("Alimentação");
+    const browserRequests: string[] = [];
+    page.on("request", (request) => browserRequests.push(request.url()));
 
     const [response] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes("/expenses/categories")),
+      page.waitForResponse((r) => r.url().includes("/expenses/categories") && r.ok()),
       page.goto("/categorias"),
     ]);
 
-    expect(response.url().startsWith(API_URL)).toBe(true);
-    expect(response.request().headers()["x-user-id"]).toBe(seedUser.id);
+    expect(response.url().startsWith(`${WEB_URL}/api/`)).toBe(true);
+    expect(response.request().headers()["authorization"]).toMatch(/^Bearer /);
     await expect(page.getByTestId("category-card")).toHaveCount(1);
+    expect(browserRequests.filter((url) => url.startsWith(API_URL))).toEqual([]);
   });
 });

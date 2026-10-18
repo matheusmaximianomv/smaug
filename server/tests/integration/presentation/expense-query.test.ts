@@ -5,12 +5,13 @@ import type { Express } from "express";
 import { sqliteTestDatabase } from "../../helpers/sqlite-test-database";
 
 const testDb = sqliteTestDatabase("expense-query");
+const PASSWORD = "correct-horse-battery-staple";
 const BASE_DATE = new Date("2026-03-01T00:00:00.000Z");
 
 describe("Expense Query Endpoint", () => {
   let prisma: PrismaClient;
   let app: Express;
-  let userId: string;
+  let accessToken: string;
   let foodCategoryId: string;
   let homeCategoryId: string;
 
@@ -24,6 +25,11 @@ describe("Expense Query Endpoint", () => {
     process.env.NODE_ENV = "test";
     process.env.PORT = "3000";
     process.env.LOG_LEVEL = "error";
+    // Argon2 mínimo: o cadastro do beforeAll faz hash, e o custo de produção só deixaria o teste lento.
+    process.env.ARGON2_MEMORY_KIB = "1024";
+    process.env.ARGON2_TIME_COST = "1";
+    process.env.ARGON2_PARALLELISM = "1";
+    process.env.AUTH_RATE_LIMIT_REGISTER_PER_IP = "1000";
 
     testDb.push();
     prisma = testDb.client();
@@ -31,21 +37,20 @@ describe("Expense Query Endpoint", () => {
     const { createHttpServer } = await import("@src/infrastructure/http/server");
     app = createHttpServer();
 
-    const createUserRes = await request(app).post("/users").send({
-      name: "Expense Query User",
-      email: "expense-query@example.com",
-    });
-    userId = createUserRes.body.id;
+    const createUserRes = await request(app)
+      .post("/auth/register")
+      .send({ name: "Expense Query User", email: "expense-query@example.com", password: PASSWORD });
+    accessToken = createUserRes.body.accessToken;
 
     const foodCategoryRes = await request(app)
       .post("/expenses/categories")
-      .set({ "X-User-Id": userId })
+      .set(authHeaders())
       .send({ name: "Alimentação" });
     foodCategoryId = foodCategoryRes.body.id;
 
     const homeCategoryRes = await request(app)
       .post("/expenses/categories")
-      .set({ "X-User-Id": userId })
+      .set(authHeaders())
       .send({ name: "Moradia" });
     homeCategoryId = homeCategoryRes.body.id;
   });
@@ -64,19 +69,16 @@ describe("Expense Query Endpoint", () => {
     await prisma.recurringExpense.deleteMany();
   });
 
-  const authHeaders = () => ({ "X-User-Id": userId });
+  const authHeaders = () => ({ Authorization: `Bearer ${accessToken}` });
 
   it("should return consolidated expenses for the specified competence", async () => {
-    const oneTimeRes = await request(app)
-      .post("/expenses/one-time")
-      .set(authHeaders())
-      .send({
-        description: "Jantar",
-        amount: 150,
-        competenceYear: 2026,
-        competenceMonth: 3,
-        categoryId: foodCategoryId,
-      });
+    const oneTimeRes = await request(app).post("/expenses/one-time").set(authHeaders()).send({
+      description: "Jantar",
+      amount: 150,
+      competenceYear: 2026,
+      competenceMonth: 3,
+      categoryId: foodCategoryId,
+    });
     expect(oneTimeRes.status).toBe(201);
 
     const installmentRes = await request(app)
@@ -92,16 +94,13 @@ describe("Expense Query Endpoint", () => {
       });
     expect(installmentRes.status).toBe(201);
 
-    const recurringRes = await request(app)
-      .post("/expenses/recurring")
-      .set(authHeaders())
-      .send({
-        description: "Aluguel",
-        amount: 2000,
-        categoryId: homeCategoryId,
-        startYear: 2026,
-        startMonth: 3,
-      });
+    const recurringRes = await request(app).post("/expenses/recurring").set(authHeaders()).send({
+      description: "Aluguel",
+      amount: 2000,
+      categoryId: homeCategoryId,
+      startYear: 2026,
+      startMonth: 3,
+    });
     expect(recurringRes.status).toBe(201);
 
     const response = await request(app)

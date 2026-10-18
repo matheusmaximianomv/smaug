@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { LoggerOptions } from "pino";
 
 const pinoLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
 const pinoFactory = vi.fn(() => pinoLogger);
@@ -46,6 +47,45 @@ describe("PinoLogger", () => {
     expect(pinoFactory).toHaveBeenCalledWith(
       expect.objectContaining({ level: "debug", transport: undefined }),
     );
+  });
+
+  it("should mask passwords, tokens, cookies, secrets, peppers and the Authorization header", async () => {
+    await importLogger("test");
+    const [options] = pinoFactory.mock.calls[0] as unknown as [LoggerOptions];
+    const { pino: realPino } = await vi.importActual<typeof import("pino")>("pino");
+    const lines: string[] = [];
+    const logger = realPino(options, { write: (line: string) => lines.push(line) });
+
+    logger.info(
+      {
+        password: "s3cret-password",
+        passwordHash: "$argon2id$hash",
+        accessToken: "access.jwt",
+        refreshToken: "refresh-opaque",
+        "set-cookie": "smaug_refresh=a",
+        headers: { authorization: "Bearer x", cookie: "smaug_refresh=b", "set-cookie": "c" },
+        body: { password: "s3cret-body", refreshToken: "r", accessToken: "a" },
+        secret: "s3cret-jwt-key",
+        pepper: "s3cret-pepper",
+        config: { secret: "s3cret-nested-key", pepper: "s3cret-nested-pepper" },
+        userId: "user-1",
+      },
+      "with secrets",
+    );
+
+    const entry = JSON.parse(lines[0] as string);
+    expect(lines[0]).not.toMatch(/s3cret|access\.jwt|refresh-opaque|smaug_refresh|Bearer|argon2id/);
+    expect(entry.password).toBe("[REDACTED]");
+    expect(entry.headers).toEqual({
+      authorization: "[REDACTED]",
+      cookie: "[REDACTED]",
+      "set-cookie": "[REDACTED]",
+    });
+    expect(entry.body.password).toBe("[REDACTED]");
+    expect(entry.secret).toBe("[REDACTED]");
+    expect(entry.pepper).toBe("[REDACTED]");
+    expect(entry.config).toEqual({ secret: "[REDACTED]", pepper: "[REDACTED]" });
+    expect(entry.userId).toBe("user-1");
   });
 
   it("should forward every level with the provided context", async () => {

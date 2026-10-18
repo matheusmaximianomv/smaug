@@ -8,6 +8,7 @@ import { renderWithProviders } from "../render";
 const authMock = vi.hoisted(() => ({
   user: null as User | null,
   logout: vi.fn(),
+  logoutAll: vi.fn(),
 }));
 
 vi.mock("@/features/auth/hooks/useAuth", () => ({

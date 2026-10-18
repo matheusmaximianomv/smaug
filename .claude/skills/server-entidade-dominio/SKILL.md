@@ -1,6 +1,6 @@
 ---
 name: server-entidade-dominio
-description: Como escrever entidades e value objects em server/src/domain — private constructor, static create, campos public readonly, validação interna, update copy-on-write, rehydrate e MonthlyCompetence. Use ao criar ou alterar qualquer arquivo .entity.ts ou .value-object.ts.
+description: Como escrever entidades e value objects em server/src/domain — private constructor, static create, campos public readonly, validação interna, update copy-on-write, rehydrate (inclusive com XRecord de strings), "agora" por parâmetro e os value objects MonthlyCompetence, EmailAddress e PasswordPolicy. Use ao criar ou alterar qualquer arquivo .entity.ts ou .value-object.ts.
 ---
 
 # Entidade de domínio e value object
@@ -135,33 +135,95 @@ export class OneTimeRevenue {
 3. **Campos `public readonly`** — um por prop. Nunca getters, nunca guardar um objeto `props`.
 4. **`private constructor(props: Required<XProps>)`** que só faz atribuição campo a campo. Nada de
    validação no construtor.
-5. **`public static create(props: XProps): X` é a única fábrica.** Ela normaliza (`trim()`,
-   `toLowerCase()` em e-mail), valida, resolve `id: props.id ?? randomUUID()` e
-   `createdAt: props.createdAt ?? now`.
+5. **`public static create(props: XProps): X` é a fábrica.** Ela normaliza (`trim()`; e-mail
+   passa pelo VO `EmailAddress`), valida, resolve `id: props.id ?? randomUUID()` e
+   `createdAt: props.createdAt ?? now`. Exceção nomeada: quando nascer a entidade é um **evento
+   com tempo** e não "preencher props", a fábrica leva o nome do evento e recebe `now`
+   explicitamente — `AuthSession.start(userId, authMethod, now, maxLifetimeMs)` e
+   `RefreshToken.issue(session, tokenHash, parentTokenId, now, ttlMs)`, que calculam `expiresAt`
+   a partir de `now`. Durações chegam em **milissegundos** (a conversão de segundos do env é do
+   caso de uso / `SessionPolicy`).
 6. **Validação mora na entidade**, em `private static validateX(...): void`, uma por regra, lançando
    `Error` com mensagem em inglês. Essa mensagem tem que ser **idêntica** à mensagem do schema Zod
    correspondente em `application/dtos/` — os testes assertam a string.
 7. **Mutação devolve nova instância.** Nomes usados: `update`, `updateDetails`, `terminate`,
-   `clearTermination`. Copie todos os campos e troque `updatedAt: new Date()`. Nunca mutar `this`.
-8. **`static rehydrate(props)` só quando `create()` valida regra temporal, e só para o
-   repositório.** Hoje existe apenas em `RecurringExpense` e `RecurringExpenseVersion`, porque o
-   `create()` delas rejeita competência passada e o repositório precisa reconstruir linhas antigas.
-   Em todos os outros agregados o repositório chama `Entity.create({ ...record })`.
+   `clearTermination`, e na autenticação `revoke(reason, now)` e `withNewHash(hash, now)`. Copie
+   todos os campos e troque `updatedAt: new Date()` — ou `updatedAt: now` quando o método recebe
+   `now` (as entidades de auth sempre recebem). Nunca mutar `this`.
+   Predicados que dependem do tempo também recebem `now` por parâmetro, sem default:
+   `AuthSession.isActive(now)`, `RefreshToken.isExpired(now)`,
+   `RefreshToken.rotatedWithin(graceMs, now)`. Comparação de borda é explícita no JSDoc
+   (em `now == expiresAt` já não vale).
+8. **`static rehydrate(props)` só quando a fábrica não serve para reconstruir uma linha, e só para
+   o repositório.** Existe em `RecurringExpense` e `RecurringExpenseVersion` (o `create()` rejeita
+   competência passada) e em `AuthSession` e `RefreshToken` (`start`/`issue` calculam datas a
+   partir de "agora"). Em todos os outros agregados o repositório chama
+   `Entity.create({ ...record })`.
+   Nas duas entidades de auth, o `rehydrate` recebe um **`XRecord`** exportado pela entidade, em que
+   as colunas de estado são `string` (o schema não usa enum), e valida/estreita cada uma para a
+   união fechada com `validateOneOf`. As uniões nascem de arrays `as const`. De
+   `domain/entities/auth-session.entity.ts`:
+
+   ```ts
+   export const AUTH_SESSION_STATUSES = ["ACTIVE", "REVOKED"] as const;
+   export type AuthSessionStatus = (typeof AUTH_SESSION_STATUSES)[number];
+
+   /**
+    * Linha como o banco a devolve: estado, método e motivo são `String` no schema (sem enum) e só
+    * viram os tipos fechados depois de validados por `rehydrate`.
+    */
+   export interface AuthSessionRecord extends Omit<
+     AuthSessionPersistenceProps,
+     "authMethod" | "status" | "revokedReason"
+   > {
+     authMethod: string;
+     status: string;
+     revokedReason: string | null;
+   }
+
+   /** Só para o repositório: `start` calcula as datas a partir de "agora" e não reconstrói uma linha. */
+   public static rehydrate(record: AuthSessionRecord): AuthSession {
+     return new AuthSession({
+       ...record,
+       authMethod: AuthSession.validateOneOf(record.authMethod, AUTH_METHODS, "auth method"),
+       status: AuthSession.validateOneOf(record.status, AUTH_SESSION_STATUSES, "session status"),
+       revokedReason:
+         record.revokedReason === null
+           ? null
+           : AuthSession.validateOneOf(
+               record.revokedReason,
+               SESSION_REVOCATION_REASONS,
+               "session revocation reason",
+             ),
+     });
+   }
+   ```
+
    **`rehydrate` não é atalho para criar registro novo**: ele pula _todas_ as invariantes, não só a
    temporal. Quando um caso de uso precisa nascer uma entidade em competência passada — hoje só a
    importação de histórico — a entidade expõe `static createForImport(props)`, que dispensa
    exclusivamente a trava de tempo e mantém o resto da validação. As três fábricas compartilham um
    `private static build(props)`.
+
 9. **Sem `toJSON` / `toPrimitives`.** Serialização é responsabilidade do service (`toResponseDto`).
 10. **Nada de framework**: nem Prisma, nem Express, nem Zod, nem tsyringe dentro de `domain/`.
 11. Tipo de persistência, quando precisa ser exportado para o repositório, é um alias explícito:
     `export type RecurringExpenseVersionPersistenceProps = Required<RecurringExpenseVersionProps>;`
-    ou uma interface quando há campos nuláveis (`endMonth: number | null`).
+    ou uma interface quando há campos nuláveis (`endMonth: number | null`,
+    `revokedAt: Date | null`).
+12. Entidade sem `id` próprio é aceita quando a chave é a do dono: `PasswordCredential` tem
+    `userId` como PK (1:1 com `User`) e não gera UUID.
+13. Segredo nunca entra em entidade: `RefreshToken` guarda só `tokenHash`, `PasswordCredential` só
+    o hash PHC e o `pepperId`.
 
-## Value object — `MonthlyCompetence`
+## Value objects
 
-É o conceito-pivô de todo o domínio. Único VO do projeto
-(`domain/value-objects/monthly-competence.value-object.ts`).
+Há três em `domain/value-objects/`: `MonthlyCompetence` (o pivô de todo o domínio),
+`EmailAddress` e `PasswordPolicy`.
+
+### `MonthlyCompetence`
+
+`domain/value-objects/monthly-competence.value-object.ts`:
 
 ```ts
 const MIN_MONTH = 1;
@@ -204,6 +266,48 @@ Regras do VO:
 - Entidades guardam `month`/`year` achatados como `number` e expõem `getXCompetence()` que
   reconstrói o VO sob demanda.
 
+### `EmailAddress`
+
+A **única** normalização de e-mail do domínio (trim + minúsculas, formato, ≤ 254). `User.create`,
+o cadastro, o login e o schema Zod (via `superRefine`) passam por ela. Guarda `value` e é usada
+como `EmailAddress.create(raw).value`. De `domain/value-objects/email-address.value-object.ts`:
+
+```ts
+export class EmailAddress {
+  public readonly value: string;
+
+  private constructor(value: string) {
+    this.value = value;
+  }
+
+  public static create(raw: string): EmailAddress {
+    const normalized = raw.trim().toLowerCase();
+    EmailAddress.validateFormat(normalized);
+    EmailAddress.validateLength(normalized);
+    return new EmailAddress(normalized);
+  }
+```
+
+### `PasswordPolicy`
+
+Regra de tamanho da senha sem estado: **classe só com `static`**, sem instância nem construtor.
+12 a 128 code points depois de NFKC (a mesma normalização que o hasher aplica), **sem `trim`**
+— espaço é caractere de senha. De `domain/value-objects/password-policy.value-object.ts`:
+
+```ts
+export class PasswordPolicy {
+  public static assert(password: string): void {
+    const length = [...password.normalize("NFKC")].length;
+    if (length < MIN_PASSWORD_LENGTH || length > MAX_PASSWORD_LENGTH) {
+      throw new Error("Password must be between 12 and 128 characters");
+    }
+  }
+}
+```
+
+O schema de **login** não aplica o mínimo, só o teto de 128 (senha antiga/curta tem que receber
+`INVALID_CREDENTIALS`, não `VALIDATION_ERROR`).
+
 ## Checklist para criar uma entidade
 
 - [ ] `export interface XProps` com `id?`/`createdAt?`/`updatedAt?`.
@@ -213,7 +317,10 @@ Regras do VO:
 - [ ] `static create()` normaliza → valida → `randomUUID()` / `new Date()`.
 - [ ] Um `private static validateX()` por regra, com mensagem igual à do Zod.
 - [ ] Métodos de mutação devolvendo nova instância com `updatedAt: new Date()`.
-- [ ] `static rehydrate()` **apenas** se `create()` validar regra de tempo, e só para o repositório.
+- [ ] `static rehydrate()` **apenas** se a fábrica não reconstruir uma linha (regra de tempo ou
+      datas calculadas de "agora"), e só para o repositório; coluna de estado em `string` →
+      `XRecord` + validação no `rehydrate`.
+- [ ] Tempo por parâmetro (`now: Date`) em fábricas de evento, mutações e predicados temporais.
 - [ ] `static createForImport()` se algum caso de uso precisar nascer a entidade no passado.
 - [ ] `getXCompetence()` se a entidade tiver competência.
 - [ ] Teste unitário em `server/tests/unit/domain/entities/x.entity.test.ts` (skill `server-testes`).
@@ -225,7 +332,12 @@ Regras do VO:
 - Não exponha getters: os campos já são `public readonly`.
 - Não use `node:crypto` (o padrão do projeto é `import { randomUUID } from "crypto"`).
 - Não coloque regra de tempo ou checagem cross-agregado na entidade, salvo o caso já existente de
-  `RecurringExpense` — isso é responsabilidade do caso de uso.
+  `RecurringExpense` — isso é responsabilidade do caso de uso. Predicado temporal **puro**, com
+  `now` recebido por parâmetro (`isActive(now)`, `isExpired(now)`), é permitido.
+- Não leia `new Date()` dentro de método de entidade de auth: o caso de uso lê "agora" uma vez e
+  repassa.
+- Não normalize e-mail à mão: use `EmailAddress`.
+- Não use `enum` do TypeScript para estado: array `as const` + tipo derivado.
 
 ## Inconsistências conhecidas
 
@@ -234,6 +346,9 @@ Regras do VO:
 - **Validação de 2 casas decimais está duplicada em 5 entidades.** Não replique por preguiça em
   código novo sem necessidade; se for extrair, extraia para o domínio (não para infra) e atualize
   as 5 de uma vez.
+- `PasswordCredential.create` e `User.create` ainda caem em `new Date()` quando `createdAt`/
+  `updatedAt` não vêm nas props, enquanto `AuthSession`/`RefreshToken` exigem `now`. Em código
+  novo de auth, passe as datas explicitamente.
 - **Guarda de competência passada** aparece na entidade (`RecurringExpense`) e no use case
   (revenue/expense avulsos, parcelado). Para agregado novo, **coloque no caso de uso** — é o lado
   majoritário e evita precisar de `rehydrate`.

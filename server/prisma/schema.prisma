@@ -17,8 +17,54 @@ model User {
   oneTimeExpenses       OneTimeExpense[]
   installmentExpenses   InstallmentExpense[]
   recurringExpenses     RecurringExpense[]
+  passwordCredential    PasswordCredential?
+  authSessions          AuthSession[]
 
   @@map("t_users")
+}
+
+model PasswordCredential {
+  userId       String   @id @map("user_id")
+  passwordHash String   @map("password_hash")
+  pepperId     String   @map("pepper_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("t_password_credentials")
+}
+
+model AuthSession {
+  id            String         @id @map("id")
+  userId        String         @map("user_id")
+  authMethod    String         @map("auth_method")
+  status        String         @map("status")
+  createdAt     DateTime       @map("created_at")
+  lastUsedAt    DateTime       @map("last_used_at")
+  expiresAt     DateTime       @map("expires_at")
+  revokedAt     DateTime?      @map("revoked_at")
+  revokedReason String?        @map("revoked_reason")
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId, status], map: "i_auth_sessions_user_status")
+  @@map("t_auth_sessions")
+}
+
+model RefreshToken {
+  id            String      @id @map("id")
+  sessionId     String      @map("session_id")
+  tokenHash     String      @unique(map: "u_refresh_tokens_token_hash") @map("token_hash")
+  parentTokenId String?     @unique(map: "u_refresh_tokens_parent") @map("parent_token_id")
+  status        String      @map("status")
+  createdAt     DateTime    @map("created_at")
+  expiresAt     DateTime    @map("expires_at")
+  rotatedAt     DateTime?   @map("rotated_at")
+  revokedAt     DateTime?   @map("revoked_at")
+  session       AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, status], map: "i_refresh_tokens_session_status")
+  @@map("t_refresh_tokens")
 }
 
 model OneTimeRevenue {

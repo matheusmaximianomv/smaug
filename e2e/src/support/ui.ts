@@ -13,7 +13,7 @@ import type { Locator, Page } from "@playwright/test";
  *
  * Sem isto há uma corrida REAL, não teórica: enquanto a página não hidrata, um
  * clique no `<button type="submit">` faz submit **nativo** (vira `GET
- * /login?userId=…`) e um clique num botão que só abre modal não faz nada. O
+ * /login?email=…`) e um clique num botão que só abre modal não faz nada. O
  * React grava `__reactFiber$…` em cada nó host no instante em que passa a
  * controlá-lo — é o sinal mais barato de que os handlers já estão ligados, e
  * vale tanto em `next dev` quanto em `next start`.

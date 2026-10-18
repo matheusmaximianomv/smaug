@@ -1,7 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { clearUserId, getUserId, setUserId } from "./session";
-
-const UUID = "00000000-0000-4000-8000-000000000001";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearSession, getAccessToken, hasSessionHint, setSession } from "./session";
 
 /** Remove qualquer cookie deixado por um teste anterior do mesmo arquivo. */
 function wipeCookies(): void {
@@ -11,111 +9,127 @@ function wipeCookies(): void {
   }
 }
 
+/** Captura o que foi atribuído a `document.cookie` durante `run`. */
+function cookieWrites(run: () => void): string[] {
+  const writes: string[] = [];
+  const original = Object.getOwnPropertyDescriptor(Document.prototype, "cookie")!;
+  Object.defineProperty(document, "cookie", {
+    configurable: true,
+    set(value: string) {
+      writes.push(value);
+      original.set!.call(document, value);
+    },
+    get() {
+      return original.get!.call(document);
+    },
+  });
+  try {
+    run();
+  } finally {
+    delete (document as unknown as Record<string, unknown>).cookie;
+  }
+  return writes;
+}
+
 beforeEach(() => {
+  clearSession();
   wipeCookies();
 });
 
-describe("getUserId", () => {
-  it("devolve null quando não há cookie", () => {
-    expect(getUserId()).toBeNull();
+describe("setSession", () => {
+  it("guarda o access token em memória", () => {
+    setSession("token-1");
+
+    expect(getAccessToken()).toBe("token-1");
   });
 
-  it("devolve o id gravado por setUserId", () => {
-    setUserId(UUID);
+  it("escreve só o indicador smaug_session=1, com path, 30 dias e SameSite=Lax", () => {
+    const writes = cookieWrites(() => setSession("token-1"));
 
-    expect(getUserId()).toBe(UUID);
+    expect(writes).toEqual(["smaug_session=1;path=/;max-age=2592000;SameSite=Lax"]);
+    expect(hasSessionHint()).toBe(true);
   });
 
-  it("devolve null quando o cookie existe mas está vazio", () => {
-    document.cookie = "userId=;path=/";
+  it("nunca grava o access token em cookie, localStorage ou sessionStorage", () => {
+    setSession("token-secreto");
 
-    expect(getUserId()).toBeNull();
+    expect(document.cookie).not.toContain("token-secreto");
+    expect(JSON.stringify({ ...localStorage })).not.toContain("token-secreto");
+    expect(JSON.stringify({ ...sessionStorage })).not.toContain("token-secreto");
   });
 
-  it("decodifica o valor quando ele foi gravado URL-encoded", () => {
-    document.cookie = `userId=${encodeURIComponent("maria souza@example.com")};path=/`;
+  it("substitui o token anterior", () => {
+    setSession("token-1");
+    setSession("token-2");
 
-    expect(getUserId()).toBe("maria souza@example.com");
-  });
-
-  it("encontra o cookie no meio de outros", () => {
-    document.cookie = "a=1;path=/";
-    document.cookie = `userId=${UUID};path=/`;
-    document.cookie = "b=2;path=/";
-
-    expect(document.cookie).toContain("a=1");
-    expect(document.cookie).toContain("b=2");
-    expect(getUserId()).toBe(UUID);
-  });
-
-  it("devolve null quando só existem outros cookies", () => {
-    document.cookie = "a=1;path=/";
-    document.cookie = "outroUserId=abc;path=/";
-
-    expect(getUserId()).toBeNull();
+    expect(getAccessToken()).toBe("token-2");
   });
 });
 
-describe("setUserId", () => {
-  it("grava o cookie com path, max-age de um ano e SameSite=Lax", () => {
-    let written = "";
-    const original = Object.getOwnPropertyDescriptor(Document.prototype, "cookie")!;
-    Object.defineProperty(document, "cookie", {
-      configurable: true,
-      set(value: string) {
-        written = value;
-        original.set!.call(document, value);
-      },
-      get() {
-        return original.get!.call(document);
-      },
-    });
+describe("clearSession", () => {
+  it("esquece o token e apaga o indicador", () => {
+    setSession("token-1");
 
-    try {
-      setUserId(UUID);
-    } finally {
-      delete (document as unknown as Record<string, unknown>).cookie;
-    }
+    clearSession();
 
-    expect(written).toBe(`userId=${UUID};path=/;max-age=31536000;SameSite=Lax`);
-  });
-
-  it("codifica o valor antes de gravar", () => {
-    setUserId("a b");
-
-    expect(document.cookie).toContain("userId=a%20b");
-    expect(getUserId()).toBe("a b");
-  });
-
-  it("sobrescreve uma sessão anterior", () => {
-    setUserId(UUID);
-    setUserId("outro-id");
-
-    expect(getUserId()).toBe("outro-id");
-  });
-});
-
-describe("clearUserId", () => {
-  it("remove a sessão existente", () => {
-    setUserId(UUID);
-
-    clearUserId();
-
-    expect(getUserId()).toBeNull();
-  });
-
-  it("é no-op quando não há sessão", () => {
-    expect(() => clearUserId()).not.toThrow();
-    expect(getUserId()).toBeNull();
+    expect(getAccessToken()).toBeNull();
+    expect(hasSessionHint()).toBe(false);
   });
 
   it("preserva os demais cookies", () => {
     document.cookie = "a=1;path=/";
-    setUserId(UUID);
+    setSession("token-1");
 
-    clearUserId();
+    clearSession();
 
     expect(document.cookie).toContain("a=1");
-    expect(getUserId()).toBeNull();
+  });
+
+  it("é no-op quando não há sessão", () => {
+    expect(() => clearSession()).not.toThrow();
+    expect(getAccessToken()).toBeNull();
+  });
+});
+
+describe("hasSessionHint", () => {
+  it("é falso sem cookie", () => {
+    expect(hasSessionHint()).toBe(false);
+  });
+
+  it("acha o indicador no meio de outros cookies", () => {
+    document.cookie = "a=1;path=/";
+    document.cookie = "smaug_session=1;path=/";
+    document.cookie = "b=2;path=/";
+
+    expect(hasSessionHint()).toBe(true);
+  });
+
+  it.each(["smaug_session=", "smaug_session=0", "outro_smaug_session=1"])(
+    "não aceita %s como indicador",
+    (cookie) => {
+      document.cookie = `${cookie};path=/`;
+
+      expect(hasSessionHint()).toBe(false);
+    },
+  );
+
+  it("não depende do token em memória: a aba recarregada tem só o indicador", () => {
+    document.cookie = "smaug_session=1;path=/";
+
+    expect(getAccessToken()).toBeNull();
+    expect(hasSessionHint()).toBe(true);
+  });
+});
+
+describe("cookie userId legado", () => {
+  it("é apagado ao carregar o módulo e não conta como sessão", async () => {
+    document.cookie = "userId=00000000-0000-4000-8000-000000000001;path=/";
+    vi.resetModules();
+
+    const fresh = await import("./session");
+
+    expect(document.cookie).not.toContain("userId=");
+    expect(fresh.hasSessionHint()).toBe(false);
+    expect(fresh.getAccessToken()).toBeNull();
   });
 });

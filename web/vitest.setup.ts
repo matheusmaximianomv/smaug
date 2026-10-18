@@ -8,6 +8,7 @@ import { server } from "./tests/msw/server";
 import { resetDb } from "./tests/msw/db";
 import { drainToasts } from "./tests/toast";
 import { resetFixtureIds } from "./tests/fixtures";
+import { clearSession } from "./infra/session";
 
 // O default de 1s do `waitFor` é apertado demais quando a suíte roda com cobertura: a
 // instrumentação do v8 deixa cada worker bem mais lento e os arquivos de integração mais pesados
@@ -122,9 +123,9 @@ afterEach(() => {
   resetDb();
   resetFixtureIds();
   drainToasts();
-  // O `document` do jsdom é recriado por ARQUIVO, não por teste: sem isto, um
-  // setUserId() vaza o header X-User-Id para o teste seguinte.
-  if (hasDom) document.cookie = "userId=;path=/;max-age=0;SameSite=Lax";
+  // O módulo de sessão e o `document` do jsdom vivem por ARQUIVO, não por teste:
+  // sem isto, o access token de um loginAs() vaza o Bearer para o teste seguinte.
+  clearSession();
   vi.unstubAllEnvs();
 });
 

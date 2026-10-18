@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 import type { Competence } from "../support/competence.js";
 import type {
+  AuthSessionDto,
   CategoryDto,
   ExpenseQueryDto,
   FixedRevenueDto,
@@ -11,8 +12,18 @@ import type {
   OneTimeRevenueDto,
   RecurringExpenseDto,
   RevenueQueryDto,
-  UserDto,
 } from "./types.js";
+
+/** Nome do cookie `httpOnly` de refresh que a API emite em `/auth/register` e `/auth/login`. */
+export const REFRESH_COOKIE = "smaug_refresh";
+
+/** Senha de todo usuário semeado: cumpre a política (≥ 12 caracteres) e não importa a ninguém. */
+export const E2E_PASSWORD = "senha-e2e-correta-horse";
+
+/** Sessão aberta pela API, com o refresh token tirado do `Set-Cookie`. */
+export interface OpenedSession extends AuthSessionDto {
+  refreshToken: string;
+}
 
 /**
  * Semeia dados EXCLUSIVAMENTE pela API HTTP, nunca escrevendo no SQLite direto.
@@ -29,15 +40,15 @@ import type {
 export class SeedClient {
   constructor(
     private readonly api: APIRequestContext,
-    private readonly userId?: string,
+    private readonly accessToken?: string,
   ) {}
 
-  asUser(userId: string): SeedClient {
-    return new SeedClient(this.api, userId);
+  asUser(accessToken: string): SeedClient {
+    return new SeedClient(this.api, accessToken);
   }
 
   private get headers(): Record<string, string> {
-    return this.userId ? { "X-User-Id": this.userId } : {};
+    return this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {};
   }
 
   /** Falha de seed precisa gritar: sem isto vira uma falha muda de UI. */
@@ -50,14 +61,38 @@ export class SeedClient {
   }
 
   // ---------------------------------------------------------------- usuários
-  async createUser(o: { name?: string; email?: string } = {}): Promise<UserDto> {
-    const res = await this.api.post("/users", {
+  /**
+   * Fala direto com a API (sem o repasse `/api` do web) e sem `Origin`, que a guarda de origem de
+   * `/auth/*` aceita. O access token devolvido vale para o seed; o refresh token é o que a fixture
+   * `context` entrega ao navegador.
+   */
+  async register(
+    o: { name?: string; email?: string; password?: string } = {},
+  ): Promise<OpenedSession> {
+    const res = await this.api.post("/auth/register", {
       data: {
         name: o.name ?? "Usuário E2E",
         email: o.email ?? `e2e-${randomUUID()}@e2e.local`,
+        password: o.password ?? E2E_PASSWORD,
       },
     });
-    return this.unwrap<UserDto>(res, "POST /users");
+    return this.openedSession(res, "POST /auth/register");
+  }
+
+  /** Abre uma sessão NOVA do mesmo usuário — um "outro dispositivo". */
+  async login(email: string, password = E2E_PASSWORD): Promise<OpenedSession> {
+    const res = await this.api.post("/auth/login", { data: { email, password } });
+    return this.openedSession(res, "POST /auth/login");
+  }
+
+  private async openedSession(res: APIResponse, what: string): Promise<OpenedSession> {
+    const session = await this.unwrap<AuthSessionDto>(res, what);
+    const prefix = `${REFRESH_COOKIE}=`;
+    const cookie = res
+      .headersArray()
+      .find((h) => h.name.toLowerCase() === "set-cookie" && h.value.startsWith(prefix));
+    if (!cookie) throw new Error(`[seed] ${what} → resposta sem o cookie ${REFRESH_COOKIE}`);
+    return { ...session, refreshToken: cookie.value.slice(prefix.length).split(";")[0] };
   }
 
   // -------------------------------------------------------------- categorias

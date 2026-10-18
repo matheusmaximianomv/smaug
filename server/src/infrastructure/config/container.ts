@@ -10,10 +10,32 @@ import {
 } from "@src/infrastructure/database/database.provider.ts";
 import { PrismaUserRepository } from "@src/infrastructure/database/repositories/prisma-user.repository";
 import { UserRepository } from "@src/domain/ports/user.repository";
-import { CreateUserUseCase } from "@src/domain/use-cases/user/create-user.use-case";
 import { GetUserUseCase } from "@src/domain/use-cases/user/get-user.use-case";
 import { UserService } from "@src/application/services/user.service";
 import { UserController } from "@src/presentation/controllers/user.controller";
+import { authConfig } from "@src/infrastructure/config/env.ts";
+import { Argon2PasswordHasher } from "@src/infrastructure/auth/argon2-password-hasher.ts";
+import { JoseAccessTokenService } from "@src/infrastructure/auth/jose-access-token-service.ts";
+import { CryptoRefreshTokenGenerator } from "@src/infrastructure/auth/crypto-refresh-token-generator.ts";
+import { PasswordHasher } from "@src/domain/ports/password-hasher";
+import { AccessTokenService } from "@src/domain/ports/access-token-service";
+import { RefreshTokenGenerator } from "@src/domain/ports/refresh-token-generator";
+import { PrismaPasswordCredentialRepository } from "@src/infrastructure/database/repositories/prisma-password-credential.repository";
+import { PasswordCredentialRepository } from "@src/domain/ports/password-credential.repository";
+import { PrismaAuthSessionRepository } from "@src/infrastructure/database/repositories/prisma-auth-session.repository";
+import { AuthSessionRepository } from "@src/domain/ports/auth-session.repository";
+import { RegisterWithPasswordUseCase } from "@src/domain/use-cases/auth/register-with-password.use-case";
+import { LoginWithPasswordUseCase } from "@src/domain/use-cases/auth/login-with-password.use-case";
+import {
+  SessionPolicy,
+  StartSessionUseCase,
+} from "@src/domain/use-cases/auth/start-session.use-case";
+import { RefreshSessionUseCase } from "@src/domain/use-cases/auth/refresh-session.use-case";
+import { RevokeSessionUseCase } from "@src/domain/use-cases/auth/revoke-session.use-case";
+import { RevokeAllSessionsUseCase } from "@src/domain/use-cases/auth/revoke-all-sessions.use-case";
+import { AuthenticateRequestUseCase } from "@src/domain/use-cases/auth/authenticate-request.use-case";
+import { AuthService } from "@src/application/services/auth.service";
+import { AuthController } from "@src/presentation/controllers/auth.controller";
 import { PrismaOneTimeRevenueRepository } from "@src/infrastructure/database/repositories/prisma-one-time-revenue.repository";
 import { OneTimeRevenueRepository } from "@src/domain/ports/one-time-revenue.repository";
 import { CreateOneTimeRevenueUseCase } from "@src/domain/use-cases/one-time-revenue/create-one-time-revenue.use-case";
@@ -86,15 +108,86 @@ container.registerInstance<PrismaClient>("PrismaClient", prismaClient);
 container.registerSingleton<Logger>("Logger", PinoLogger);
 container.register<RepositoryFactory>("RepositoryFactory", { useValue: getRepository });
 
+const logger = container.resolve<Logger>("Logger");
+
 const userRepository: UserRepository = new PrismaUserRepository(prismaClient);
-const createUserUseCase = new CreateUserUseCase(userRepository);
 const getUserUseCase = new GetUserUseCase(userRepository);
-const userService = new UserService(createUserUseCase, getUserUseCase);
+const userService = new UserService(getUserUseCase);
 const userController = new UserController(userService);
 
 container.registerInstance<UserRepository>("UserRepository", userRepository);
 container.registerInstance<UserService>("UserService", userService);
 container.registerInstance<UserController>("UserController", userController);
+
+const MS_PER_SECOND = 1000;
+
+const passwordHasher: PasswordHasher = new Argon2PasswordHasher(authConfig.password);
+const accessTokenService: AccessTokenService = new JoseAccessTokenService(authConfig.accessToken);
+const refreshTokenGenerator: RefreshTokenGenerator = new CryptoRefreshTokenGenerator();
+const passwordCredentialRepository: PasswordCredentialRepository =
+  new PrismaPasswordCredentialRepository(prismaClient);
+const authSessionRepository: AuthSessionRepository = new PrismaAuthSessionRepository(prismaClient);
+// O AuthConfig fala em segundos (como o env); os casos de uso, em milissegundos.
+const sessionPolicy: SessionPolicy = {
+  refreshTokenTtlMs: authConfig.session.refreshTokenTtlSeconds * MS_PER_SECOND,
+  maxLifetimeMs: authConfig.session.maxLifetimeSeconds * MS_PER_SECOND,
+  reuseGraceMs: authConfig.session.refreshReuseGraceSeconds * MS_PER_SECOND,
+};
+const registerWithPasswordUseCase = new RegisterWithPasswordUseCase(
+  userRepository,
+  passwordHasher,
+  logger,
+);
+const loginWithPasswordUseCase = new LoginWithPasswordUseCase(
+  userRepository,
+  passwordCredentialRepository,
+  passwordHasher,
+  logger,
+);
+const startSessionUseCase = new StartSessionUseCase(
+  authSessionRepository,
+  refreshTokenGenerator,
+  accessTokenService,
+  sessionPolicy,
+);
+const refreshSessionUseCase = new RefreshSessionUseCase(
+  authSessionRepository,
+  refreshTokenGenerator,
+  accessTokenService,
+  logger,
+  sessionPolicy,
+);
+const revokeSessionUseCase = new RevokeSessionUseCase(
+  authSessionRepository,
+  refreshTokenGenerator,
+  logger,
+);
+const revokeAllSessionsUseCase = new RevokeAllSessionsUseCase(authSessionRepository, logger);
+const authenticateRequestUseCase = new AuthenticateRequestUseCase(
+  accessTokenService,
+  authSessionRepository,
+);
+const authService = new AuthService(
+  registerWithPasswordUseCase,
+  loginWithPasswordUseCase,
+  startSessionUseCase,
+  refreshSessionUseCase,
+  revokeSessionUseCase,
+  revokeAllSessionsUseCase,
+  getUserUseCase,
+);
+const authController = new AuthController(authService, {
+  name: "smaug_refresh",
+  ...authConfig.cookie,
+});
+
+container.registerInstance<PasswordCredentialRepository>(
+  "PasswordCredentialRepository",
+  passwordCredentialRepository,
+);
+container.registerInstance<AuthSessionRepository>("AuthSessionRepository", authSessionRepository);
+container.registerInstance<AuthService>("AuthService", authService);
+container.registerInstance<AuthController>("AuthController", authController);
 
 const oneTimeRevenueRepository: OneTimeRevenueRepository = new PrismaOneTimeRevenueRepository(
   prismaClient,
@@ -353,8 +446,9 @@ container.registerInstance<DataController>("DataController", dataController);
 
 export {
   container,
-  userRepository,
   userController,
+  authController,
+  authenticateRequestUseCase,
   oneTimeRevenueController,
   oneTimeExpenseController,
   installmentExpenseController,
