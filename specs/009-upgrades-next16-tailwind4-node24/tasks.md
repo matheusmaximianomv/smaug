@@ -124,12 +124,13 @@ verdes.
 - [x] T061 [P] [US4] `turbopack: { root: __dirname }` em `web/next.config.ts` (A1)
 - [x] T062 [P] [US4] `settings.next.rootDir` absoluto em `web/eslint.config.mjs` (A2)
 - [x] T063 [P] [US1] Timeout de 15 s no teste "revisa uma fixa alterável sem término e uma avulsa" de `web/tests/integration/receitas-page.test.tsx` (A3)
-- [x] T064 [US1] Lint (0 erros, 9 avisos), `validate:deps`, typecheck ×3, `npm run test`, cobertura do server (925, 100%) e do web (1248, thresholds) verdes
+- [x] T064 [US1] Lint (0 erros, 9 avisos), `validate:deps`, typecheck ×3, `npm run test`, cobertura do server (925, 100%) e do web (1250, thresholds) verdes
 - [x] T065 [US1] `npm run build` e E2E 96/96 em modo `build`
 - [x] T066 [US1] Smoke do `dist/` com SQLite e com PostgreSQL 16 (`?schema=public`): health, users 201/409, categoria 409, import/export CSV, `DateTime` inteiro no SQLite, 503 em 5,08 s com host inalcançável
 - [x] T067 [US1] Smoke com `NODE_OPTIONS=--trace-deprecation` (dev server + `next start`): nenhum `DeprecationWarning`
 - [x] T068 [US4] Docker (fora do escopo): imagem do `Dockerfile` inalterado construída e testada offline (666 MB)
 - [x] T069 Escrever esta pasta de spec no formato Spec Kit, com o Constitution Check e a seção de deploy
+- [x] T071 [US4] `npm audit fix` sem `--force` na raiz, em `web/`, `server/` e `e2e/` (só lockfiles, mais `vitest`/`@vitest/coverage-v8` `^4.1.12` no server); raiz, server e e2e com 0 achados; no web resta só o `braces` de desenvolvimento, sem correção, aceito
 - [ ] T070 [US4] Abrir o PR e acompanhar os workflows: `ci.yml` (jobs principal e `migrations`) e `e2e.yml` verdes, com o log do `setup-node` resolvendo Node 24.x
 
 **Checkpoint**: tudo verde localmente; falta só o CI do PR.

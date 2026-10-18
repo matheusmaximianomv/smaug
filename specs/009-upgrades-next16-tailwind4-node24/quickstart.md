@@ -69,7 +69,7 @@ npm run lint                               # 0 erros, 9 avisos (web, pré-existe
 npm run validate:deps                      # sem violações
 npm run --prefix server typecheck && npm run --prefix web typecheck && npm run --prefix e2e typecheck
 npm run --prefix server test:coverage      # 101 arquivos, 925 testes, 100%
-npm run --prefix web test:coverage         # 123 arquivos, 1248 testes, thresholds verdes
+npm run --prefix web test:coverage         # 123 arquivos, 1250 testes, thresholds verdes
 NEXT_PUBLIC_API_URL=http://localhost:3000 npm run build
 npm run test:e2e                           # 96 testes; modo build por padrão
 ```

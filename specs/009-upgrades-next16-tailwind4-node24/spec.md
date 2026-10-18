@@ -232,9 +232,10 @@ Nenhuma entidade de domínio nova ou alterada. A única mudança no schema do Pr
 ### Measurable Outcomes
 
 - **SC-001**: 100% das suítes verdes no Node 24.22.0 / npm 11.19.1 — server 925 testes (101 arquivos),
-  web 1248 testes (123 arquivos), E2E 96 testes.
-- **SC-002**: `npm audit` do web: de 21 achados (1 crítico) para 8 (todos de desenvolvimento); 0 em
-  dependências de produção (antes: 7, 1 crítico).
+  web 1250 testes (123 arquivos), E2E 96 testes.
+- **SC-002**: `npm audit` do web: de 21 achados (1 crítico) para 5 (um único advisory de
+  desenvolvimento sem correção, `braces`, aceito); 0 em dependências de produção (antes: 7, 1 crítico).
+  Raiz, server e e2e com 0 achados.
 - **SC-003**: Em 100% dos modais e toasts, entrada e saída terminam em até 200 ms; com movimento
   reduzido, o modal some em menos de 10 ms.
 - **SC-004**: Em um passeio por Tab pelas telas de Login, extrato, Ficha com confirmação e assistente,
@@ -255,5 +256,5 @@ Nenhuma entidade de domínio nova ou alterada. A única mudança no schema do Pr
   do Prisma 7 (typed SQL, extensions) e do Tailwind 4 (container queries, `@starting-style`).
 - Animação de saída de toasts; modo escuro; troca de tokens; adoção de `cva`.
 - Regressão visual automatizada no Playwright.
-- Limpeza dos 9 avisos de lint e do restante do `npm audit` de desenvolvimento.
+- Limpeza dos 9 avisos de lint.
 - Node 26 (Active LTS só a partir de 2026-10-28).

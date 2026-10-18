@@ -261,7 +261,7 @@ Node 24.22.0 / npm 11.19.1, client do Prisma gerado para SQLite.
 | Verificação                                                        | Resultado                                                                                                                                                                                                         |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm run --prefix server test:coverage`                            | 101 arquivos, **925 testes**, 100% nas quatro métricas                                                                                                                                                            |
-| `npm run --prefix web test:coverage`                               | 123 arquivos, **1248 testes**, thresholds por glob verdes (`proxy.ts` 100%)                                                                                                                                       |
+| `npm run --prefix web test:coverage`                               | 123 arquivos, **1250 testes**, thresholds por glob verdes (`proxy.ts` 100%)                                                                                                                                       |
 | `npm run test:e2e` (modo `build`)                                  | **96/96**; na etapa Next também 96/96 em modo `dev`                                                                                                                                                               |
 | `npm run lint`                                                     | **0 erros, 9 avisos** — todos do web e já existentes antes das três etapas (8 surgiram quando o lint passou a varrer o web todo + 1 antigo)                                                                       |
 | `npm run validate:deps`                                            | sem violações                                                                                                                                                                                                     |
@@ -276,20 +276,29 @@ Node 24.22.0 / npm 11.19.1, client do Prisma gerado para SQLite.
 | Capturas `main` × branch (1280 px e 375 px, todas as telas)        | idênticas, exceto placeholder do campo de valor, selo "Vigente" (−2 px) e ~1 px nas tabelas do Dashboard                                                                                                          |
 | Docker (fora do escopo, ensaiado)                                  | `Dockerfile` inalterado: build, `migrate:deploy` e `/health` `healthy` offline; 666 MB                                                                                                                            |
 
-**`npm audit`** (lock da `main` × lock da branch):
+**`npm audit`** (lock da `main` × branch depois das atualizações × branch depois do `npm audit fix`):
 
-| Pacote | Antes                                                  | Depois                                | Produção (`--omit=dev`) antes → depois |
-| ------ | ------------------------------------------------------ | ------------------------------------- | -------------------------------------- |
-| web    | 21 (1 crítico, 17 altos, 3 moderados) — `next` crítico | 8 altos (`braces`, `undici`, `vite`…) | 7 (1 crítico) → **0**                  |
-| server | 24 (1 crítico, 13 altos, 8 moderados, 2 baixos)        | 24 (mesma distribuição)               | 5 → 6 (1 crítico em ambos)             |
-| raiz   | 23 (2 críticos, 13 altos, 6 moderados, 2 baixos)       | 10 (7 altos, 3 moderados)             | 5 → 0 (poda dos pacotes órfãos)        |
-| e2e    | 0                                                      | 0                                     | 0 → 0                                  |
+| Pacote | `main`                                                 | Após as atualizações                  | Após o `audit fix`                 | Produção (`--omit=dev`): `main` → final |
+| ------ | ------------------------------------------------------ | ------------------------------------- | ---------------------------------- | --------------------------------------- |
+| web    | 21 (1 crítico, 17 altos, 3 moderados) — `next` crítico | 8 altos (`braces`, `undici`, `vite`…) | 5 altos (só `braces`, um advisory) | 7 (1 crítico) → **0**                   |
+| server | 24 (1 crítico, 13 altos, 8 moderados, 2 baixos)        | 24 (mesma distribuição)               | **0**                              | 5 (1 crítico) → **0**                   |
+| raiz   | 23 (2 críticos, 13 altos, 6 moderados, 2 baixos)       | 10 (7 altos, 3 moderados)             | **0**                              | 5 → **0**                               |
+| e2e    | 0                                                      | 0                                     | 0                                  | 0 → 0                                   |
 
 Na etapa Next, o audit do web já tinha caído para 12 (11 altos, 1 moderado); a do Tailwind tirou os que
-vinham do `tailwindcss` 3. No server o total é o mesmo, mas a composição em produção mudou: entrou
-`source-map-js` (alto) pelo CLI do Prisma 7 (`prisma` → `@prisma/config` → `c12` → `magicast`), e o
-crítico de produção (`proxy-addr`, via `express`) é pré-existente — ambos com `npm audit fix`
-disponível (follow-up).
+vinham do `tailwindcss` 3. Depois das três atualizações, um `npm audit fix` sem `--force` nos quatro
+pacotes (só lockfiles, dentro das faixas declaradas, sem `overrides`) zerou raiz e server, inclusive o
+crítico de produção pré-existente `proxy-addr` (via `express`) e o `source-map-js` trazido pelo CLI do
+Prisma 7. No server, `vitest` e `@vitest/coverage-v8` sobem juntos para `^4.1.12` (o coverage exige a
+mesma versão exata), o que corrige o `@vitest/mocker`.
+
+**Risco aceito**: os 5 achados restantes do web são um único advisory sem versão corrigida,
+`braces` ≤ 3.0.3 (GHSA-vfj7-8cjw-p6xm, DoS por estouro de pilha com padrões muito aninhados). Chega por
+`eslint-config-next` → `@next/eslint-plugin-next`, que fixa `fast-glob` 3.3.1 (→ `micromatch` →
+`braces`). É só de desenvolvimento (lint), não roda em produção e os globs vêm da configuração do
+próprio projeto. Override não resolve (nenhuma versão de `fast-glob`/`micromatch` deixa de puxar
+`braces`) e remover o `eslint-config-next` custaria as regras `@next/next/*`. Revisar quando o plugin
+do Next deixar de depender de `fast-glob` ou quando o `braces` publicar correção.
 
 **Pendente**: CI do PR (`ci.yml` com os jobs principal e `migrations`, e `e2e.yml`) — depende da
 abertura do PR.
@@ -375,9 +384,8 @@ ou a camada exigem.
   (666 MB — estágio de migração separado ou CLI fora do `runner`); generator `prisma-client` (`output`
   reescrito pelo wrapper, `.gitignore`, imports de `@prisma/client`, detecção do `run-e2e.mjs`, `COPY`
   do `Dockerfile`); atualizar a linha de Docker do `CLAUDE.md`.
-- **Segurança do server**: `npm audit fix` para o crítico de produção `proxy-addr` (via `express`) e os
-  demais achados de produção (`body-parser`, `path-to-regexp`, `qs`, `fast-copy`, `source-map-js`).
-- `npm audit fix` das dependências de desenvolvimento restantes (web, raiz, server).
+- **`braces` no web (risco aceito)**: rever o GHSA-vfj7-8cjw-p6xm quando o `@next/eslint-plugin-next`
+  deixar de fixar `fast-glob` ou o `braces` publicar correção.
 - Reavaliar o **Node 26** depois de 2026-10-28 (Active LTS).
 - Antes de qualquer Prisma 8: conferir se o `prisma-client-js` ainda existe.
 - Declarar `allowScripts` (npm 11/12) em `server/` e `web/` quando o npm 12 fixar o bloqueio, com
