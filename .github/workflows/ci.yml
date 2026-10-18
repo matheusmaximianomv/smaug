@@ -61,6 +61,13 @@ jobs:
       # `prisma db push`, então não há banco a provisionar aqui.
       - name: Testes (server e web)
         run: npm test
+        # Segredos FIXOS de teste, públicos de propósito: não protegem nada e não devem
+        # ser usados em nenhum ambiente real. O env.ts da API os exige no import.
+        env:
+          JWT_SECRET: dGVzdC1vbmx5LWp3dC1zZWNyZXQtbm90LXNlY3JldCE=
+          JWT_KEY_ID: test
+          PASSWORD_PEPPERS: test:dGVzdC1vbmx5LXBlcHBlci1ub3QtYS1zZWNyZXQhISE=
+          PASSWORD_PEPPER_CURRENT_ID: test
 
   migrations:
     name: Migrations (SQLite e PostgreSQL)
@@ -102,3 +109,19 @@ jobs:
         run: npm run --prefix server migrate:check
         env:
           POSTGRES_SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/smaug_shadow
+
+      # A rotação de refresh token depende do modelo de concorrência do banco: a mesma
+      # bateria que roda em SQLite no job `verify` roda aqui contra PostgreSQL real. O
+      # client gerado é de um provider por vez, por isso o client PostgreSQL só existe
+      # neste job. O banco `smaug_test` é separado do sombra (que o migrate:check apaga)
+      # e é criado pelo `migrate deploy` do próprio teste.
+      - name: Gerar o client do Prisma (PostgreSQL)
+        run: npm run --prefix server prisma:generate
+        env:
+          DATABASE_PROVIDER: postgresql
+
+      - name: Concorrência da rotação de refresh token (PostgreSQL)
+        working-directory: server
+        run: npx vitest run tests/integration/infrastructure/database/repositories/prisma-auth-session.concurrency.test.ts
+        env:
+          POSTGRES_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/smaug_test
