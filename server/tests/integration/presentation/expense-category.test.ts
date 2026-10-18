@@ -5,11 +5,13 @@ import type { Express } from "express";
 import { sqliteTestDatabase } from "../../helpers/sqlite-test-database";
 
 const testDb = sqliteTestDatabase("expense-category");
+const PASSWORD = "correct-horse-battery-staple";
 
 describe("Expense Category Endpoints", () => {
   let prisma: PrismaClient;
   let app: Express;
   let userId: string;
+  let accessToken: string;
 
   beforeAll(async () => {
     vi.resetModules();
@@ -19,6 +21,11 @@ describe("Expense Category Endpoints", () => {
     process.env.NODE_ENV = "test";
     process.env.PORT = "3000";
     process.env.LOG_LEVEL = "error";
+    // Argon2 mínimo: o cadastro do beforeAll faz hash, e o custo de produção só deixaria o teste lento.
+    process.env.ARGON2_MEMORY_KIB = "1024";
+    process.env.ARGON2_TIME_COST = "1";
+    process.env.ARGON2_PARALLELISM = "1";
+    process.env.AUTH_RATE_LIMIT_REGISTER_PER_IP = "1000";
 
     testDb.push();
     prisma = testDb.client();
@@ -26,11 +33,11 @@ describe("Expense Category Endpoints", () => {
     const { createHttpServer } = await import("@src/infrastructure/http/server");
     app = createHttpServer();
 
-    const createUserRes = await request(app).post("/users").send({
-      name: "Test User",
-      email: "test-user@example.com",
-    });
-    userId = createUserRes.body.id;
+    const createUserRes = await request(app)
+      .post("/auth/register")
+      .send({ name: "Test User", email: "test-user@example.com", password: PASSWORD });
+    userId = createUserRes.body.user.id;
+    accessToken = createUserRes.body.accessToken;
   });
 
   afterAll(async () => {
@@ -48,7 +55,7 @@ describe("Expense Category Endpoints", () => {
     await prisma.expenseCategory.deleteMany();
   });
 
-  const authHeaders = () => ({ "X-User-Id": userId });
+  const authHeaders = () => ({ Authorization: `Bearer ${accessToken}` });
 
   it("should create, list, get, update, and delete an expense category", async () => {
     const createRes = await request(app)
@@ -119,9 +126,7 @@ describe("Expense Category Endpoints", () => {
       },
     });
 
-    const res = await request(app)
-      .delete(`/expenses/categories/${categoryId}`)
-      .set(authHeaders());
+    const res = await request(app).delete(`/expenses/categories/${categoryId}`).set(authHeaders());
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("EXPENSE_CATEGORY_HAS_LINKED_EXPENSES");
   });

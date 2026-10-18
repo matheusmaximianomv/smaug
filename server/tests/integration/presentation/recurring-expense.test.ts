@@ -5,12 +5,13 @@ import type { Express } from "express";
 import { sqliteTestDatabase } from "../../helpers/sqlite-test-database";
 
 const testDb = sqliteTestDatabase("recurring-expense");
+const PASSWORD = "correct-horse-battery-staple";
 const BASE_DATE = new Date("2026-03-01T00:00:00.000Z");
 
 describe("Recurring Expense Endpoints", () => {
   let prisma: PrismaClient;
   let app: Express;
-  let userId: string;
+  let accessToken: string;
   let categoryId: string;
 
   beforeAll(async () => {
@@ -23,6 +24,11 @@ describe("Recurring Expense Endpoints", () => {
     process.env.NODE_ENV = "test";
     process.env.PORT = "3000";
     process.env.LOG_LEVEL = "error";
+    // Argon2 mínimo: o cadastro do beforeAll faz hash, e o custo de produção só deixaria o teste lento.
+    process.env.ARGON2_MEMORY_KIB = "1024";
+    process.env.ARGON2_TIME_COST = "1";
+    process.env.ARGON2_PARALLELISM = "1";
+    process.env.AUTH_RATE_LIMIT_REGISTER_PER_IP = "1000";
 
     testDb.push();
     prisma = testDb.client();
@@ -30,15 +36,14 @@ describe("Recurring Expense Endpoints", () => {
     const { createHttpServer } = await import("@src/infrastructure/http/server");
     app = createHttpServer();
 
-    const createUserRes = await request(app).post("/users").send({
-      name: "Recurring User",
-      email: "recurring-user@example.com",
-    });
-    userId = createUserRes.body.id;
+    const createUserRes = await request(app)
+      .post("/auth/register")
+      .send({ name: "Recurring User", email: "recurring-user@example.com", password: PASSWORD });
+    accessToken = createUserRes.body.accessToken;
 
     const categoryRes = await request(app)
       .post("/expenses/categories")
-      .set({ "X-User-Id": userId })
+      .set(authHeaders())
       .send({ name: "Moradia" });
     categoryId = categoryRes.body.id;
   });
@@ -54,19 +59,16 @@ describe("Recurring Expense Endpoints", () => {
     await prisma.recurringExpense.deleteMany();
   });
 
-  const authHeaders = () => ({ "X-User-Id": userId });
+  const authHeaders = () => ({ Authorization: `Bearer ${accessToken}` });
 
   it("should create, list, get, update, terminate, and delete a recurring expense", async () => {
-    const createRes = await request(app)
-      .post("/expenses/recurring")
-      .set(authHeaders())
-      .send({
-        description: "Aluguel",
-        amount: 2000,
-        categoryId,
-        startYear: 2026,
-        startMonth: 4,
-      });
+    const createRes = await request(app).post("/expenses/recurring").set(authHeaders()).send({
+      description: "Aluguel",
+      amount: 2000,
+      categoryId,
+      startYear: 2026,
+      startMonth: 4,
+    });
     expect(createRes.status).toBe(201);
     expect(createRes.body.currentVersion.description).toBe("Aluguel");
     expect(createRes.body.versions).toHaveLength(1);
@@ -129,16 +131,13 @@ describe("Recurring Expense Endpoints", () => {
   });
 
   it("should keep currentVersion on the version in effect when a future version exists", async () => {
-    const createRes = await request(app)
-      .post("/expenses/recurring")
-      .set(authHeaders())
-      .send({
-        description: "Academia",
-        amount: 120,
-        categoryId,
-        startYear: 2026,
-        startMonth: 3,
-      });
+    const createRes = await request(app).post("/expenses/recurring").set(authHeaders()).send({
+      description: "Academia",
+      amount: 120,
+      categoryId,
+      startYear: 2026,
+      startMonth: 3,
+    });
     expect(createRes.status).toBe(201);
 
     const updateRes = await request(app)
@@ -159,32 +158,26 @@ describe("Recurring Expense Endpoints", () => {
   });
 
   it("should return 409 when creating recurring expense in past competence", async () => {
-    const res = await request(app)
-      .post("/expenses/recurring")
-      .set(authHeaders())
-      .send({
-        description: "Seguro",
-        amount: 300,
-        categoryId,
-        startYear: 2026,
-        startMonth: 2,
-      });
+    const res = await request(app).post("/expenses/recurring").set(authHeaders()).send({
+      description: "Seguro",
+      amount: 300,
+      categoryId,
+      startYear: 2026,
+      startMonth: 2,
+    });
 
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("PAST_COMPETENCE");
   });
 
   it("should return 409 when updating with past effective competence", async () => {
-    const createRes = await request(app)
-      .post("/expenses/recurring")
-      .set(authHeaders())
-      .send({
-        description: "Academia",
-        amount: 150,
-        categoryId,
-        startYear: 2026,
-        startMonth: 4,
-      });
+    const createRes = await request(app).post("/expenses/recurring").set(authHeaders()).send({
+      description: "Academia",
+      amount: 150,
+      categoryId,
+      startYear: 2026,
+      startMonth: 4,
+    });
 
     const res = await request(app)
       .patch(`/expenses/recurring/${createRes.body.id}`)
@@ -200,16 +193,13 @@ describe("Recurring Expense Endpoints", () => {
   });
 
   it("should return 409 when terminating with end date before start", async () => {
-    const createRes = await request(app)
-      .post("/expenses/recurring")
-      .set(authHeaders())
-      .send({
-        description: "Internet",
-        amount: 120,
-        categoryId,
-        startYear: 2026,
-        startMonth: 4,
-      });
+    const createRes = await request(app).post("/expenses/recurring").set(authHeaders()).send({
+      description: "Internet",
+      amount: 120,
+      categoryId,
+      startYear: 2026,
+      startMonth: 4,
+    });
 
     const res = await request(app)
       .patch(`/expenses/recurring/${createRes.body.id}/terminate`)
@@ -221,28 +211,24 @@ describe("Recurring Expense Endpoints", () => {
   });
 
   it("should return 404 when accessing recurring expense from another user", async () => {
-    const otherUserRes = await request(app).post("/users").send({
-      name: "Other User",
-      email: "other-recurring@example.com",
-    });
-    const otherUserId = otherUserRes.body.id;
+    const otherUserRes = await request(app)
+      .post("/auth/register")
+      .send({ name: "Other User", email: "other-recurring@example.com", password: PASSWORD });
+    const otherAuth = { Authorization: `Bearer ${otherUserRes.body.accessToken}` };
 
     const otherCategoryRes = await request(app)
       .post("/expenses/categories")
-      .set({ "X-User-Id": otherUserId })
+      .set(otherAuth)
       .send({ name: "Transporte" });
     const otherCategoryId = otherCategoryRes.body.id;
 
-    const otherExpenseRes = await request(app)
-      .post("/expenses/recurring")
-      .set({ "X-User-Id": otherUserId })
-      .send({
-        description: "Carro",
-        amount: 800,
-        categoryId: otherCategoryId,
-        startYear: 2026,
-        startMonth: 4,
-      });
+    const otherExpenseRes = await request(app).post("/expenses/recurring").set(otherAuth).send({
+      description: "Carro",
+      amount: 800,
+      categoryId: otherCategoryId,
+      startYear: 2026,
+      startMonth: 4,
+    });
 
     const res = await request(app)
       .get(`/expenses/recurring/${otherExpenseRes.body.id}`)

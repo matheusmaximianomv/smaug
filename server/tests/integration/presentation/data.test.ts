@@ -5,6 +5,7 @@ import type { Express } from "express";
 import { sqliteTestDatabase } from "../../helpers/sqlite-test-database";
 
 const testDb = sqliteTestDatabase("data");
+const PASSWORD = "correct-horse-battery-staple";
 const BOM = "﻿";
 const HEADER =
   "competencia;natureza;categoria;descricao;valor;tipo;parcela;total_parcelas;serie_id;observacao";
@@ -21,7 +22,7 @@ const competence = (year: number, month: number): string =>
 describe("Data Endpoints", () => {
   let prisma: PrismaClient;
   let app: Express;
-  let userId: string;
+  let accessToken: string;
 
   beforeAll(async () => {
     vi.resetModules();
@@ -31,6 +32,11 @@ describe("Data Endpoints", () => {
     process.env.NODE_ENV = "test";
     process.env.PORT = "3000";
     process.env.LOG_LEVEL = "error";
+    // Argon2 mínimo: o cadastro do beforeAll faz hash, e o custo de produção só deixaria o teste lento.
+    process.env.ARGON2_MEMORY_KIB = "1024";
+    process.env.ARGON2_TIME_COST = "1";
+    process.env.ARGON2_PARALLELISM = "1";
+    process.env.AUTH_RATE_LIMIT_REGISTER_PER_IP = "1000";
 
     testDb.push();
     prisma = testDb.client();
@@ -39,9 +45,9 @@ describe("Data Endpoints", () => {
     app = createHttpServer();
 
     const createUserRes = await request(app)
-      .post("/users")
-      .send({ name: "Data User", email: "data-user@example.com" });
-    userId = createUserRes.body.id;
+      .post("/auth/register")
+      .send({ name: "Data User", email: "data-user@example.com", password: PASSWORD });
+    accessToken = createUserRes.body.accessToken;
   });
 
   afterAll(async () => {
@@ -61,7 +67,7 @@ describe("Data Endpoints", () => {
     await prisma.oneTimeRevenue.deleteMany();
   });
 
-  const authHeaders = () => ({ "X-User-Id": userId });
+  const authHeaders = () => ({ Authorization: `Bearer ${accessToken}` });
 
   const periodQuery = (year = YEAR, month = MONTH) =>
     `mode=period&startYear=${year}&startMonth=${month}&endYear=${year}&endMonth=${month}`;
@@ -149,26 +155,20 @@ describe("Data Endpoints", () => {
 
     it("should be byte-identical across two exports of the same period", async () => {
       const categoryId = await seedCategory("Transporte");
-      await request(app)
-        .post("/expenses/one-time")
-        .set(authHeaders())
-        .send({
-          categoryId,
-          description: "Estacionamento",
-          amount: 3.5,
-          competenceMonth: MONTH,
-          competenceYear: YEAR,
-        });
-      await request(app)
-        .post("/expenses/one-time")
-        .set(authHeaders())
-        .send({
-          categoryId,
-          description: "Estacionamento",
-          amount: 3.5,
-          competenceMonth: MONTH,
-          competenceYear: YEAR,
-        });
+      await request(app).post("/expenses/one-time").set(authHeaders()).send({
+        categoryId,
+        description: "Estacionamento",
+        amount: 3.5,
+        competenceMonth: MONTH,
+        competenceYear: YEAR,
+      });
+      await request(app).post("/expenses/one-time").set(authHeaders()).send({
+        categoryId,
+        description: "Estacionamento",
+        amount: 3.5,
+        competenceMonth: MONTH,
+        competenceYear: YEAR,
+      });
 
       const first = await request(app).get(`/data/export?${periodQuery()}`).set(authHeaders());
       const second = await request(app).get(`/data/export?${periodQuery()}`).set(authHeaders());
@@ -223,15 +223,12 @@ describe("Data Endpoints", () => {
     });
 
     it("should export the whole base in full mode", async () => {
-      await request(app)
-        .post("/revenues/one-time")
-        .set(authHeaders())
-        .send({
-          description: "Bônus",
-          amount: 100,
-          competenceMonth: NEXT.month,
-          competenceYear: NEXT.year,
-        });
+      await request(app).post("/revenues/one-time").set(authHeaders()).send({
+        description: "Bônus",
+        amount: 100,
+        competenceMonth: NEXT.month,
+        competenceYear: NEXT.year,
+      });
 
       const res = await request(app).get("/data/export?mode=full").set(authHeaders()).expect(200);
 
@@ -248,16 +245,13 @@ describe("Data Endpoints", () => {
         .post("/revenues/one-time")
         .set(authHeaders())
         .send({ description: "Bônus", amount: 100, competenceMonth: MONTH, competenceYear: YEAR });
-      await request(app)
-        .post("/expenses/one-time")
-        .set(authHeaders())
-        .send({
-          categoryId,
-          description: "Luz",
-          amount: 90,
-          competenceMonth: MONTH,
-          competenceYear: YEAR,
-        });
+      await request(app).post("/expenses/one-time").set(authHeaders()).send({
+        categoryId,
+        description: "Luz",
+        amount: 90,
+        competenceMonth: MONTH,
+        competenceYear: YEAR,
+      });
 
       const res = await request(app)
         .get(`/data/export/summary?${periodQuery()}`)
@@ -423,16 +417,13 @@ describe("Data Endpoints", () => {
   describe("round-trip", () => {
     it("should duplicate everything when the exported file is imported back", async () => {
       const categoryId = await seedCategory("Alimentação");
-      await request(app)
-        .post("/expenses/one-time")
-        .set(authHeaders())
-        .send({
-          categoryId,
-          description: "Supermercado",
-          amount: 320.5,
-          competenceMonth: MONTH,
-          competenceYear: YEAR,
-        });
+      await request(app).post("/expenses/one-time").set(authHeaders()).send({
+        categoryId,
+        description: "Supermercado",
+        amount: 320.5,
+        competenceMonth: MONTH,
+        competenceYear: YEAR,
+      });
 
       const exported = await request(app).get(`/data/export?${periodQuery()}`).set(authHeaders());
 
@@ -478,16 +469,13 @@ describe("Data Endpoints", () => {
 
     it("should reuse the categories of the file instead of duplicating them", async () => {
       const categoryId = await seedCategory("Alimentação");
-      await request(app)
-        .post("/expenses/one-time")
-        .set(authHeaders())
-        .send({
-          categoryId,
-          description: "Supermercado",
-          amount: 320.5,
-          competenceMonth: MONTH,
-          competenceYear: YEAR,
-        });
+      await request(app).post("/expenses/one-time").set(authHeaders()).send({
+        categoryId,
+        description: "Supermercado",
+        amount: 320.5,
+        competenceMonth: MONTH,
+        competenceYear: YEAR,
+      });
 
       const exported = await request(app).get(`/data/export?${periodQuery()}`).set(authHeaders());
       await request(app)

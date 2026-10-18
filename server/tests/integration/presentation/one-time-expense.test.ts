@@ -5,11 +5,13 @@ import type { Express } from "express";
 import { sqliteTestDatabase } from "../../helpers/sqlite-test-database";
 
 const testDb = sqliteTestDatabase("one-time-expense");
+const PASSWORD = "correct-horse-battery-staple";
 
 describe("One-Time Expense Endpoints", () => {
   let prisma: PrismaClient;
   let app: Express;
   let userId: string;
+  let accessToken: string;
   let categoryId: string;
 
   beforeAll(async () => {
@@ -20,6 +22,11 @@ describe("One-Time Expense Endpoints", () => {
     process.env.NODE_ENV = "test";
     process.env.PORT = "3000";
     process.env.LOG_LEVEL = "error";
+    // Argon2 mínimo: o cadastro do beforeAll faz hash, e o custo de produção só deixaria o teste lento.
+    process.env.ARGON2_MEMORY_KIB = "1024";
+    process.env.ARGON2_TIME_COST = "1";
+    process.env.ARGON2_PARALLELISM = "1";
+    process.env.AUTH_RATE_LIMIT_REGISTER_PER_IP = "1000";
 
     testDb.push();
     prisma = testDb.client();
@@ -27,13 +34,13 @@ describe("One-Time Expense Endpoints", () => {
     const { createHttpServer } = await import("@src/infrastructure/http/server");
     app = createHttpServer();
 
-    const createUserRes = await request(app).post("/users").send({
-      name: "Test User",
-      email: "test-user-expense@example.com",
-    });
-    userId = createUserRes.body.id;
+    const createUserRes = await request(app)
+      .post("/auth/register")
+      .send({ name: "Test User", email: "test-user-expense@example.com", password: PASSWORD });
+    userId = createUserRes.body.user.id;
+    accessToken = createUserRes.body.accessToken;
 
-    const categoryRes = await request(app).post("/expenses/categories").set({ "X-User-Id": userId }).send({
+    const categoryRes = await request(app).post("/expenses/categories").set(authHeaders()).send({
       name: "Alimentação",
     });
     categoryId = categoryRes.body.id;
@@ -48,7 +55,7 @@ describe("One-Time Expense Endpoints", () => {
     await prisma.oneTimeExpense.deleteMany();
   });
 
-  const authHeaders = () => ({ "X-User-Id": userId });
+  const authHeaders = () => ({ Authorization: `Bearer ${accessToken}` });
 
   const futureCompetence = (monthsAhead: number) => {
     // UTC, como MonthlyCompetence.isPastMonth(): em hora local o teste quebra na virada do mês.
@@ -127,36 +134,32 @@ describe("One-Time Expense Endpoints", () => {
   });
 
   it("should return 409 when creating an expense for past competence", async () => {
-    const res = await request(app)
-      .post("/expenses/one-time")
-      .set(authHeaders())
-      .send({
-        description: "Compra",
-        amount: 100,
-        competenceYear: 2025,
-        competenceMonth: 1,
-        categoryId,
-      });
+    const res = await request(app).post("/expenses/one-time").set(authHeaders()).send({
+      description: "Compra",
+      amount: 100,
+      competenceYear: 2025,
+      competenceMonth: 1,
+      categoryId,
+    });
 
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("PAST_COMPETENCE");
   });
 
   it("should return 404 when updating expense from another user", async () => {
-    const otherUserRes = await request(app).post("/users").send({
-      name: "Other User",
-      email: "other-user-expense@example.com",
-    });
-    const otherUserId = otherUserRes.body.id;
+    const otherUserRes = await request(app)
+      .post("/auth/register")
+      .send({ name: "Other User", email: "other-user-expense@example.com", password: PASSWORD });
+    const otherAuth = { Authorization: `Bearer ${otherUserRes.body.accessToken}` };
 
-    const otherCategoryRes = await request(app).post("/expenses/categories").set({ "X-User-Id": otherUserId }).send({
+    const otherCategoryRes = await request(app).post("/expenses/categories").set(otherAuth).send({
       name: "Transporte",
     });
     const otherCategoryId = otherCategoryRes.body.id;
 
     const otherExpenseRes = await request(app)
       .post("/expenses/one-time")
-      .set({ "X-User-Id": otherUserId })
+      .set(otherAuth)
       .send({
         description: "Uber",
         amount: 60,
