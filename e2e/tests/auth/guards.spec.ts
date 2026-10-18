@@ -64,7 +64,7 @@ test.describe("guardas de rota", () => {
     test.use({ authenticate: false });
 
     /**
-     * O middleware só checa a PRESENÇA do cookie — quem recusa o valor é a API
+     * O proxy só checa a PRESENÇA do cookie — quem recusa o valor é a API
      * (`extractUser` exige UUID). O 401 dispara o interceptor, que limpa a
      * sessão e chama `redirectToLogin`.
      */
@@ -86,7 +86,7 @@ test.describe("guardas de rota", () => {
     /**
      * UUID bem formado mas inexistente: `getUserById` devolve 404,
      * `isInvalidSessionError` reconhece e `clearUserId()` apaga o cookie. Sem
-     * cookie, a próxima navegação já é barrada pelo middleware.
+     * cookie, a próxima navegação já é barrada pelo proxy.
      */
     test("cookie com UUID inexistente limpa a sessão e a rota volta a ser barrada", async ({
       page,

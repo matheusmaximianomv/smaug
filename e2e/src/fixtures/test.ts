@@ -7,7 +7,7 @@ import type { UserDto } from "../api/types.js";
 import { competenceKit, type CompetenceKit } from "../support/competence.js";
 
 interface Options {
-  /** `false` para os testes de guarda do middleware. */
+  /** `false` para os testes de guarda do proxy. */
   authenticate: boolean;
 }
 
@@ -53,7 +53,7 @@ export const test = base.extend<Options & Fixtures>({
     await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort());
 
     if (authenticate) {
-      // Mesmo cookie que middleware.ts lê no servidor e session.ts lê no cliente.
+      // Mesmo cookie que proxy.ts lê no servidor e session.ts lê no cliente.
       // httpOnly:false é obrigatório — infra/session.ts acessa document.cookie.
       // domain+path (e não `url`): o Playwright recusa os dois juntos, e este é
       // exatamente o par que session.ts grava (path=/, SameSite=Lax).

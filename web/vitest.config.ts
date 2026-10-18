@@ -26,7 +26,7 @@ export default defineConfig({
     include: [
       "{app,features,infra,shared}/**/*.test.{ts,tsx}",
       "tests/**/*.test.{ts,tsx}",
-      "middleware.test.ts",
+      "proxy.test.ts",
     ],
     exclude: ["node_modules/**", ".next/**", "out/**", "coverage/**"],
     // Aplicado no worker ANTES de qualquer módulo de teste carregar.
@@ -47,20 +47,20 @@ export default defineConfig({
         "features/**/*.{ts,tsx}",
         "infra/**/*.ts",
         "shared/**/*.{ts,tsx}",
-        "middleware.ts",
+        "proxy.ts",
       ],
       exclude: [
         "**/*.test.{ts,tsx}",
         "**/types/index.ts",
         "app/layout.tsx", // RSC shell: <html>/<body>/fontes
-        "app/page.tsx", // RSC: um único redirect("/login"), coberto pelo middleware
+        "app/page.tsx", // RSC: um único redirect("/login"), coberto pelo proxy
         "app/providers.tsx", // monta o singleton de produção + devtools
         "next.config.ts",
         "tailwind.config.ts",
       ],
       // `thresholds` entra por fase junto com os testes (catraca), para que
       // `test:coverage` fique verde em todo commit. Alvos finais:
-      //   100% em shared/lib, infra, middleware.ts, shared/hooks, */services
+      //   100% em shared/lib, infra, proxy.ts, shared/hooks, */services
       //   100/95/100/100 em features/*/hooks
       //   piso global 90/85/90/90
       thresholds: {
@@ -74,7 +74,7 @@ export default defineConfig({
         // Tudo abaixo está em 100% nas quatro métricas e deve permanecer.
         "shared/lib/**": { lines: 100, functions: 100, branches: 100, statements: 100 },
         "infra/**": { lines: 100, functions: 100, branches: 100, statements: 100 },
-        "middleware.ts": { lines: 100, functions: 100, branches: 100, statements: 100 },
+        "proxy.ts": { lines: 100, functions: 100, branches: 100, statements: 100 },
         "shared/hooks/**": { lines: 100, functions: 100, branches: 100, statements: 100 },
         "shared/components/**": { lines: 100, functions: 100, branches: 100, statements: 100 },
         "features/*/services/**": { lines: 100, functions: 100, branches: 100, statements: 100 },

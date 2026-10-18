@@ -48,7 +48,7 @@ export function setMatchMedia(matches: boolean): void {
 }
 
 /**
- * Alguns arquivos declaram `@vitest-environment node` (middleware, guards de
+ * Alguns arquivos declaram `@vitest-environment node` (proxy, guards de
  * `typeof document === "undefined"`). Este setup roda para eles também, então
  * tudo que depende do DOM fica atrás deste guard.
  */

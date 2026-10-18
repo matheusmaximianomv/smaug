@@ -14,7 +14,7 @@ export function resetFixtureIds(): void {
   seq = 0;
 }
 
-/** UUID v4 válido e estável — o middleware e a API exigem formato UUID. */
+/** UUID v4 válido e estável — o proxy e a API exigem formato UUID. */
 export function fixtureUuid(n = 1): string {
   const tail = String(n).padStart(12, "0");
   return `00000000-0000-4000-8000-${tail}`;

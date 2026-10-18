@@ -2,7 +2,7 @@
  * @vitest-environment node
  *
  * Cobre os três guards `typeof document === "undefined"` de `session.ts`, que são
- * inalcançáveis no ambiente jsdom. No servidor (RSC, middleware) o módulo precisa
+ * inalcançáveis no ambiente jsdom. No servidor (RSC, proxy) o módulo precisa
  * degradar silenciosamente em vez de lançar.
  */
 import { describe, expect, it } from "vitest";
