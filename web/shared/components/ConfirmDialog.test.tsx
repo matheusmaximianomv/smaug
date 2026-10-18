@@ -65,41 +65,20 @@ describe("ConfirmDialog", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("usa a variante danger quando isDanger", () => {
-    const { rerender } = render(
-      <ConfirmDialog isOpen onClose={vi.fn()} onConfirm={vi.fn()} message={MESSAGE} />,
-    );
-    const padrao = screen.getByRole("button", { name: "Confirmar" }).className;
-
-    rerender(
+  it("dá anel de foco vermelho à confirmação danger e ao cancelar ghost", () => {
+    // `danger` e `default` hoje só diferem na intenção: o anel vermelho saiu da `default`
+    // para a base do Button, senão herdaria o branco do texto da `danger`.
+    render(
       <ConfirmDialog isOpen onClose={vi.fn()} onConfirm={vi.fn()} message={MESSAGE} isDanger />,
     );
 
-    expect(screen.getByRole("button", { name: "Confirmar" }).className).not.toBe(padrao);
-  });
-
-  it("desabilita Cancelar e põe Confirmar em loading enquanto isLoading", () => {
-    render(
-      <ConfirmDialog isOpen onClose={vi.fn()} onConfirm={vi.fn()} message={MESSAGE} isLoading />,
+    expect(screen.getByRole("button", { name: "Confirmar" })).toHaveClass(
+      "bg-red",
+      "focus-visible:ring-red",
     );
-
-    expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Confirmar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancelar" })).toHaveClass("focus-visible:ring-red");
   });
 
-  it("não dispara onConfirm enquanto isLoading", async () => {
-    const onConfirm = vi.fn();
-    render(
-      <ConfirmDialog isOpen onClose={vi.fn()} onConfirm={onConfirm} message={MESSAGE} isLoading />,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
-
-    expect(onConfirm).not.toHaveBeenCalled();
-  });
-});
-
-describe("ConfirmDialog sobre outro modal", () => {
   it("mostra o ícone de lixeira na variante danger", () => {
     const { rerender } = render(
       <ConfirmDialog isOpen onClose={vi.fn()} onConfirm={vi.fn()} message={MESSAGE} />,

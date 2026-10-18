@@ -69,4 +69,14 @@
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+  /*
+   * Controles crus (links da navegação, setas do mês, "Fechar") não declaram foco
+   * próprio e ficavam com o anel padrão do navegador, fora da cor do produto. Quem
+   * declara (`focus-visible:outline-hidden` + `ring-red`, o contorno das linhas)
+   * vence esta base, que está numa camada abaixo das utilidades.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-red);
+    outline-offset: 2px;
+  }
 }
